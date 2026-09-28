@@ -4,22 +4,12 @@ import { authConfig } from "@/lib/auth.config";
 import { findRouteRule } from "@/config/route-permissions";
 import { hasAnyCapability } from "@/lib/permissions/resolve";
 
-// Separate, edge-safe NextAuth instance built from the shared config
-// (see auth.config.ts for why this isn't just `import { auth } from
-// "@/lib/auth"`).
 const { auth } = NextAuth(authConfig);
 
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
-    // Next.js injects its own hydration/RSC bootstrap scripts inline with
-    // no way to opt them into 'self'; a nonce (which Next.js automatically
-    // attaches to the scripts/styles it controls once it sees one in this
-    // header) lets us allow exactly those without 'unsafe-inline'.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
-    // Inline `style="..."` attributes (used throughout for small dynamic
-    // values like status-pill widths) aren't covered by a script nonce —
-    // CSP has no attribute-level nonce mechanism, only 'unsafe-inline'.
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data: https://tr.rbxcdn.com https://t0.rbxcdn.com https://t1.rbxcdn.com https://t2.rbxcdn.com https://t3.rbxcdn.com https://t4.rbxcdn.com https://t5.rbxcdn.com https://t6.rbxcdn.com https://t7.rbxcdn.com",

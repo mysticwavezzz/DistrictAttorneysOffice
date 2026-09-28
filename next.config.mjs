@@ -1,7 +1,3 @@
-// Content-Security-Policy is set per-request in middleware.ts instead of
-// here, because a secure script-src needs a fresh nonce on every request
-// (see middleware.ts for why) — that can't be expressed as a static
-// header. Everything else that doesn't vary per-request lives here.
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -14,7 +10,6 @@ const securityHeaders = [
   },
 ];
 
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,

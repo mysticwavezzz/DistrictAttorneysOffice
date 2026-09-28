@@ -3,13 +3,6 @@ import { authConfig } from "./auth.config";
 import { prisma } from "./prisma";
 import type { RobloxOAuthProfile } from "./roblox/provider";
 
-/**
- * Full, Node-runtime Auth.js instance used by the `/api/auth/*` route
- * handlers and by server components/actions that call `auth()`. Layers a
- * local-user upsert on top of the shared edge-safe config so every
- * successful Roblox sign-in has a durable `User` row to hang
- * `Case.assignedAttorneyId` / `Case.createdById` off of later.
- */
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   callbacks: {

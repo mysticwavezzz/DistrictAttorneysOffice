@@ -1,8 +1,3 @@
-/**
- * Fine-grained actions the app can gate. Pages/components/API routes check
- * capabilities, not tiers directly — this is what lets a tier's access
- * change (or a brand-new tier be introduced) by editing `tiers.ts` alone.
- */
 export const CAPABILITIES = {
   DASHBOARD_VIEW: "dashboard:view",
   CASES_VIEW: "cases:view",

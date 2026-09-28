@@ -1,15 +1,3 @@
-/* ======================================================================
- * Gov-bureau design system
- *
- * Adapted from the rocounty ecosystem's existing public-site CSS (the
- * "Harrison County" style already in use on other county pages) so this
- * DA's-office site reads as part of the same family rather than a
- * one-off. Layout skeleton, component names, and color tokens are kept
- * as close to that source as the content here allows; a few
- * data-release-specific components (chart/sparkline/compare-period
- * pickers) were left out since nothing on this site needs them.
- * ==================================================================== */
-
 :root {
   color-scheme: light;
   --navy: #39518d;
@@ -97,7 +85,6 @@ img {
   border-right: 1px solid var(--bd);
 }
 
-/* Utility bar (top strip: office breadcrumb + text size controls) */
 
 .util {
   background: var(--navy-dk);
@@ -231,7 +218,6 @@ img {
   line-height: 1.5;
 }
 
-/* Masthead */
 
 .masthead {
   display: flex;
@@ -245,20 +231,17 @@ img {
 .seal {
   display: block;
   width: 72px;
-  height: 72px;
   flex: none;
-  color: var(--navy-dk);
 }
 
-.seal svg {
+.seal img {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
 }
 
 .seal-sm {
   width: 34px;
-  height: 34px;
 }
 
 .lockup {
@@ -305,7 +288,6 @@ img {
   );
 }
 
-/* Nav */
 
 .nav {
   background: linear-gradient(180deg, var(--navy-lt) 0%, var(--navy) 45%, var(--navy-dk) 100%);
@@ -366,7 +348,6 @@ img {
   padding: 5px var(--pad);
 }
 
-/* Body: sidebar + main content */
 
 .body {
   display: flex;
@@ -432,7 +413,6 @@ img {
   text-decoration: underline;
 }
 
-/* Typography */
 
 h1 {
   font: normal 26px/1.2 var(--serif);
@@ -511,7 +491,6 @@ p {
   color: var(--ink-soft);
 }
 
-/* Official-letter disclosure box (used for press releases) */
 
 .letter {
   border: 1px solid var(--bd);
@@ -541,7 +520,6 @@ p {
   float: right;
   margin: 0 0 8px 12px;
   width: 60px;
-  height: 60px;
 }
 
 .letter-head {
@@ -578,7 +556,6 @@ p {
   cursor: pointer;
 }
 
-/* At-a-glance info cards */
 
 .cards {
   display: flex;
@@ -618,7 +595,6 @@ p {
   color: var(--ink-soft);
 }
 
-/* Status pills (generic — reused for case status in the staff dashboard) */
 
 .pill {
   display: inline-block;
@@ -660,7 +636,6 @@ p {
   background: var(--box-alt);
 }
 
-/* Data tables */
 
 .tablewrap {
   overflow-x: auto;
@@ -733,7 +708,6 @@ table.stat tbody tr:hover {
   margin: 0 0 6px;
 }
 
-/* Form controls (tip submission form) */
 
 .field {
   margin: 0 0 12px;
@@ -825,7 +799,6 @@ table.stat tbody tr:hover {
   color: var(--up);
 }
 
-/* Footer */
 
 .foot {
   background: var(--box-alt);
@@ -930,7 +903,6 @@ table.stat tbody tr:hover {
 
   .seal {
     width: 56px;
-    height: 56px;
   }
 
   h1 {
@@ -991,10 +963,6 @@ table.stat tbody tr:hover {
 ::selection {
   background: rgba(212, 175, 55, 0.3);
 }
-
-/* Staff dashboard shell — same tokens/components as the public site
- * (table.stat, .pill, .card) so the authenticated area reads as part of
- * the same product instead of a bolted-on admin panel. */
 
 .dash-shell {
   min-height: 100vh;

@@ -12,11 +12,6 @@ export default async function DashboardLayout({
 }) {
   const session = await auth();
 
-  // Defense in depth: middleware.ts already gates everything under
-  // /dashboard, but every protected layout re-checks auth server-side too.
-  // That way a middleware misconfiguration (or a future route added
-  // outside the middleware matcher) can never silently become an
-  // access-control hole.
   if (!session?.user?.robloxUserId) {
     redirect("/login?callbackUrl=/dashboard");
   }

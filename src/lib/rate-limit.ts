@@ -3,16 +3,6 @@ interface Bucket {
   resetAt: number;
 }
 
-/**
- * Minimal in-memory sliding-window-ish rate limiter, keyed by caller.
- *
- * This is process-local: it resets on redeploy/restart and isn't shared
- * across multiple server instances or serverless invocations. That's fine
- * for a single Node server, but if this app is deployed behind multiple
- * instances/regions, replace this with a shared store (e.g. Upstash
- * Redis) — the call sites (`checkRateLimit(key, opts)`) don't need to
- * change, only this implementation.
- */
 const buckets = new Map<string, Bucket>();
 
 const MAX_TRACKED_KEYS = 10_000;

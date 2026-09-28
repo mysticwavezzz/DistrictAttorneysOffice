@@ -32,11 +32,7 @@ export default async function LoginPage({
   const session = await auth();
   const callbackUrl = searchParams.callbackUrl ?? "/dashboard";
 
-  // Only auto-redirect an already-signed-in user when there's no error to
-  // show. Without this check, a signed-in user who lacks the permission
-  // tier for `callbackUrl` loops forever: middleware sends them to
-  // /login?error=forbidden, which would otherwise immediately redirect
-  // them right back to the page middleware just rejected them from.
+  // avoid redirect loop: don't bounce back to callbackUrl if that's exactly what got them sent here
   if (session?.user?.robloxUserId && !searchParams.error) {
     redirect(callbackUrl);
   }
@@ -45,10 +41,6 @@ export default async function LoginPage({
     ? ERROR_MESSAGES[searchParams.error] ?? ERROR_MESSAGES.Default
     : null;
 
-  // Reachable only via the loop-guard above: signed in, but rejected by
-  // middleware for lacking the required role. Re-showing "Sign in with
-  // Roblox" here would just re-auth the same account into the same
-  // rejection, so offer signing out (to try a different account) instead.
   const isSignedInButForbidden = Boolean(session?.user?.robloxUserId) && Boolean(searchParams.error);
 
   return (

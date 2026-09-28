@@ -1,10 +1,3 @@
-/**
- * Case status is stored as a plain string column (see prisma/schema.prisma)
- * rather than a native Prisma enum, because SQLite — the local dev
- * database — doesn't support enum columns. This is the single source of
- * truth for the allowed values; switching the production DATABASE_URL to
- * Postgres later does not require touching this.
- */
 export const CASE_STATUSES = [
   "OPEN",
   "UNDER_REVIEW",

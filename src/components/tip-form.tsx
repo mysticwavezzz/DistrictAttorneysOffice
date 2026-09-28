@@ -90,8 +90,6 @@ export function TipForm() {
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="formbox" noValidate>
-      {/* Honeypot: hidden from sighted users and excluded from the tab
-          order; a filled value marks the submission as automated. */}
       <div style={{ position: "absolute", left: "-9999px" }} aria-hidden="true">
         <label htmlFor="website">Leave this field blank</label>
         <input type="text" id="website" name="website" tabIndex={-1} autoComplete="off" />

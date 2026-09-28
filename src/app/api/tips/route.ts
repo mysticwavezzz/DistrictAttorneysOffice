@@ -11,14 +11,9 @@ function getClientIp(req: NextRequest): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-// Browsers attach a same-site Origin to fetch()/XHR POSTs and can't be
-// scripted to forge it, so this reliably blocks a cross-site page from
-// submitting this form through a victim's browser (the JSON content type
-// already forces a CORS preflight, but that only stops it if the browser
-// honors it — this doesn't depend on that).
 function isSameOriginRequest(req: NextRequest): boolean {
   const origin = req.headers.get("origin");
-  if (!origin) return true; // same-origin requests, curl, server-to-server: no Origin header
+  if (!origin) return true;
   return origin === req.nextUrl.origin;
 }
 
@@ -53,9 +48,6 @@ export async function POST(req: NextRequest) {
 
   const { website, renderedAt, ...tip } = parsed.data;
 
-  // Honeypot tripped or submitted too fast to be a human: report success
-  // without doing anything, so automated submitters get no signal that
-  // they were filtered.
   const submittedTooFast = Date.now() - renderedAt < MIN_HUMAN_FILL_TIME_MS;
   if (website || submittedTooFast) {
     return NextResponse.json({ success: true });
@@ -93,9 +85,6 @@ export async function POST(req: NextRequest) {
       body: formData.toString(),
     });
 
-    // Google's formResponse endpoint returns a 200 HTML page on success and
-    // does not expose a structured success/failure code; treat a server
-    // error status as the only reliable failure signal.
     if (res.status >= 500) {
       throw new Error(`Google Forms responded with status ${res.status}`);
     }

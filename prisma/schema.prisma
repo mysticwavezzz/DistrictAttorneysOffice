@@ -3,19 +3,9 @@ generator client {
 }
 
 datasource db {
-  // SQLite for local development. Point DATABASE_URL at Postgres/MySQL in
-  // production (see .env.example) — Prisma's migration files are additive
-  // per-provider, so switching providers is a deliberate, documented step,
-  // not a silent surprise.
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
-
-// --- Auth.js (NextAuth) adapter models -------------------------------
-// Standard shape required by @auth/prisma-adapter. Session strategy is
-// JWT (see src/lib/auth.ts), so the Session table is unused today but is
-// kept so switching to database sessions later is a config change, not a
-// migration.
 
 model User {
   id            String    @id @default(cuid())
@@ -68,15 +58,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// --- Domain models -----------------------------------------------------
-
-// Scaffold for the attorney dashboard's case list. Deliberately minimal —
-// this is here so the dashboard reads real data instead of mocks, without
-// committing to a full case-management schema up front.
-//
-// `status` is a plain String, not a Prisma enum: SQLite (the local dev
-// database) doesn't support enum columns. The allowed values live in
-// src/lib/case-status.ts and are enforced at the application layer.
 model Case {
   id                 String   @id @default(cuid())
   caseNumber         String   @unique
@@ -94,7 +75,6 @@ model Case {
   @@index([status])
 }
 
-// Public announcements / press releases shown on the home page.
 model Announcement {
   id          String   @id @default(cuid())
   title       String

@@ -1,11 +1,5 @@
 import { CAPABILITIES, type Capability } from "./capabilities";
 
-/**
- * Every recognized permission tier. Adding a new tier is a three-step,
- * additive change: add the id here, add its definition below, and add a
- * role-matching rule in `src/config/role-mappings.ts`. No other file in
- * the auth/permission/middleware chain needs to change.
- */
 export const PERMISSION_TIERS = {
   LAW_ENFORCEMENT: "law_enforcement",
   GOVERNMENT: "government",
@@ -19,7 +13,6 @@ export type PermissionTier = (typeof PERMISSION_TIERS)[keyof typeof PERMISSION_T
 export interface TierDefinition {
   id: PermissionTier;
   label: string;
-  /** Short description shown in staff-facing UI (e.g. account menu). */
   description: string;
   capabilities: Capability[];
 }

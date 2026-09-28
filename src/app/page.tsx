@@ -14,8 +14,6 @@ async function getPublishedAnnouncements(): Promise<AnnouncementListItem[]> {
       take: 6,
     });
   } catch (error) {
-    // Public home page must render even if the database is unreachable
-    // (e.g. before migrations have been run in a fresh environment).
     console.error("Failed to load announcements", error);
     return [];
   }

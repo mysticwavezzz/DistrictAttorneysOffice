@@ -32,12 +32,6 @@ export class RobloxApiError extends Error {
   }
 }
 
-/**
- * Looks up every group a Roblox user belongs to, and their role in each.
- * This is Roblox's public Groups API (no auth required) — group role data
- * is public regardless of the user's own privacy settings, so this works
- * for any signed-in user without extra OAuth scopes.
- */
 export async function fetchRobloxGroupRoles(
   robloxUserId: string
 ): Promise<RobloxGroupRole[]> {
@@ -47,8 +41,6 @@ export async function fetchRobloxGroupRoles(
     `${GROUPS_API_BASE}/users/${parsedId}/groups/roles`,
     {
       headers: { Accept: "application/json" },
-      // Role changes (promotions/demotions) must take effect promptly for
-      // an access-control decision, so never serve this from cache.
       cache: "no-store",
     }
   );

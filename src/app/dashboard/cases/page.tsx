@@ -13,10 +13,6 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 export default async function CasesPage() {
   const session = await auth();
 
-  // Every DA tier currently gets both dashboard:view and cases:view
-  // together, but this route checks cases:view specifically (not just
-  // "did the layout let you in") so a future tier with dashboard access
-  // but no case access is safe without touching this file.
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) {
     redirect("/login?error=forbidden");
   }

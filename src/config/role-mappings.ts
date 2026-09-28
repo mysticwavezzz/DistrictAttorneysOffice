@@ -20,19 +20,6 @@ const LAW_ENFORCEMENT_GROUP_ID = groupIdFromEnv("ROBLOX_LAW_ENFORCEMENT_GROUP_ID
 const GOVERNMENT_GROUP_ID = groupIdFromEnv("ROBLOX_GOVERNMENT_GROUP_ID");
 const DA_GROUP_ID = groupIdFromEnv("ROBLOX_DA_GROUP_ID");
 
-/**
- * Data-driven mapping from Roblox group roles to internal permission tiers.
- *
- * To add or change a role's access: edit this array (and the matching
- * tier/capabilities in `src/lib/permissions/tiers.ts` if it's a brand-new
- * tier). Nothing in the OAuth callback, middleware, or page guards needs to
- * change — they all consume the resolved tier list, never Roblox group data
- * directly.
- *
- * Group IDs are supplied via env so the mapping can be reconfigured per
- * deployment (staging group vs. production group) without a code change.
- * A mapping is simply omitted if its group ID env var isn't set.
- */
 export const TIER_ROLE_MAPPINGS: TierRoleMapping[] = [
   ...(LAW_ENFORCEMENT_GROUP_ID
     ? [

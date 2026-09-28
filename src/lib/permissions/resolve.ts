@@ -15,11 +15,6 @@ function matcherMatches(matcher: RoleMatcher, roles: RobloxGroupRole[]): boolean
   });
 }
 
-/**
- * Turn a user's live Roblox group roles into the set of internal
- * permission tiers they hold. Pure function of (roles, config) — easy to
- * unit test and safe to call on every sign-in / session refresh.
- */
 export function resolveTiersFromRobloxRoles(
   roles: RobloxGroupRole[]
 ): PermissionTier[] {

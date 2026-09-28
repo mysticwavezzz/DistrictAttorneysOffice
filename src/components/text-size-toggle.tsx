@@ -24,8 +24,7 @@ export function TextSizeToggle() {
         applySize(stored);
       }
     } catch {
-      // localStorage unavailable (private browsing, blocked storage) — the
-      // default medium size still renders correctly without it.
+      // localStorage unavailable — default size still renders fine
     }
   }, []);
 
@@ -35,7 +34,7 @@ export function TextSizeToggle() {
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch {
-      // Best-effort persistence only.
+      // best-effort persistence only
     }
   }
 
