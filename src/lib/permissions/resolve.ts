@@ -1,5 +1,6 @@
 import type { RobloxGroupRole } from "@/lib/roblox/types";
 import { TIER_ROLE_MAPPINGS, type RoleMatcher } from "@/config/role-mappings";
+import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
 import { TIER_DEFINITIONS, type PermissionTier } from "./tiers";
 import type { Capability } from "./capabilities";
 
@@ -21,6 +22,17 @@ export function resolveTiersFromRobloxRoles(
   const tiers = new Set<PermissionTier>();
   for (const mapping of TIER_ROLE_MAPPINGS) {
     if (mapping.matchers.some((matcher) => matcherMatches(matcher, roles))) {
+      tiers.add(mapping.tier);
+    }
+  }
+  return Array.from(tiers);
+}
+
+export function resolveTiersFromDiscordRoles(roleIds: string[]): PermissionTier[] {
+  const held = new Set(roleIds);
+  const tiers = new Set<PermissionTier>();
+  for (const mapping of DISCORD_TIER_ROLE_MAPPINGS) {
+    if (mapping.roleIds.some((id) => held.has(id))) {
       tiers.add(mapping.tier);
     }
   }

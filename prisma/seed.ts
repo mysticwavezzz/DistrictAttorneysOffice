@@ -24,10 +24,10 @@ async function main() {
   });
 
   const attorney = await prisma.user.upsert({
-    where: { robloxUserId: "1" },
+    where: { discordUserId: "1" },
     update: {},
     create: {
-      robloxUserId: "1",
+      discordUserId: "1",
       username: "demo_attorney",
       displayName: "Demo Attorney",
     },

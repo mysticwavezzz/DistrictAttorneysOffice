@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { RobloxGroupRole } from "@/lib/roblox/types";
 
 const LE_GROUP = 1001;
@@ -81,6 +81,49 @@ describe("resolveTiersFromRobloxRoles", () => {
       { groupId: LE_GROUP, groupName: "Sheriff's Office", roleName: "Deputy", rank: 5 },
     ];
     expect(resolveTiersFromRobloxRoles(roles)).toEqual([]);
+  });
+});
+
+describe("resolveTiersFromDiscordRoles", () => {
+  afterEach(() => {
+    vi.doUnmock("@/config/discord-role-mappings");
+    vi.resetModules();
+  });
+
+  it("grants a tier when the member holds one of its mapped role ids", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/discord-role-mappings", () => ({
+      DISCORD_TIER_ROLE_MAPPINGS: [
+        { tier: "district_attorney", roleIds: ["111"] },
+        { tier: "da_attorney", roleIds: ["222", "333"] },
+      ],
+    }));
+    const { resolveTiersFromDiscordRoles } = await import("./resolve");
+    expect(resolveTiersFromDiscordRoles(["999", "222"])).toEqual(["da_attorney"]);
+  });
+
+  it("grants multiple tiers when multiple mapped roles are held", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/discord-role-mappings", () => ({
+      DISCORD_TIER_ROLE_MAPPINGS: [
+        { tier: "law_enforcement", roleIds: ["111"] },
+        { tier: "da_paralegal", roleIds: ["222"] },
+      ],
+    }));
+    const { resolveTiersFromDiscordRoles } = await import("./resolve");
+    const tiers = resolveTiersFromDiscordRoles(["111", "222"]);
+    expect(tiers).toContain("law_enforcement");
+    expect(tiers).toContain("da_paralegal");
+    expect(tiers).toHaveLength(2);
+  });
+
+  it("returns no tiers when none of the held roles are mapped", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/discord-role-mappings", () => ({
+      DISCORD_TIER_ROLE_MAPPINGS: [{ tier: "district_attorney", roleIds: ["111"] }],
+    }));
+    const { resolveTiersFromDiscordRoles } = await import("./resolve");
+    expect(resolveTiersFromDiscordRoles(["999"])).toEqual([]);
   });
 });
 

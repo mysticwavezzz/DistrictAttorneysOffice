@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import { authConfig } from "./auth.config";
 import { prisma } from "./prisma";
-import type { RobloxOAuthProfile } from "./roblox/provider";
+import type { DiscordProfile } from "next-auth/providers/discord";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -11,19 +11,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const token = await authConfig.callbacks.jwt(params);
 
       if (params.account && params.profile) {
-        const robloxProfile = params.profile as RobloxOAuthProfile;
+        const discordProfile = params.profile as DiscordProfile;
         try {
           await prisma.user.upsert({
-            where: { robloxUserId: robloxProfile.sub },
+            where: { discordUserId: discordProfile.id },
             update: {
-              username: token.username ?? robloxProfile.sub,
-              displayName: token.displayName ?? robloxProfile.sub,
+              username: token.username ?? discordProfile.id,
+              displayName: token.displayName ?? discordProfile.id,
               avatarUrl: token.avatarUrl ?? null,
             },
             create: {
-              robloxUserId: robloxProfile.sub,
-              username: token.username ?? robloxProfile.sub,
-              displayName: token.displayName ?? robloxProfile.sub,
+              discordUserId: discordProfile.id,
+              username: token.username ?? discordProfile.id,
+              displayName: token.displayName ?? discordProfile.id,
               avatarUrl: token.avatarUrl ?? null,
             },
           });

@@ -14,12 +14,12 @@ const loginFont = Source_Sans_3({
 });
 
 const ERROR_MESSAGES: Record<string, string> = {
-  forbidden: "Your Roblox account doesn't hold a staff role that grants access to that page.",
-  OAuthSignin: "We couldn't start the Roblox sign-in flow. Please try again.",
-  OAuthCallback: "Roblox sign-in didn't complete successfully. Please try again.",
+  forbidden: "Your Discord account doesn't hold a staff role that grants access to that page.",
+  OAuthSignin: "We couldn't start the Discord sign-in flow. Please try again.",
+  OAuthCallback: "Discord sign-in didn't complete successfully. Please try again.",
   OAuthAccountNotLinked:
-    "This Roblox account isn't linked correctly. Please contact an administrator.",
-  AccessDenied: "Access was denied by Roblox. Please try again.",
+    "This Discord account isn't linked correctly. Please contact an administrator.",
+  AccessDenied: "Access was denied by Discord. Please try again.",
   Configuration: "Staff login is misconfigured. Please contact an administrator.",
   Default: "Something went wrong signing in. Please try again.",
 };
@@ -32,8 +32,7 @@ export default async function LoginPage({
   const session = await auth();
   const callbackUrl = searchParams.callbackUrl ?? "/dashboard";
 
-  // avoid redirect loop: don't bounce back to callbackUrl if that's exactly what got them sent here
-  if (session?.user?.robloxUserId && !searchParams.error) {
+  if (session?.user?.discordUserId && !searchParams.error) {
     redirect(callbackUrl);
   }
 
@@ -41,7 +40,7 @@ export default async function LoginPage({
     ? ERROR_MESSAGES[searchParams.error] ?? ERROR_MESSAGES.Default
     : null;
 
-  const isSignedInButForbidden = Boolean(session?.user?.robloxUserId) && Boolean(searchParams.error);
+  const isSignedInButForbidden = Boolean(session?.user?.discordUserId) && Boolean(searchParams.error);
 
   return (
     <div className={`login-scope login-shell ${loginFont.variable}`} style={{ fontFamily: "var(--font-login-sans), Arial, sans-serif" }}>
@@ -73,8 +72,8 @@ export default async function LoginPage({
           )}
 
           <p className="login-body">
-            Authorized personnel only. Sign in with the Roblox account linked to your Law
-            Enforcement, Government, or District Attorney&apos;s Office role. Your group roles
+            Authorized personnel only. Sign in with the Discord account linked to your Law
+            Enforcement, Government, or District Attorney&apos;s Office role. Your server roles
             are checked automatically — no separate staff account is needed.
           </p>
 
@@ -84,7 +83,7 @@ export default async function LoginPage({
             <>
               <p className="login-body">
                 Signed in as <strong>{session!.user.displayName}</strong>. Sign out to try a
-                different Roblox account.
+                different Discord account.
               </p>
               <form
                 action={async () => {
@@ -103,12 +102,12 @@ export default async function LoginPage({
             <form
               action={async () => {
                 "use server";
-                await signIn("roblox", { redirectTo: callbackUrl });
+                await signIn("discord", { redirectTo: callbackUrl });
               }}
             >
               <div className="login-btnrow">
-                <button type="submit" className="login-btn login-maroon login-wide">
-                  Sign in with Roblox
+                <button type="submit" className="login-btn login-blurple login-wide">
+                  Sign in with Discord
                 </button>
               </div>
             </form>

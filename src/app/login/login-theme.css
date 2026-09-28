@@ -175,6 +175,12 @@
   color: #fff;
 }
 
+.login-btn.login-blurple {
+  background: #5865f2;
+  border-color: #454fbf;
+  color: #fff;
+}
+
 .login-btn.login-wide {
   width: 100%;
 }

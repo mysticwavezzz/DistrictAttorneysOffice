@@ -12,7 +12,7 @@ function buildCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "img-src 'self' data: https://tr.rbxcdn.com https://t0.rbxcdn.com https://t1.rbxcdn.com https://t2.rbxcdn.com https://t3.rbxcdn.com https://t4.rbxcdn.com https://t5.rbxcdn.com https://t6.rbxcdn.com https://t7.rbxcdn.com",
+    "img-src 'self' data: https://cdn.discordapp.com",
     "connect-src 'self'",
     "frame-src 'none'",
     "form-action 'self'",
@@ -34,7 +34,7 @@ export default auth((req) => {
   const rule = findRouteRule(pathname);
   if (rule) {
     const user = req.auth?.user;
-    if (!user?.robloxUserId) {
+    if (!user?.discordUserId) {
       const loginUrl = new URL("/login", req.nextUrl.origin);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);

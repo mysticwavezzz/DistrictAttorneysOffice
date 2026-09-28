@@ -7,7 +7,7 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 
 export async function SiteHeader() {
   const session = await auth();
-  const isStaff = Boolean(session?.user?.robloxUserId);
+  const isStaff = Boolean(session?.user?.discordUserId);
   const canViewDashboard =
     isStaff && hasCapability(session!.user.tiers, CAPABILITIES.DASHBOARD_VIEW);
 

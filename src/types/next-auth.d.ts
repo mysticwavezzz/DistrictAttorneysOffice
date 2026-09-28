@@ -5,7 +5,7 @@ declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      robloxUserId: string;
+      discordUserId: string;
       username: string;
       displayName: string;
       avatarUrl: string | null;
@@ -17,7 +17,7 @@ declare module "next-auth" {
 // augment @auth/core/jwt directly — augmenting "next-auth/jwt" doesn't merge, since it re-exports via `export *`
 declare module "@auth/core/jwt" {
   interface JWT {
-    robloxUserId?: string;
+    discordUserId?: string;
     username?: string;
     displayName?: string;
     avatarUrl?: string | null;

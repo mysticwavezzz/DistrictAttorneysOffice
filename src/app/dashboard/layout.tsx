@@ -12,7 +12,7 @@ export default async function DashboardLayout({
 }) {
   const session = await auth();
 
-  if (!session?.user?.robloxUserId) {
+  if (!session?.user?.discordUserId) {
     redirect("/login?callbackUrl=/dashboard");
   }
 

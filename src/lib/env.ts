@@ -13,8 +13,10 @@ const envSchema = z.object({
     .min(32, "AUTH_SECRET must be at least 32 characters (generate with `openssl rand -base64 32`)"),
   AUTH_URL: optionalUrl,
 
-  ROBLOX_CLIENT_ID: z.string().min(1, "ROBLOX_CLIENT_ID is required"),
-  ROBLOX_CLIENT_SECRET: z.string().min(1, "ROBLOX_CLIENT_SECRET is required"),
+  DISCORD_CLIENT_ID: z.string().min(1, "DISCORD_CLIENT_ID is required"),
+  DISCORD_CLIENT_SECRET: z.string().min(1, "DISCORD_CLIENT_SECRET is required"),
+  DISCORD_BOT_TOKEN: z.string().min(1, "DISCORD_BOT_TOKEN is required"),
+  DISCORD_GUILD_ID: z.string().min(1, "DISCORD_GUILD_ID is required"),
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
