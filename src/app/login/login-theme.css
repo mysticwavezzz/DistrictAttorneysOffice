@@ -1,0 +1,223 @@
+/* ======================================================================
+ * Staff login "portal terminal" theme — visually distinct from the
+ * public site on purpose (dark chrome window vs. the light parchment
+ * gov-bureau look) to make clear this is the authenticated-staff path.
+ * Adapted from the rocounty ecosystem's existing staff portal chrome.
+ * Every selector is prefixed with `login-` so it can never collide with
+ * a class name from the public site's stylesheet, since both load
+ * globally in the Next.js app.
+ * ==================================================================== */
+
+.login-scope {
+  --lp-chrome: rgb(23, 27, 34);
+  --lp-mast: linear-gradient(180deg, rgb(39, 62, 88) 0%, rgb(35, 56, 80) 27%, rgb(23, 37, 53) 100%);
+  --lp-band: rgb(23, 37, 53);
+  --lp-ribbon: linear-gradient(180deg, rgb(110, 128, 138) 0%, rgb(158, 181, 197) 33%, rgb(110, 128, 138) 100%);
+  --lp-divider: rgb(51, 52, 58);
+  --lp-active: rgb(107, 38, 31);
+  --lp-tan: linear-gradient(180deg, rgb(127, 107, 95) 0%, rgb(177, 144, 120) 33%, rgb(127, 107, 95) 100%);
+  --lp-tanedge: rgb(127, 107, 95);
+  --lp-page: rgb(246, 253, 255);
+  --lp-page-stroke: rgb(110, 128, 138);
+  --lp-ink: rgb(0, 0, 0);
+  --lp-link: rgb(41, 112, 166);
+  --lp-btn-ink: rgb(35, 36, 40);
+  --lp-flag-red: #b22234;
+  --lp-arial: Arial, Helvetica, sans-serif;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 26px;
+  background: radial-gradient(1100px 650px at 50% 0%, #2a3340, #161a20 60%, #0d1015);
+}
+
+.login-window {
+  width: 430px;
+  max-width: 100%;
+  background: var(--lp-chrome);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.55);
+}
+
+.login-bluemain {
+  position: relative;
+  background: var(--lp-mast);
+  border-radius: 6px;
+  padding: 10px 12px 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.login-bluemain .login-pat {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(135deg, #fff 0 2px, transparent 2px 9px);
+}
+
+.login-t1 {
+  position: relative;
+  font-family: var(--lp-arial);
+  font-weight: 700;
+  font-size: 22px;
+  color: #fff;
+  line-height: 1.05;
+}
+
+.login-t2 {
+  position: relative;
+  font-family: var(--lp-arial);
+  font-weight: 500;
+  font-size: 13px;
+  color: #fff;
+  letter-spacing: 1px;
+}
+
+.login-band {
+  height: 4px;
+  background: linear-gradient(180deg, var(--lp-flag-red) 0 45%, #ffffff 45% 60%, var(--lp-band) 60% 100%);
+}
+
+.login-ribbon {
+  display: flex;
+  align-items: stretch;
+  background: var(--lp-ribbon);
+  padding-left: 8px;
+  margin-top: 4px;
+  height: 26px;
+}
+
+.login-tab {
+  font-family: var(--lp-arial);
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+  color: var(--lp-btn-ink);
+  background: none;
+  border: 0;
+  padding: 0 7px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.login-tab:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.login-tab.login-active {
+  background: var(--lp-active);
+  color: #fff;
+}
+
+.login-tab.login-right {
+  margin-left: auto;
+}
+
+.login-page {
+  background: var(--lp-page);
+  border: 2px solid var(--lp-page-stroke);
+  border-radius: 6px;
+  margin: 5px 6px 6px;
+  padding: 20px 20px 22px;
+  color: var(--lp-ink);
+}
+
+.login-ptitle {
+  font-weight: 400;
+  font-size: 17px;
+  text-align: center;
+  margin: 0 0 10px;
+}
+
+.login-body {
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  color: #33414f;
+}
+
+.login-rule {
+  border: 0;
+  border-top: 1px solid #d3dde8;
+  margin: 14px 0;
+}
+
+.login-link {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--lp-link);
+  text-decoration: underline;
+}
+
+.login-link:hover {
+  color: rgb(28, 86, 131);
+}
+
+.login-btn {
+  font-family: var(--lp-arial);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--lp-btn-ink);
+  background: var(--lp-tan);
+  border: 1px solid var(--lp-tanedge);
+  border-radius: 2px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.login-btn.login-maroon {
+  background: var(--lp-active);
+  border-color: rgb(80, 28, 23);
+  color: #fff;
+}
+
+.login-btn.login-wide {
+  width: 100%;
+}
+
+.login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.login-btnrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 14px 0 4px;
+}
+
+.login-note {
+  font-weight: 300;
+  font-size: 12px;
+  margin-top: 14px;
+  text-align: center;
+  color: #54606e;
+}
+
+.login-err {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--lp-flag-red);
+  text-align: center;
+  border: 1px solid #e3b3ae;
+  background: #fdf1ef;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 0 0 14px;
+}

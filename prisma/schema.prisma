@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // SQLite for local development. Point DATABASE_URL at Postgres/MySQL in
+  // production (see .env.example) — Prisma's migration files are additive
+  // per-provider, so switching providers is a deliberate, documented step,
+  // not a silent surprise.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// --- Auth.js (NextAuth) adapter models -------------------------------
+// Standard shape required by @auth/prisma-adapter. Session strategy is
+// JWT (see src/lib/auth.ts), so the Session table is unused today but is
+// kept so switching to database sessions later is a config change, not a
+// migration.
+
+model User {
+  id            String    @id @default(cuid())
+  robloxUserId  String    @unique
+  username      String
+  displayName   String
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  assignedCases Case[]    @relation("AssignedAttorney")
+  createdCases  Case[]    @relation("CreatedBy")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Domain models -----------------------------------------------------
+
+// Scaffold for the attorney dashboard's case list. Deliberately minimal —
+// this is here so the dashboard reads real data instead of mocks, without
+// committing to a full case-management schema up front.
+//
+// `status` is a plain String, not a Prisma enum: SQLite (the local dev
+// database) doesn't support enum columns. The allowed values live in
+// src/lib/case-status.ts and are enforced at the application layer.
+model Case {
+  id                 String   @id @default(cuid())
+  caseNumber         String   @unique
+  title              String
+  status             String   @default("OPEN")
+  summary            String
+  assignedAttorneyId String?
+  createdById        String
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  assignedAttorney User? @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
+  createdBy        User  @relation("CreatedBy", fields: [createdById], references: [id])
+
+  @@index([status])
+}
+
+// Public announcements / press releases shown on the home page.
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  publishedAt DateTime @default(now())
+  isPublished Boolean  @default(true)
+
+  @@index([isPublished, publishedAt])
+}
