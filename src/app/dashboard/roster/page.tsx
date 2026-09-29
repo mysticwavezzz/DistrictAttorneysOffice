@@ -4,9 +4,12 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { RANKS, isLeadershipRank } from "@/config/ranks";
+import { UNITS } from "@/config/units";
 import { addRosterEntry, removeRosterEntry } from "./actions";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+
+type RosterEntry = Awaited<ReturnType<typeof prisma.rosterEntry.findMany>>[number];
 
 export default async function RosterPage() {
   const session = await auth();
@@ -16,7 +19,7 @@ export default async function RosterPage() {
 
   const canManage = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE);
 
-  let entries: Awaited<ReturnType<typeof prisma.rosterEntry.findMany>> = [];
+  let entries: RosterEntry[] = [];
   let activeDiscordIds = new Set<string>();
   try {
     entries = await prisma.rosterEntry.findMany({ orderBy: { name: "asc" } });
@@ -29,36 +32,44 @@ export default async function RosterPage() {
     console.error("Failed to load roster", error);
   }
 
-  return (
-    <div>
-      <h1>Staff Roster</h1>
+  const groups: { key: string; label: string; description?: string; entries: RosterEntry[] }[] = [
+    ...UNITS.map((u) => ({ key: u.value, label: u.label, description: u.description, entries: [] as RosterEntry[] })),
+    { key: "", label: "Unassigned", entries: [] as RosterEntry[] },
+  ];
+  const unassignedGroup = groups[groups.length - 1]!;
+  for (const entry of entries) {
+    const group = groups.find((g) => g.key === (entry.unit ?? "")) ?? unassignedGroup;
+    group.entries.push(entry);
+  }
 
-      <div className="tablewrap">
-        <table className="stat">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Position</th>
-              <th>Rank</th>
-              <th>Badge #</th>
-              <th>Discord</th>
-              <th>Start Date</th>
-              {canManage && <th />}
-            </tr>
-          </thead>
-          <tbody>
-            {entries.length === 0 ? (
+  function renderGroup(group: (typeof groups)[number]) {
+    if (group.entries.length === 0) return null;
+    return (
+      <div key={group.key} style={{ marginBottom: 18 }}>
+        <h3 style={{ marginBottom: 4 }}>{group.label}</h3>
+        {group.description && <p className="note-inline">{group.description}</p>}
+        <div className="tablewrap">
+          <table className="stat">
+            <thead>
               <tr>
-                <td colSpan={canManage ? 7 : 6} style={{ textAlign: "center", color: "var(--ink-soft)" }}>
-                  No roster entries yet.
-                </td>
+                <th>Name</th>
+                <th>Position</th>
+                <th>Rank</th>
+                <th>Badge #</th>
+                <th>Discord</th>
+                <th>Start Date</th>
+                {canManage && <th />}
               </tr>
-            ) : (
-              entries.map((entry) => {
+            </thead>
+            <tbody>
+              {group.entries.map((entry) => {
                 const stale = entry.discordUserId ? !activeDiscordIds.has(entry.discordUserId) : false;
                 return (
                   <tr key={entry.id}>
-                    <td>{entry.name}</td>
+                    <td>
+                      {entry.name}{" "}
+                      {entry.isUnitLead && <span className="pill pill-navy">Lead</span>}
+                    </td>
                     <td>{entry.position}</td>
                     <td>
                       {entry.rank ?? "—"}{" "}
@@ -87,11 +98,23 @@ export default async function RosterPage() {
                     )}
                   </tr>
                 );
-              })
-            )}
-          </tbody>
-        </table>
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div>
+      <h1>Staff Roster</h1>
+
+      {entries.length === 0 ? (
+        <div className="message">No roster entries yet.</div>
+      ) : (
+        groups.map(renderGroup)
+      )}
 
       {canManage && (
         <>
@@ -118,6 +141,27 @@ export default async function RosterPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label htmlFor="unit">
+                  Unit <span className="hint">(optional)</span>
+                </label>
+                <select id="unit" name="unit" defaultValue="">
+                  <option value="">No unit set</option>
+                  {UNITS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none", marginTop: 20 }}>
+                  <input type="checkbox" name="isUnitLead" />
+                  This person leads the unit above
+                </label>
               </div>
             </div>
             <div className="field-row">

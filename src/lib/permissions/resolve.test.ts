@@ -197,4 +197,25 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     const { hasAnyCapability, CAPABILITIES } = await freshResolveModule();
     expect(hasAnyCapability([], [CAPABILITIES.DASHBOARD_VIEW])).toBe(false);
   });
+
+  it("only Special Investigations Bureau can submit AOPCs, and cannot review them", async () => {
+    const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
+    expect(
+      hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.AOPC_SUBMIT)
+    ).toBe(true);
+    expect(
+      hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.AOPC_REVIEW)
+    ).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.AOPC_SUBMIT)).toBe(false);
+  });
+
+  it("Supervising ADA and District Attorney can review AOPCs", async () => {
+    const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
+    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.AOPC_REVIEW)).toBe(
+      true
+    );
+    expect(hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.AOPC_REVIEW)).toBe(
+      true
+    );
+  });
 });

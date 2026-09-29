@@ -14,6 +14,8 @@ export const CAPABILITIES = {
   ANNOUNCEMENTS_MANAGE: "announcements:manage",
   REQUESTS_VIEW: "requests:view",
   ACTIVITY_VIEW: "activity:view",
+  AOPC_SUBMIT: "aopc:submit",
+  AOPC_REVIEW: "aopc:review",
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];

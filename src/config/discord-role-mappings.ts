@@ -35,6 +35,12 @@ export const DISCORD_TIER_ROLE_MAPPINGS: DiscordTierMapping[] = [
     ],
   },
   {
+    tier: PERMISSION_TIERS.SPECIAL_INVESTIGATIONS,
+    roleIds: [
+      // Special Investigations Bureau role id goes here
+    ],
+  },
+  {
     tier: PERMISSION_TIERS.SUPERVISING_ADA,
     roleIds: [
       "1554309202862678037", // Supervising ADA

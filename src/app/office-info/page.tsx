@@ -5,11 +5,12 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { isLeadershipRank } from "@/config/ranks";
+import { unitLabel } from "@/config/units";
 
 async function getLeadership() {
   try {
     const entries = await prisma.rosterEntry.findMany({ orderBy: { name: "asc" } });
-    return entries.filter((e) => isLeadershipRank(e.rank));
+    return entries.filter((e) => isLeadershipRank(e.rank) || e.isUnitLead);
   } catch (error) {
     console.error("Failed to load leadership", error);
     return [];
@@ -102,6 +103,15 @@ export default async function OfficeInfoPage() {
                         <th>Position</th>
                         <td>{entry.rank}</td>
                       </tr>
+                      {entry.unit && (
+                        <tr>
+                          <th>Unit</th>
+                          <td>
+                            {unitLabel(entry.unit)}
+                            {entry.isUnitLead && " (Lead)"}
+                          </td>
+                        </tr>
+                      )}
                       <tr>
                         <th>Serving Since</th>
                         <td>{formatTenure(entry.startDate)}</td>

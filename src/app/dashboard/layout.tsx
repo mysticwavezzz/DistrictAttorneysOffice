@@ -34,6 +34,12 @@ export default async function DashboardLayout({
     },
     { label: "Roster", href: "/dashboard/roster", show: hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) },
     {
+      label: "AOPCs",
+      href: "/dashboard/aopcs",
+      show:
+        hasCapability(tiers, CAPABILITIES.AOPC_SUBMIT) || hasCapability(tiers, CAPABILITIES.AOPC_REVIEW),
+    },
+    {
       label: "Public Releases",
       href: "/dashboard/announcements",
       show: hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE),

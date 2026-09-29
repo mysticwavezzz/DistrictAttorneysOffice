@@ -36,6 +36,17 @@ async function main() {
     },
   });
 
+  await prisma.user.upsert({
+    where: { discordUserId: "6" },
+    update: { tiers: "special_investigations" },
+    create: {
+      discordUserId: "6",
+      username: "demo_sib",
+      displayName: "Demo SIB Investigator",
+      tiers: "special_investigations",
+    },
+  });
+
   await prisma.announcement.createMany({
     data: [
       {
@@ -123,9 +134,43 @@ async function main() {
         name: "Demo ADA",
         position: "Assistant District Attorney",
         rank: "Assistant District Attorney",
+        unit: "Criminal Division",
         badgeNumber: "DA-002",
       },
       { name: "Demo Paralegal", position: "Paralegal", rank: "Paralegal", badgeNumber: "DA-003" },
+      {
+        name: "Demo CADA",
+        position: "Chief Assistant District Attorney",
+        rank: "Chief Assistant District Attorney",
+        unit: "Criminal Division",
+        isUnitLead: true,
+        badgeNumber: "DA-004",
+        about: "Leads the Criminal Division's prosecution of general criminal matters.",
+      },
+      {
+        name: "Demo Civil CADA",
+        position: "Chief Assistant District Attorney",
+        rank: "Chief Assistant District Attorney",
+        unit: "Civil Division",
+        isUnitLead: true,
+        badgeNumber: "DA-005",
+        about: "Leads the Civil Division's litigation on behalf of the county.",
+      },
+      {
+        name: "Demo Supervising ADA",
+        position: "Supervising ADA",
+        rank: "Supervising ADA",
+        unit: "Public Integrity Bureau",
+        isUnitLead: true,
+        badgeNumber: "DA-006",
+      },
+      {
+        name: "Demo SIB Investigator",
+        position: "Investigator",
+        unit: "Special Investigations Bureau",
+        discordUserId: "6",
+        badgeNumber: "SIB-001",
+      },
     ],
   });
 }

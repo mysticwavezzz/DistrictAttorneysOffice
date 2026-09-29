@@ -28,6 +28,8 @@ model User {
   requestsSubmitted    CaseActionRequest[] @relation("RequestsSubmitted")
   requestsReviewed     CaseActionRequest[] @relation("RequestsReviewed")
   notifications        Notification[]
+  aopcsSubmitted       Aopc[]              @relation("AopcSubmitted")
+  aopcsReviewed        Aopc[]              @relation("AopcReviewed")
 }
 
 model Account {
@@ -95,6 +97,7 @@ model Case {
   actionRequests   CaseActionRequest[]
   relatedTo        Case[] @relation("CaseRelations")
   relatedFrom      Case[] @relation("CaseRelations")
+  aopcs            Aopc[]
 
   @@index([archived])
 }
@@ -179,12 +182,35 @@ model RosterEntry {
   discordUserId String?
   position      String
   rank          String?
+  unit          String?
+  isUnitLead    Boolean   @default(false)
   imageUrl      String?
   about         String?
   badgeNumber   String?
   startDate     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model Aopc {
+  id            String    @id @default(cuid())
+  title         String
+  targetUnit    String
+  subject       String
+  narrative     String
+  status        String    @default("PENDING")
+  submittedById String
+  reviewedById  String?
+  reviewNote    String?
+  reviewedAt    DateTime?
+  linkedCaseId  String?
+  createdAt     DateTime  @default(now())
+
+  submittedBy User  @relation("AopcSubmitted", fields: [submittedById], references: [id])
+  reviewedBy  User? @relation("AopcReviewed", fields: [reviewedById], references: [id])
+  linkedCase  Case? @relation(fields: [linkedCaseId], references: [id])
+
+  @@index([status])
 }
 
 model ActivityLog {

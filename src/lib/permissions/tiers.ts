@@ -5,6 +5,7 @@ export const PERMISSION_TIERS = {
   GOVERNMENT: "government",
   DA_PARALEGAL: "da_paralegal",
   DA_ATTORNEY: "da_attorney",
+  SPECIAL_INVESTIGATIONS: "special_investigations",
   SUPERVISING_ADA: "supervising_ada",
   DISTRICT_ATTORNEY: "district_attorney",
 } as const;
@@ -57,6 +58,12 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.REQUESTS_VIEW,
     ],
   },
+  [PERMISSION_TIERS.SPECIAL_INVESTIGATIONS]: {
+    id: PERMISSION_TIERS.SPECIAL_INVESTIGATIONS,
+    label: "Special Investigations Bureau",
+    description: "Writes AOPCs and reviews criminal tips referred to the office.",
+    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.AOPC_SUBMIT],
+  },
   [PERMISSION_TIERS.SUPERVISING_ADA]: {
     id: PERMISSION_TIERS.SUPERVISING_ADA,
     label: "Supervising ADA",
@@ -72,6 +79,7 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.ROSTER_VIEW,
       CAPABILITIES.REQUESTS_VIEW,
       CAPABILITIES.ACTIVITY_VIEW,
+      CAPABILITIES.AOPC_REVIEW,
     ],
   },
   [PERMISSION_TIERS.DISTRICT_ATTORNEY]: {
@@ -92,6 +100,7 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.ANNOUNCEMENTS_MANAGE,
       CAPABILITIES.REQUESTS_VIEW,
       CAPABILITIES.ACTIVITY_VIEW,
+      CAPABILITIES.AOPC_REVIEW,
     ],
   },
 };

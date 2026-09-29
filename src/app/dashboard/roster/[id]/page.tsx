@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { RANKS } from "@/config/ranks";
+import { UNITS } from "@/config/units";
 import { updateRosterEntry, removeRosterEntry } from "../actions";
 
 function toDateInputValue(date: Date | null): string {
@@ -53,6 +54,27 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label htmlFor="unit">
+              Unit <span className="hint">(optional)</span>
+            </label>
+            <select id="unit" name="unit" defaultValue={entry.unit ?? ""}>
+              <option value="">No unit set</option>
+              {UNITS.map((u) => (
+                <option key={u.value} value={u.value}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none", marginTop: 20 }}>
+              <input type="checkbox" name="isUnitLead" defaultChecked={entry.isUnitLead} />
+              This person leads the unit above
+            </label>
           </div>
         </div>
         <div className="field-row">

@@ -14,6 +14,7 @@ export default async function DashboardOverviewPage() {
   const canManageAnnouncements = hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE);
   const canApproveRequests = hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS);
   const canViewRequests = hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW);
+  const canReviewAopcs = hasCapability(tiers, CAPABILITIES.AOPC_REVIEW);
 
   const user = await localUser(session!.user.discordUserId);
 
@@ -88,6 +89,15 @@ export default async function DashboardOverviewPage() {
     }
   }
 
+  let pendingAopcs = 0;
+  if (canReviewAopcs) {
+    try {
+      pendingAopcs = await prisma.aopc.count({ where: { status: "PENDING" } });
+    } catch (error) {
+      console.error("Failed to load pending AOPC count", error);
+    }
+  }
+
   return (
     <div>
       <p className="eyebrow">Staff Portal</p>
@@ -142,6 +152,12 @@ export default async function DashboardOverviewPage() {
           <Link href="/dashboard/records-requests" className="card">
             <span className="card-label">New Records Requests</span>
             <span className="card-value">{newRecordsRequests}</span>
+          </Link>
+        )}
+        {canReviewAopcs && pendingAopcs > 0 && (
+          <Link href="/dashboard/aopcs" className="card">
+            <span className="card-label">Pending AOPCs</span>
+            <span className="card-value">{pendingAopcs}</span>
           </Link>
         )}
       </div>
