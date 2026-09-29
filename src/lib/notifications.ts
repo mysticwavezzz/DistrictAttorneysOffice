@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendDirectMessage } from "@/lib/discord/dm";
 import { env } from "@/lib/env";
+import { getSiteSettings } from "@/lib/site-settings";
 
 export const NOTIFICATION_TYPES: { value: string; label: string }[] = [
   { value: "case_assigned", label: "Case assigned to you" },
@@ -42,6 +43,7 @@ async function pushDiscordDm(userId: string, title: string, body?: string) {
 }
 
 export async function notify({ userId, type, title, body, link }: NotifyInput) {
+  if ((await getSiteSettings()).notificationsDisabled) return;
   if (await isMuted(userId, type)) return;
   await prisma.notification.create({
     data: { userId, type, title, body, link },
@@ -50,6 +52,7 @@ export async function notify({ userId, type, title, body, link }: NotifyInput) {
 }
 
 export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "userId">) {
+  if ((await getSiteSettings()).notificationsDisabled) return;
   const unique = Array.from(new Set(userIds)).filter(Boolean);
   if (unique.length === 0) return;
 

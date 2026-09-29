@@ -39,22 +39,11 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
             <input type="text" id="name" name="name" required maxLength={100} defaultValue={entry.name} />
           </div>
           <div className="field">
-            <label htmlFor="position">Position</label>
-            <input
-              type="text"
-              id="position"
-              name="position"
-              required
-              maxLength={100}
-              defaultValue={entry.position}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="rank">
-              Rank <span className="hint">(optional — leadership ranks appear on the Office Info page)</span>
-            </label>
-            <select id="rank" name="rank" defaultValue={entry.rank ?? ""}>
-              <option value="">No rank set</option>
+            <label htmlFor="rank">Rank</label>
+            <select id="rank" name="rank" defaultValue={entry.rank ?? ""} required>
+              <option value="" disabled>
+                Select a rank
+              </option>
               {RANKS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
@@ -62,33 +51,21 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
               ))}
             </select>
           </div>
-        </div>
-        <div className="field" style={{ maxWidth: 320 }}>
-          <label htmlFor="unit">
-            Unit <span className="hint">(optional)</span>
-          </label>
-          <select id="unit" name="unit" defaultValue={entry.unit ?? ""}>
-            <option value="">No unit set</option>
-            {UNITS.map((u) => (
-              <option key={u.value} value={u.value}>
-                {u.label}
-              </option>
-            ))}
-          </select>
+          <div className="field">
+            <label htmlFor="unit">
+              Unit / Bureau <span className="hint">(optional — determines which leadership position a leadership rank fills)</span>
+            </label>
+            <select id="unit" name="unit" defaultValue={entry.unit ?? ""}>
+              <option value="">No unit set</option>
+              {UNITS.map((u) => (
+                <option key={u.value} value={u.value}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="field-row">
-          <div className="field">
-            <label htmlFor="badgeNumber">
-              Badge # <span className="hint">(optional)</span>
-            </label>
-            <input
-              type="text"
-              id="badgeNumber"
-              name="badgeNumber"
-              maxLength={30}
-              defaultValue={entry.badgeNumber ?? ""}
-            />
-          </div>
           <div className="field">
             <label htmlFor="discordUserId">
               Discord User ID <span className="hint">(optional)</span>

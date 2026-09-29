@@ -6,9 +6,8 @@ export const siteConfig = {
   description:
     "The official public website of the Harrison County District Attorney's Office — public releases, office information, and a confidential criminal tips line.",
   contact: {
-    phone: "(304) 555-0142",
     email: "info@harrisoncountyda.example",
-    address: "100 Courthouse Square, Harrison County",
+    address: "County Hall, Jamestown",
   },
   hours: [{ day: "Every day, 365 days a year", time: "Open 24 hours" }],
   nav: [

@@ -27,7 +27,6 @@ export function SiteFooter() {
             <h4>Contact</h4>
             <ul>
               <li>{siteConfig.contact.address}</li>
-              <li>{siteConfig.contact.phone}</li>
               <li>{siteConfig.contact.email}</li>
             </ul>
           </div>

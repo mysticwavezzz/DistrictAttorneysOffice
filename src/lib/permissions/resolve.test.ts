@@ -218,4 +218,17 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
       true
     );
   });
+
+  it("only District Attorney can manage site settings", async () => {
+    const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
+    expect(
+      hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)
+    ).toBe(true);
+    expect(
+      hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.SETTINGS_MANAGE)
+    ).toBe(false);
+    expect(
+      hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)
+    ).toBe(false);
+  });
 });

@@ -36,4 +36,13 @@ describe("findRouteRule", () => {
     const rule = findRouteRule("/bulletin");
     expect(rule?.capabilities).toEqual([CAPABILITIES.BULLETIN_VIEW]);
   });
+
+  it("gates the hidden site settings route to settings:manage", () => {
+    const rule = findRouteRule("/98981");
+    expect(rule?.capabilities).toEqual([CAPABILITIES.SETTINGS_MANAGE]);
+  });
+
+  it("does not gate the public maintenance page", () => {
+    expect(findRouteRule("/maintenance")).toBeNull();
+  });
 });

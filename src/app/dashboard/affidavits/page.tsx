@@ -23,12 +23,9 @@ export default async function AffidavitsPage() {
 
   const user = await localUser(session.user.discordUserId);
 
-  const leaderRanks = AOPC_TARGET_UNITS.map((unit) => UNIT_LEADER_RANK[unit]).filter(
-    (rank): rank is string => Boolean(rank)
-  );
   const leads = await prisma.rosterEntry.findMany({
-    where: { rank: { in: leaderRanks } },
-    select: { unit: true, rank: true, name: true },
+    where: { OR: AOPC_TARGET_UNITS.map((unit) => ({ unit, rank: UNIT_LEADER_RANK[unit] })) },
+    select: { unit: true, name: true },
   });
   const leadByUnit = new Map(leads.map((l) => [l.unit, l.name]));
 

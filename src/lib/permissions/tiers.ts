@@ -101,6 +101,7 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.REQUESTS_VIEW,
       CAPABILITIES.ACTIVITY_VIEW,
       CAPABILITIES.AOPC_REVIEW,
+      CAPABILITIES.SETTINGS_MANAGE,
     ],
   },
 };

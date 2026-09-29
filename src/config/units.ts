@@ -32,12 +32,28 @@ export const UNITS: UnitOption[] = [
 export const AOPC_TARGET_UNITS = ["Criminal Division", "Public Integrity Bureau"];
 
 export const UNIT_LEADER_RANK: Record<string, string> = {
-  "Criminal Division": "Chief Assistant District Attorney - Criminal Division",
-  "Civil Division": "Chief Assistant District Attorney - Civil Division",
-  "Special Investigations Bureau": "Chief Assistant District Attorney - Special Investigations Bureau",
-  "Public Integrity Bureau": "Supervisory Assistant District Attorney - Public Integrity Bureau",
+  "Criminal Division": "Chief Assistant District Attorney",
+  "Civil Division": "Chief Assistant District Attorney",
+  "Special Investigations Bureau": "Chief Assistant District Attorney",
+  "Public Integrity Bureau": "Supervisory Assistant District Attorney",
 };
 
 export function unitLabel(value: string | null | undefined): string {
   return UNITS.find((u) => u.value === value)?.label ?? value ?? "Unassigned";
 }
+
+export interface LeadershipPosition {
+  rank: string;
+  unit: string | null;
+  label: string;
+}
+
+export const LEADERSHIP_POSITIONS: LeadershipPosition[] = [
+  { rank: "District Attorney", unit: null, label: "District Attorney" },
+  { rank: "Deputy District Attorney", unit: null, label: "Deputy District Attorney" },
+  ...UNITS.map((u) => ({
+    rank: UNIT_LEADER_RANK[u.value]!,
+    unit: u.value,
+    label: `${UNIT_LEADER_RANK[u.value]} — ${u.label}`,
+  })),
+];

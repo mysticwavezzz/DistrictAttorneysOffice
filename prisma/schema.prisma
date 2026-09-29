@@ -180,12 +180,10 @@ model RosterEntry {
   id            String    @id @default(cuid())
   name          String
   discordUserId String?
-  position      String
   rank          String?
   unit          String?
   imageUrl      String?
   about         String?
-  badgeNumber   String?
   startDate     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -232,4 +230,12 @@ model RecordsRequest {
   createdAt DateTime @default(now())
 
   @@index([status, createdAt])
+}
+
+model SiteSettings {
+  id                    Int      @id @default(1)
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String?
+  notificationsDisabled Boolean  @default(false)
+  updatedAt             DateTime @updatedAt
 }

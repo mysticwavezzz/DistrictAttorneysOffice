@@ -4,20 +4,20 @@ import { siteConfig } from "@/config/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
-import { LEADERSHIP_RANKS } from "@/config/ranks";
+import { LEADERSHIP_POSITIONS } from "@/config/units";
 
 type RosterEntry = Awaited<ReturnType<typeof prisma.rosterEntry.findMany>>[number];
 
 async function getLeadershipPositions() {
   try {
     const entries = await prisma.rosterEntry.findMany({ orderBy: { name: "asc" } });
-    return LEADERSHIP_RANKS.map((rankDef) => ({
-      rankDef,
-      entry: entries.find((e) => e.rank === rankDef.value) ?? null,
+    return LEADERSHIP_POSITIONS.map((position) => ({
+      position,
+      entry: entries.find((e) => e.rank === position.rank && (position.unit === null || e.unit === position.unit)) ?? null,
     }));
   } catch (error) {
     console.error("Failed to load leadership", error);
-    return LEADERSHIP_RANKS.map((rankDef) => ({ rankDef, entry: null as RosterEntry | null }));
+    return LEADERSHIP_POSITIONS.map((position) => ({ position, entry: null as RosterEntry | null }));
   }
 }
 
@@ -54,12 +54,6 @@ export default async function OfficeInfoPage() {
 
           <div className="cards">
             <div className="card">
-              <span className="card-label">Phone</span>
-              <span className="card-value" style={{ fontSize: 16 }}>
-                {siteConfig.contact.phone}
-              </span>
-            </div>
-            <div className="card">
               <span className="card-label">Email</span>
               <span className="card-value" style={{ fontSize: 14 }}>
                 {siteConfig.contact.email}
@@ -88,8 +82,8 @@ export default async function OfficeInfoPage() {
 
           <h2>Office Leadership</h2>
           <div className="infobox-grid">
-            {positions.map(({ rankDef, entry }) => (
-              <div key={rankDef.value} className="infobox">
+            {positions.map(({ position, entry }) => (
+              <div key={position.label} className="infobox">
                 <div className="infobox-title">{entry ? entry.name : "Vacant"}</div>
                 <div className="infobox-photo">
                   {entry?.imageUrl ? (
@@ -102,7 +96,7 @@ export default async function OfficeInfoPage() {
                   <tbody>
                     <tr>
                       <th>Position</th>
-                      <td>{rankDef.label}</td>
+                      <td>{position.label}</td>
                     </tr>
                     {entry ? (
                       <>

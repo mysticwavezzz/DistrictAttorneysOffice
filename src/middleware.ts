@@ -22,11 +22,42 @@ function buildCsp(nonce: string): string {
   ].join("; ");
 }
 
-export default auth((req) => {
+const MAINTENANCE_EXEMPT_PREFIXES = ["/98981", "/login", "/maintenance"];
+const MAINTENANCE_CACHE_TTL_MS = 5000;
+
+let maintenanceCache: { enabled: boolean; expiresAt: number } | null = null;
+
+function isMaintenanceExempt(pathname: string): boolean {
+  return MAINTENANCE_EXEMPT_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+async function isMaintenanceModeEnabled(origin: string): Promise<boolean> {
+  const now = Date.now();
+  if (maintenanceCache && maintenanceCache.expiresAt > now) {
+    return maintenanceCache.enabled;
+  }
+  try {
+    const res = await fetch(new URL("/api/site-settings/status", origin), { cache: "no-store" });
+    const enabled = res.ok ? Boolean((await res.json()).maintenanceMode) : false;
+    maintenanceCache = { enabled, expiresAt: now + MAINTENANCE_CACHE_TTL_MS };
+    return enabled;
+  } catch (error) {
+    console.error("Failed to check maintenance mode", error);
+    return false;
+  }
+}
+
+export default auth(async (req) => {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = buildCsp(nonce);
 
   const { pathname } = req.nextUrl;
+
+  if (!isMaintenanceExempt(pathname) && (await isMaintenanceModeEnabled(req.nextUrl.origin))) {
+    const response = NextResponse.rewrite(new URL("/maintenance", req.nextUrl.origin));
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
+  }
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);

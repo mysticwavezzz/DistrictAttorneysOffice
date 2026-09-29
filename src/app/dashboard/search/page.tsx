@@ -25,7 +25,7 @@ export default async function SearchPage({
   const canManageAnnouncements = hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE);
 
   let cases: { id: string; title: string; caseNumber: string }[] = [];
-  let roster: { id: string; name: string; position: string }[] = [];
+  let roster: { id: string; name: string; rank: string | null }[] = [];
   let releases: { id: string; title: string; audience: string }[] = [];
 
   if (q) {
@@ -46,7 +46,7 @@ export default async function SearchPage({
     if (canViewRoster) {
       roster = await prisma.rosterEntry.findMany({
         where: { name: { contains: q } },
-        select: { id: true, name: true, position: true },
+        select: { id: true, name: true, rank: true },
         take: 20,
       });
     }
@@ -103,7 +103,7 @@ export default async function SearchPage({
                   {roster.map((r) => (
                     <li key={r.id}>
                       <Link href="/dashboard/roster">
-                        {r.name} &mdash; {r.position}
+                        {r.name} &mdash; {r.rank ?? "No rank set"}
                       </Link>
                     </li>
                   ))}

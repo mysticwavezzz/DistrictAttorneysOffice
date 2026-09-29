@@ -56,12 +56,6 @@ export default async function HomePage() {
             <h2>Office Information</h2>
             <div className="cards">
               <div className="card">
-                <span className="card-label">Phone</span>
-                <span className="card-value" style={{ fontSize: 16 }}>
-                  {siteConfig.contact.phone}
-                </span>
-              </div>
-              <div className="card">
                 <span className="card-label">Hours</span>
                 <span className="card-value" style={{ fontSize: 14 }}>
                   {siteConfig.hours[0]?.time}

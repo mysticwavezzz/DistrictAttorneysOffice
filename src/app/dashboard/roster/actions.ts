@@ -29,11 +29,9 @@ export async function addRosterEntry(formData: FormData) {
   await prisma.rosterEntry.create({
     data: {
       name: data.name,
-      position: data.position,
-      rank: emptyToNull(data.rank),
+      rank: data.rank,
       unit: emptyToNull(data.unit),
       discordUserId: emptyToNull(data.discordUserId),
-      badgeNumber: emptyToNull(data.badgeNumber),
       startDate: toDate(data.startDate),
       imageUrl: emptyToNull(data.imageUrl),
       about: emptyToNull(data.about),
@@ -61,11 +59,9 @@ export async function updateRosterEntry(formData: FormData) {
     where: { id },
     data: {
       name: data.name,
-      position: data.position,
-      rank: emptyToNull(data.rank),
+      rank: data.rank,
       unit: emptyToNull(data.unit),
       discordUserId: emptyToNull(data.discordUserId),
-      badgeNumber: emptyToNull(data.badgeNumber),
       startDate: toDate(data.startDate),
       imageUrl: emptyToNull(data.imageUrl),
       about: emptyToNull(data.about),
