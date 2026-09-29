@@ -2,6 +2,12 @@ import NextAuth from "next-auth";
 import { authConfig } from "./auth.config";
 import { prisma } from "./prisma";
 import type { DiscordProfile } from "next-auth/providers/discord";
+import { fetchDiscordGuildMember } from "./discord/guild";
+import { env } from "./env";
+import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
+import { resolveTiersFromRoleMappings } from "./permissions/resolve";
+import { TIER_DEFINITIONS } from "./permissions/tiers";
+import type { PermissionTier } from "./permissions/tiers";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -9,6 +15,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig.callbacks,
     async jwt(params) {
       const token = await authConfig.callbacks.jwt(params);
+
+      if (token.discordUserId && (params.account || params.trigger === "update")) {
+        try {
+          const [member, roleRow, capabilityRow] = await Promise.all([
+            fetchDiscordGuildMember(env.DISCORD_BOT_TOKEN, env.DISCORD_GUILD_ID, token.discordUserId),
+            prisma.siteConfiguration.findUnique({ where: { key: "discordRoleMappings" } }),
+            prisma.siteConfiguration.findUnique({ where: { key: "tierCapabilities" } }),
+          ]);
+          const roleMappings = roleRow ? JSON.parse(roleRow.value) as typeof DISCORD_TIER_ROLE_MAPPINGS : DISCORD_TIER_ROLE_MAPPINGS;
+          const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
+          const tiers = member ? resolveTiersFromRoleMappings(member.roles, roleMappings) : [];
+          const added = new Set<string>();
+          const denied = new Set<string>();
+          for (const tier of tiers) {
+            const grants = tierCapabilities[tier];
+            if (!grants) continue;
+            const defaults = TIER_DEFINITIONS[tier].capabilities as string[];
+            defaults.filter((cap) => !grants.includes(cap)).forEach((cap) => denied.add(cap));
+            grants.filter((cap) => !defaults.includes(cap)).forEach((cap) => added.add(cap));
+          }
+          token.tiers = [...tiers, ...Array.from(added, (cap) => `cap:${cap}`), ...Array.from(denied, (cap) => `denycap:${cap}`)] as PermissionTier[];
+          const custom = token as typeof token & { configuredRoleMappings?: typeof roleMappings; configuredTierCapabilities?: typeof tierCapabilities };
+          custom.configuredRoleMappings = roleMappings;
+          custom.configuredTierCapabilities = tierCapabilities;
+          token.tiersFetchedAt = Date.now();
+        } catch (error) {
+          console.error("Failed to resolve configurable permission settings", error);
+        }
+      }
 
       if (params.account && params.profile) {
         const discordProfile = params.profile as DiscordProfile;

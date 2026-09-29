@@ -44,7 +44,29 @@ export const authConfig = {
             token.discordUserId
           );
           token.displayName = member?.nick ?? token.username ?? token.discordUserId;
-          token.tiers = member ? resolveTiersFromDiscordRoles(member.roles) : [];
+          const custom = token as typeof token & {
+            configuredRoleMappings?: { tier: import("./permissions/tiers").PermissionTier; roleIds: string[] }[];
+            configuredTierCapabilities?: Record<string, string[]>;
+          };
+          const resolved = member
+            ? custom.configuredRoleMappings
+              ? (await import("./permissions/resolve")).resolveTiersFromRoleMappings(member.roles, custom.configuredRoleMappings)
+              : resolveTiersFromDiscordRoles(member.roles)
+            : [];
+          const configuredCapabilities = new Set<string>();
+          const deniedCapabilities = new Set<string>();
+          for (const tier of resolved) {
+            const grants = custom.configuredTierCapabilities?.[tier];
+            if (!grants) continue;
+            const defaults = (await import("./permissions/tiers")).TIER_DEFINITIONS[tier].capabilities as string[];
+            for (const capability of defaults) if (!grants.includes(capability)) deniedCapabilities.add(capability);
+            for (const capability of grants) if (!defaults.includes(capability)) configuredCapabilities.add(capability);
+          }
+          token.tiers = [
+            ...resolved,
+            ...Array.from(configuredCapabilities, (value) => `cap:${value}`),
+            ...Array.from(deniedCapabilities, (value) => `denycap:${value}`),
+          ] as typeof token.tiers;
           token.tiersFetchedAt = now;
         } catch (error) {
           console.error("Failed to resolve Discord permission tiers", error);

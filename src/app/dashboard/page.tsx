@@ -21,6 +21,7 @@ export default async function DashboardOverviewPage() {
   let ongoingCount = 0;
   let archivedCount = 0;
   let deadlineCount = 0;
+  let upcomingCases: { id: string; caseNumber: string; title: string; discDue: Date | null; pretrial: Date | null; appealBy: Date | null }[] = [];
   if (canViewCases) {
     try {
       const scope = canViewAllCases
@@ -35,14 +36,31 @@ export default async function DashboardOverviewPage() {
           where: {
             archived: false,
             ...scope,
-            OR: [
+            AND: [{ OR: [
               { discDue: { lte: soon } },
               { pretrial: { lte: soon } },
               { appealBy: { lte: soon } },
-            ],
+            ] }],
           },
         }),
       ]);
+      const deadlineLimit = new Date();
+      deadlineLimit.setDate(deadlineLimit.getDate() + 14);
+      upcomingCases = await prisma.case.findMany({
+        where: {
+          archived: false,
+          isDraft: false,
+          ...scope,
+          AND: [{ OR: [
+            { discDue: { lte: deadlineLimit } },
+            { pretrial: { lte: deadlineLimit } },
+            { appealBy: { lte: deadlineLimit } },
+          ] }],
+        },
+        select: { id: true, caseNumber: true, title: true, discDue: true, pretrial: true, appealBy: true },
+        orderBy: { updatedAt: "desc" },
+        take: 10,
+      });
     } catch (error) {
       console.error("Failed to load case counts", error);
     }
@@ -98,17 +116,25 @@ export default async function DashboardOverviewPage() {
     }
   }
 
+  const unreadCount = user
+    ? await prisma.notification.count({ where: { userId: user.id, isRead: false } }).catch(() => 0)
+    : 0;
+  const recentActivity = hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW)
+    ? await prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 6 }).catch(() => [])
+    : [];
+
   return (
     <div>
       <p className="eyebrow">Staff Portal</p>
       <h1>Welcome, {session!.user.displayName}</h1>
       <p className="subtitle">
         Staff role{tiers.length === 1 ? "" : "s"}:{" "}
-        {tiers.length > 0
-          ? tiers.map((t) => TIER_DEFINITIONS[t].label).join(", ")
+        {tiers.some((t) => t in TIER_DEFINITIONS)
+          ? tiers.filter((t) => t in TIER_DEFINITIONS).map((t) => TIER_DEFINITIONS[t].label).join(", ")
           : "No recognized staff role"}
       </p>
 
+      <h2>Needs Attention</h2>
       <div className="cards">
         {canViewCases && (
           <>
@@ -120,17 +146,15 @@ export default async function DashboardOverviewPage() {
               <span className="card-label">Archived Cases</span>
               <span className="card-value">{archivedCount}</span>
             </Link>
-            {deadlineCount > 0 && (
-              <Link href="/dashboard/cases?tab=ongoing" className="card">
+            <Link href="/dashboard/cases?tab=ongoing" className="card">
                 <span className="card-label">Deadlines This Week</span>
-                <span className="card-value" style={{ color: "var(--down)" }}>
-                  {deadlineCount}
+                <span className="card-value" style={{ color: deadlineCount ? "var(--down)" : "var(--up)" }}>
+                  {deadlineCount || "Clear"}
                 </span>
-              </Link>
-            )}
+            </Link>
           </>
         )}
-        {canApproveRequests && pendingRequestCount > 0 && (
+        {canApproveRequests && (
           <Link href="/dashboard/cases/requests" className="card">
             <span className="card-label">Pending Case Requests</span>
             <span className="card-value">{pendingRequestCount}</span>
@@ -148,19 +172,40 @@ export default async function DashboardOverviewPage() {
             <span className="card-value">{releasesThisMonth}</span>
           </Link>
         )}
-        {canViewRequests && newRecordsRequests > 0 && (
+        {canViewRequests && (
           <Link href="/dashboard/records-requests" className="card">
             <span className="card-label">New Records Requests</span>
             <span className="card-value">{newRecordsRequests}</span>
           </Link>
         )}
-        {canReviewAopcs && pendingAopcs > 0 && (
+        {canReviewAopcs && (
           <Link href="/dashboard/affidavits" className="card">
             <span className="card-label">Pending Affidavits</span>
             <span className="card-value">{pendingAopcs}</span>
           </Link>
         )}
       </div>
+
+      {canViewCases && (
+        <>
+          <h2>Upcoming Deadlines</h2>
+          {upcomingCases.length === 0 ? <div className="message message-success">No case deadlines in the next 14 days.</div> : (
+            <div className="tablewrap"><table className="stat"><thead><tr><th scope="col">Case</th><th scope="col">Deadline</th><th scope="col">Date</th></tr></thead><tbody>
+              {upcomingCases.flatMap((item) => ([
+                ["Discovery", item.discDue], ["Pretrial", item.pretrial], ["Appeal", item.appealBy],
+              ] as [string, Date | null][]).filter(([, date]) => date && date.getTime() <= Date.now() + 14 * 86400000).map(([label, date]) => (
+                <tr key={`${item.id}-${label}`}><td><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} — {item.title}</Link></td><td>{label}</td><td><time className={date && date.getTime() < Date.now() ? "deadline-overdue" : undefined} dateTime={date?.toISOString()}>{date?.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></td></tr>
+              )))}</tbody></table></div>
+          )}
+        </>
+      )}
+
+      <h2>Notifications</h2>
+      <Link href="/notifications" className="card"><span className="card-label">Unread notifications</span><span className="card-value">{unreadCount}</span></Link>
+
+      {hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) && (
+        <><h2>Recent Activity</h2>{recentActivity.length === 0 ? <div className="message">No recent activity.</div> : <ul className="activity-preview">{recentActivity.map((entry) => <li key={entry.id}><span>{entry.actorName} {entry.action} {entry.targetType} “{entry.targetLabel}”</span><time dateTime={entry.createdAt.toISOString()}>{entry.createdAt.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</time></li>)}</ul>}</>
+      )}
     </div>
   );
 }

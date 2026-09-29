@@ -2,9 +2,11 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { AOPC_TARGET_UNITS, UNIT_LEADER_RANK } from "@/config/units";
+import { UNIT_LEADER_RANK, UNITS } from "@/config/units";
 import { localUser } from "@/lib/case-access";
 import { submitAopc, reviewAopc } from "./actions";
+import { getSiteConfiguration } from "@/lib/site-settings";
+import Link from "next/link";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 const STATUS_COLORS: Record<string, string> = {
@@ -22,9 +24,11 @@ export default async function AffidavitsPage() {
   }
 
   const user = await localUser(session.user.discordUserId);
+  const divisions = await getSiteConfiguration("divisions", UNITS);
+  const targetUnits = divisions.filter((unit) => unit.acceptsAopc).map((unit) => unit.value);
 
   const leads = await prisma.rosterEntry.findMany({
-    where: { OR: AOPC_TARGET_UNITS.map((unit) => ({ unit, rank: UNIT_LEADER_RANK[unit] })) },
+    where: { OR: targetUnits.map((unit) => ({ unit, rank: divisions.find((d) => d.value === unit)?.leaderRank ?? UNIT_LEADER_RANK[unit] ?? "" })) },
     select: { unit: true, name: true },
   });
   const leadByUnit = new Map(leads.map((l) => [l.unit, l.name]));
@@ -32,7 +36,7 @@ export default async function AffidavitsPage() {
   const aopcs = await prisma.aopc.findMany({
     where: canReview ? {} : { submittedById: user?.id },
     orderBy: { createdAt: "desc" },
-    include: { submittedBy: true, reviewedBy: true },
+    include: { submittedBy: true, reviewedBy: true, linkedCase: true },
     take: 50,
   });
 
@@ -48,6 +52,12 @@ export default async function AffidavitsPage() {
           {leadName ? ` — Unit lead: ${leadName}` : " — Unit lead: Vacant"}
         </p>
         <h3 style={{ marginTop: 0 }}>{a.title}</h3>
+        <ol className="status-timeline" aria-label="Affidavit status timeline">
+          <li><strong>Submitted</strong><time dateTime={a.createdAt.toISOString()}>{dateFormatter.format(a.createdAt)}</time></li>
+          {a.reviewedAt && <li><strong>{a.status === "ACCEPTED" ? "Accepted" : "Rejected"}</strong><time dateTime={a.reviewedAt.toISOString()}>{dateFormatter.format(a.reviewedAt)}</time></li>}
+        </ol>
+        {a.linkedCase && <p><strong>Linked case:</strong> <Link href={`/dashboard/cases/${a.linkedCase.id}`}>{a.linkedCase.caseNumber} — {a.linkedCase.title}</Link></p>}
+        <p><Link href={`/dashboard/affidavits/${a.id}`}>Printable affidavit view →</Link></p>
         <p style={{ fontSize: 12 }}>Subject: {a.subject}</p>
         <p style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{a.narrative}</p>
 
@@ -58,7 +68,7 @@ export default async function AffidavitsPage() {
               <input
                 type="text"
                 name="note"
-                placeholder="Review note (optional)"
+                placeholder="Review note (required when rejecting)"
                 maxLength={1000}
                 style={{ flex: "1 1 220px", padding: "6px 8px", border: "1px solid var(--bd)" }}
               />
@@ -121,8 +131,8 @@ export default async function AffidavitsPage() {
             <div className="field-row">
               <div className="field">
                 <label htmlFor="targetUnit">Send To</label>
-                <select id="targetUnit" name="targetUnit" defaultValue={AOPC_TARGET_UNITS[0]}>
-                  {AOPC_TARGET_UNITS.map((u) => (
+                <select id="targetUnit" name="targetUnit" defaultValue={targetUnits[0]}>
+                  {targetUnits.map((u) => (
                     <option key={u} value={u}>
                       {u}
                     </option>

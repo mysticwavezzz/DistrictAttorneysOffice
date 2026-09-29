@@ -1,4 +1,5 @@
 import { siteConfig } from "@/config/site";
+import { TipForm } from "@/components/tip-form";
 
 export function TipsSection() {
   return (
@@ -13,10 +14,7 @@ export function TipsSection() {
         or your local emergency number right away.
       </div>
 
-      <div className="message">
-        The online tip line is temporarily unavailable while we update it. Please contact the
-        office directly in the meantime.
-      </div>
+      <TipForm />
     </section>
   );
 }

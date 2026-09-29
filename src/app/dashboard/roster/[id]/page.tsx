@@ -7,20 +7,26 @@ import { UNITS } from "@/config/units";
 import { updateRosterEntry, removeRosterEntry } from "../actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
+import { getSiteConfiguration } from "@/lib/site-settings";
 
 function toDateInputValue(date: Date | null): string {
   if (!date) return "";
   return date.toISOString().slice(0, 10);
 }
 
-export default async function EditRosterEntryPage({ params }: { params: { id: string } }) {
+export default async function EditRosterEntryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE)) {
     redirect("/login?error=forbidden");
   }
 
-  const entry = await prisma.rosterEntry.findUnique({ where: { id: params.id } });
+  const entry = await prisma.rosterEntry.findUnique({ where: { id } });
   if (!entry) notFound();
+  const [ranks, divisions] = await Promise.all([
+    getSiteConfiguration("ranks", RANKS),
+    getSiteConfiguration("divisions", UNITS),
+  ]);
 
   return (
     <div>
@@ -44,7 +50,7 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
               <option value="" disabled>
                 Select a rank
               </option>
-              {RANKS.map((r) => (
+            {ranks.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>
@@ -57,7 +63,7 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
             </label>
             <select id="unit" name="unit" defaultValue={entry.unit ?? ""}>
               <option value="">No unit set</option>
-              {UNITS.map((u) => (
+              {divisions.map((u) => (
                 <option key={u.value} value={u.value}>
                   {u.label}
                 </option>

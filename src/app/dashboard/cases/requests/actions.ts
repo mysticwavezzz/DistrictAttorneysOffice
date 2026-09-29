@@ -71,6 +71,7 @@ export async function reviewCaseRequest(formData: FormData) {
   if (!id || (decision !== "APPROVE" && decision !== "REJECT")) {
     throw new Error("Invalid review submission");
   }
+  if (decision === "REJECT" && !note.trim()) throw new Error("A review note is required when rejecting a request");
 
   const request = await prisma.caseActionRequest.findUnique({ where: { id } });
   if (!request || request.status !== "PENDING") {

@@ -3,11 +3,12 @@ import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { submitRecordsRequest } from "./actions";
 
-export default function RecordsRequestPage({
+export default async function RecordsRequestPage({
   searchParams,
 }: {
-  searchParams: { sent?: string; error?: string };
+  searchParams: Promise<{ sent?: string; error?: string }>;
 }) {
+  const query = await searchParams;
   return (
     <div className="wrap">
       <a href="#main" className="skiplink">
@@ -27,15 +28,15 @@ export default function RecordsRequestPage({
             records may be sealed or exempt from disclosure.
           </p>
 
-          {searchParams.sent ? (
+          {query.sent ? (
             <div className="message message-success">
               Your request has been submitted. The office will follow up using the contact
               information you provided.
             </div>
           ) : (
             <>
-              {searchParams.error && (
-                <div className="message message-error">
+              {query.error && (
+                <div className="message message-error" role="alert" aria-live="assertive">
                   Please fill in all fields and try again.
                 </div>
               )}

@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { NOTIFICATION_TYPES } from "@/lib/notifications";
+import { env } from "@/lib/env";
 import {
   markNotificationRead,
   markAllNotificationsRead,
@@ -33,6 +34,8 @@ export default async function NotificationsPage() {
       })
     : [];
   const mutedSet = new Set((user?.mutedTypes ?? "").split(",").filter(Boolean));
+  const groupedItems = NOTIFICATION_TYPES.map((type) => ({ ...type, items: items.filter((item) => item.type === type.value) })).filter((group) => group.items.length > 0);
+  const otherItems = items.filter((item) => !NOTIFICATION_TYPES.some((type) => type.value === item.type));
 
   return (
     <div className="wrap">
@@ -56,12 +59,13 @@ export default async function NotificationsPage() {
               </form>
             )}
           </div>
+          {!env.DISCORD_DM_NOTIFICATIONS && <p className="message" role="status">Discord direct messages are disabled. In-site notifications remain available here.</p>}
 
           {items.length === 0 ? (
             <div className="message">No notifications yet.</div>
           ) : (
             <div className="release-list">
-              {items.map((n) => (
+              {[...groupedItems.map((group) => ({ label: group.label, items: group.items })), ...(otherItems.length ? [{ label: "Other", items: otherItems }] : [])].map((group) => <section key={group.label} aria-label={`${group.label} notifications`}><h2>{group.label}</h2>{group.items.map((n) => (
                 <div key={n.id} className="release-card" style={{ alignItems: "flex-start" }}>
                   <span className="release-card-body">
                     <span className="release-card-date">
@@ -87,7 +91,7 @@ export default async function NotificationsPage() {
                     </span>
                   </span>
                 </div>
-              ))}
+              ))}</section>)}
             </div>
           )}
 

@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { sendDirectMessage } from "@/lib/discord/dm";
 import { env } from "@/lib/env";
 import { getSiteSettings } from "@/lib/site-settings";
+import { hasCapability } from "@/lib/permissions/resolve";
+import type { PermissionTier } from "@/lib/permissions/tiers";
 
 export const NOTIFICATION_TYPES: { value: string; label: string }[] = [
   { value: "case_assigned", label: "Case assigned to you" },
@@ -72,15 +74,8 @@ export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "us
 }
 
 export async function userIdsWithCapability(capability: string): Promise<string[]> {
-  const { TIER_DEFINITIONS } = await import("@/lib/permissions/tiers");
-  const tiersWithCap = new Set<string>(
-    Object.values(TIER_DEFINITIONS)
-      .filter((t) => (t.capabilities as string[]).includes(capability))
-      .map((t) => t.id as string)
-  );
-
   const users = await prisma.user.findMany({ select: { id: true, tiers: true } });
   return users
-    .filter((u) => u.tiers.split(",").some((t) => tiersWithCap.has(t)))
+    .filter((u) => hasCapability(u.tiers.split(",").filter(Boolean) as PermissionTier[], capability as import("@/lib/permissions/capabilities").Capability))
     .map((u) => u.id);
 }

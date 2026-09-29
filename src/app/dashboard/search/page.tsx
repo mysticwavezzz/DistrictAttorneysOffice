@@ -9,14 +9,14 @@ import { localUser } from "@/lib/case-access";
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: Promise<{ q?: string }>;
 }) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.DASHBOARD_VIEW)) {
     redirect("/login?error=forbidden");
   }
 
-  const q = (searchParams.q ?? "").trim();
+  const q = ((await searchParams).q ?? "").trim();
   const tiers = session.user.tiers;
 
   const canViewCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW);

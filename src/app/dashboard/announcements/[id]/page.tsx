@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { updateAnnouncement, deleteAnnouncement } from "../actions";
 
-export default async function EditAnnouncementPage({ params }: { params: { id: string } }) {
+export default async function EditAnnouncementPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE)) {
     redirect("/login?error=forbidden");
@@ -12,7 +13,7 @@ export default async function EditAnnouncementPage({ params }: { params: { id: s
 
   let post: Awaited<ReturnType<typeof prisma.announcement.findUnique>> | null = null;
   try {
-    post = await prisma.announcement.findUnique({ where: { id: params.id } });
+    post = await prisma.announcement.findUnique({ where: { id } });
   } catch (error) {
     console.error("Failed to load announcement", error);
   }

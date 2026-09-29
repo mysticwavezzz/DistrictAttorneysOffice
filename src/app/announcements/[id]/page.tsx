@@ -25,9 +25,9 @@ async function getAnnouncement(id: string) {
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const announcement = await getAnnouncement(params.id);
+  const announcement = await getAnnouncement((await params).id);
   if (!announcement) return {};
   return {
     title: announcement.title,
@@ -38,9 +38,9 @@ export async function generateMetadata({
 export default async function AnnouncementDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const announcement = await getAnnouncement(params.id);
+  const announcement = await getAnnouncement((await params).id);
   if (!announcement) notFound();
 
   return (

@@ -5,13 +5,17 @@ const SETTINGS_ID = 1;
 export interface SiteSettingsData {
   maintenanceMode: boolean;
   maintenanceMessage: string | null;
+  maintenanceEstimatedAt: Date | null;
   notificationsDisabled: boolean;
+  updatedAt: Date | null;
 }
 
 const DEFAULTS: SiteSettingsData = {
   maintenanceMode: false,
   maintenanceMessage: null,
+  maintenanceEstimatedAt: null,
   notificationsDisabled: false,
+  updatedAt: null,
 };
 
 export async function getSiteSettings(): Promise<SiteSettingsData> {
@@ -21,7 +25,9 @@ export async function getSiteSettings(): Promise<SiteSettingsData> {
     return {
       maintenanceMode: row.maintenanceMode,
       maintenanceMessage: row.maintenanceMessage,
+      maintenanceEstimatedAt: row.maintenanceEstimatedAt,
       notificationsDisabled: row.notificationsDisabled,
+      updatedAt: row.updatedAt,
     };
   } catch (error) {
     console.error("Failed to load site settings", error);
@@ -29,10 +35,34 @@ export async function getSiteSettings(): Promise<SiteSettingsData> {
   }
 }
 
-export async function updateSiteSettings(data: Partial<SiteSettingsData>) {
+export async function updateSiteSettings(data: Partial<Omit<SiteSettingsData, "updatedAt">>) {
   await prisma.siteSettings.upsert({
     where: { id: SETTINGS_ID },
-    create: { id: SETTINGS_ID, ...DEFAULTS, ...data },
+    create: {
+      id: SETTINGS_ID,
+      maintenanceMode: data.maintenanceMode ?? DEFAULTS.maintenanceMode,
+      maintenanceMessage: data.maintenanceMessage ?? DEFAULTS.maintenanceMessage,
+      maintenanceEstimatedAt: data.maintenanceEstimatedAt ?? DEFAULTS.maintenanceEstimatedAt,
+      notificationsDisabled: data.notificationsDisabled ?? DEFAULTS.notificationsDisabled,
+    },
     update: data,
+  });
+}
+
+export async function getSiteConfiguration<T>(key: string, fallback: T): Promise<T> {
+  try {
+    const row = await prisma.siteConfiguration.findUnique({ where: { key }, select: { value: true } });
+    return row ? (JSON.parse(row.value) as T) : fallback;
+  } catch (error) {
+    console.error(`Failed to load site configuration: ${key}`, error);
+    return fallback;
+  }
+}
+
+export async function updateSiteConfiguration(key: string, value: unknown) {
+  await prisma.siteConfiguration.upsert({
+    where: { key },
+    create: { key, value: JSON.stringify(value) },
+    update: { value: JSON.stringify(value) },
   });
 }

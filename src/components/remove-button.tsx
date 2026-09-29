@@ -10,6 +10,7 @@ interface RemoveButtonProps {
   className?: string;
   style?: React.CSSProperties;
   formStyle?: React.CSSProperties;
+  confirmMessage?: string;
 }
 
 export function RemoveButton({
@@ -20,6 +21,7 @@ export function RemoveButton({
   className = "linklike",
   style,
   formStyle,
+  confirmMessage = "Remove this item? This action may not be reversible.",
 }: RemoveButtonProps) {
   const [isPending, startTransition] = useTransition();
   const submittingRef = useRef(false);
@@ -27,6 +29,9 @@ export function RemoveButton({
   return (
     <form
       style={formStyle}
+      onSubmit={(event) => {
+        if (!window.confirm(confirmMessage)) event.preventDefault();
+      }}
       action={(formData) => {
         if (submittingRef.current) return;
         submittingRef.current = true;

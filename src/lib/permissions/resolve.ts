@@ -29,9 +29,16 @@ export function resolveTiersFromRobloxRoles(
 }
 
 export function resolveTiersFromDiscordRoles(roleIds: string[]): PermissionTier[] {
+  return resolveTiersFromRoleMappings(roleIds, DISCORD_TIER_ROLE_MAPPINGS);
+}
+
+export function resolveTiersFromRoleMappings(
+  roleIds: string[],
+  mappings: { tier: PermissionTier; roleIds: string[] }[]
+): PermissionTier[] {
   const held = new Set(roleIds);
   const tiers = new Set<PermissionTier>();
-  for (const mapping of DISCORD_TIER_ROLE_MAPPINGS) {
+  for (const mapping of mappings) {
     if (mapping.roleIds.some((id) => held.has(id))) {
       tiers.add(mapping.tier);
     }
@@ -41,11 +48,21 @@ export function resolveTiersFromDiscordRoles(roleIds: string[]): PermissionTier[
 
 export function capabilitiesForTiers(tiers: PermissionTier[]): Set<Capability> {
   const capabilities = new Set<Capability>();
+  const denied = new Set<Capability>();
   for (const tier of tiers) {
+    if (tier.startsWith("cap:")) {
+      capabilities.add(tier.slice(4) as Capability);
+      continue;
+    }
+    if (tier.startsWith("denycap:")) {
+      denied.add(tier.slice(8) as Capability);
+      continue;
+    }
     for (const capability of TIER_DEFINITIONS[tier].capabilities) {
       capabilities.add(capability);
     }
   }
+  for (const capability of denied) capabilities.delete(capability);
   return capabilities;
 }
 

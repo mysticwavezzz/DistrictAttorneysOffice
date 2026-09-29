@@ -4,20 +4,31 @@ import { siteConfig } from "@/config/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
-import { LEADERSHIP_POSITIONS } from "@/config/units";
+import { UNIT_LEADER_RANK, UNITS } from "@/config/units";
+import { getSiteConfiguration } from "@/lib/site-settings";
 
 type RosterEntry = Awaited<ReturnType<typeof prisma.rosterEntry.findMany>>[number];
 
 async function getLeadershipPositions() {
+  const units = await getSiteConfiguration("divisions", UNITS);
+  const positions = [
+    { rank: "District Attorney", unit: null as string | null, label: "District Attorney" },
+    { rank: "Deputy District Attorney", unit: null as string | null, label: "Deputy District Attorney" },
+    ...units.map((unit) => ({
+      rank: unit.leaderRank ?? UNIT_LEADER_RANK[unit.value] ?? "Division Lead",
+      unit: unit.value,
+      label: `${unit.leaderRank ?? UNIT_LEADER_RANK[unit.value] ?? "Division Lead"} — ${unit.label}`,
+    })),
+  ];
   try {
     const entries = await prisma.rosterEntry.findMany({ orderBy: { name: "asc" } });
-    return LEADERSHIP_POSITIONS.map((position) => ({
+    return positions.map((position) => ({
       position,
       entry: entries.find((e) => e.rank === position.rank && (position.unit === null || e.unit === position.unit)) ?? null,
     }));
   } catch (error) {
     console.error("Failed to load leadership", error);
-    return LEADERSHIP_POSITIONS.map((position) => ({ position, entry: null as RosterEntry | null }));
+    return positions.map((position) => ({ position, entry: null as RosterEntry | null }));
   }
 }
 

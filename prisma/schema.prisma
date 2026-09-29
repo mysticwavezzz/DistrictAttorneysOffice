@@ -8,15 +8,15 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  discordUserId String    @unique
+  id            String   @id @default(cuid())
+  discordUserId String   @unique
   username      String
   displayName   String
   avatarUrl     String?
-  tiers         String    @default("")
-  mutedTypes    String    @default("")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  tiers         String   @default("")
+  mutedTypes    String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   accounts             Account[]
   sessions             Session[]
@@ -90,13 +90,13 @@ model Case {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  assignedAttorney User? @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
-  createdBy        User  @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedAttorney User?               @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
+  createdBy        User                @relation("CreatedBy", fields: [createdById], references: [id])
   filings          CaseFiling[]
   comments         CaseComment[]
   actionRequests   CaseActionRequest[]
-  relatedTo        Case[] @relation("CaseRelations")
-  relatedFrom      Case[] @relation("CaseRelations")
+  relatedTo        Case[]              @relation("CaseRelations")
+  relatedFrom      Case[]              @relation("CaseRelations")
   aopcs            Aopc[]
 
   @@index([archived])
@@ -233,9 +233,22 @@ model RecordsRequest {
 }
 
 model SiteSettings {
-  id                    Int      @id @default(1)
-  maintenanceMode       Boolean  @default(false)
-  maintenanceMessage    String?
-  notificationsDisabled Boolean  @default(false)
-  updatedAt             DateTime @updatedAt
+  id                     Int       @id @default(1)
+  maintenanceMode        Boolean   @default(false)
+  maintenanceMessage     String?
+  maintenanceEstimatedAt DateTime?
+  notificationsDisabled  Boolean   @default(false)
+  updatedAt              DateTime  @updatedAt
+}
+
+model SiteConfiguration {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model RateLimitBucket {
+  key     String   @id
+  count   Int
+  resetAt DateTime
 }

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = getClientIp(req);
-  const rate = checkRateLimit(`tip:${ip}`, { limit: 5, windowMs: 15 * 60 * 1000 });
+  const rate = await checkRateLimit(`tip:${ip}`, { limit: 5, windowMs: 15 * 60 * 1000 });
   if (!rate.allowed) {
     return NextResponse.json(
       { error: "Too many submissions from this connection. Please try again later." },

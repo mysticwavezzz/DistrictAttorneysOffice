@@ -19,20 +19,21 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { callbackUrl?: string; error?: string };
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
+  const query = await searchParams;
   const session = await auth();
-  const callbackUrl = searchParams.callbackUrl ?? "/dashboard";
+  const callbackUrl = query.callbackUrl ?? "/dashboard";
 
-  if (session?.user?.discordUserId && !searchParams.error) {
+  if (session?.user?.discordUserId && !query.error) {
     redirect(callbackUrl);
   }
 
-  const errorMessage = searchParams.error
-    ? ERROR_MESSAGES[searchParams.error] ?? ERROR_MESSAGES.Default
+  const errorMessage = query.error
+    ? ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.Default
     : null;
 
-  const isSignedInButForbidden = Boolean(session?.user?.discordUserId) && Boolean(searchParams.error);
+  const isSignedInButForbidden = Boolean(session?.user?.discordUserId) && Boolean(query.error);
 
   return (
     <div className="wrap">

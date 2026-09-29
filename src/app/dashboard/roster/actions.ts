@@ -8,6 +8,9 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { rosterEntrySchema } from "@/lib/validation/roster";
 import { emptyToNull, toDate } from "@/lib/validation/case";
 import { logActivity } from "@/lib/activity-log";
+import { getSiteConfiguration } from "@/lib/site-settings";
+import type { RankOption } from "@/config/ranks";
+import type { UnitOption } from "@/config/units";
 
 async function requireManager() {
   const session = await auth();
@@ -25,6 +28,8 @@ export async function addRosterEntry(formData: FormData) {
     throw new Error("Invalid roster entry");
   }
   const data = parsed.data;
+  const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", []), getSiteConfiguration<UnitOption[]>("divisions", [])]);
+  if (!ranks.some((rank) => rank.value === data.rank) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
 
   await prisma.rosterEntry.create({
     data: {
@@ -54,6 +59,8 @@ export async function updateRosterEntry(formData: FormData) {
     throw new Error("Invalid roster entry");
   }
   const data = parsed.data;
+  const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", []), getSiteConfiguration<UnitOption[]>("divisions", [])]);
+  if (!ranks.some((rank) => rank.value === data.rank) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
 
   await prisma.rosterEntry.update({
     where: { id },

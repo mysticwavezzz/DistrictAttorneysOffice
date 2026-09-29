@@ -9,6 +9,8 @@ import { aopcInputSchema } from "@/lib/validation/aopc";
 import { localUser, generateCaseNumber } from "@/lib/case-access";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
+import { getSiteConfiguration } from "@/lib/site-settings";
+import { UNITS } from "@/config/units";
 
 async function requireSubmitter() {
   const session = await auth();
@@ -36,6 +38,8 @@ export async function submitAopc(formData: FormData) {
   const parsed = aopcInputSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid affidavit submission");
   const data = parsed.data;
+  const divisions = await getSiteConfiguration("divisions", UNITS);
+  if (!divisions.some((unit) => unit.value === data.targetUnit && unit.acceptsAopc)) throw new Error("This division does not accept affidavit referrals");
 
   const created = await prisma.aopc.create({
     data: {
@@ -78,6 +82,7 @@ export async function reviewAopc(formData: FormData) {
   if (!id || (decision !== "ACCEPT" && decision !== "REJECT")) {
     throw new Error("Invalid review submission");
   }
+  if (decision === "REJECT" && !note.trim()) throw new Error("A review note is required when rejecting an affidavit");
 
   const aopc = await prisma.aopc.findUnique({ where: { id } });
   if (!aopc || aopc.status !== "PENDING") {

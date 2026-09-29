@@ -5,6 +5,7 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { CASE_STATUSES } from "@/config/case-statuses";
 import { createCase } from "../actions";
 import { submitCaseRequest } from "../requests/actions";
+import { getSiteConfiguration } from "@/lib/site-settings";
 
 export default async function NewCasePage() {
   const session = await auth();
@@ -15,6 +16,7 @@ export default async function NewCasePage() {
   }
 
   const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
+  const caseStatuses = await getSiteConfiguration("caseStatuses", CASE_STATUSES);
   let attorneys: { id: string; displayName: string }[] = [];
   if (canAssign) {
     try {
@@ -61,7 +63,7 @@ export default async function NewCasePage() {
             <label htmlFor="stage">Status</label>
             <select id="stage" name="stage" defaultValue="">
               <option value="">No status set</option>
-              {CASE_STATUSES.map((s) => (
+              {caseStatuses.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>

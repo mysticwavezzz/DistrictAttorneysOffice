@@ -181,6 +181,37 @@ export async function deleteCase(formData: FormData) {
   redirect("/dashboard/cases");
 }
 
+export async function bulkUpdateCases(formData: FormData) {
+  const { session, user } = await requireStaff();
+  const ids = formData.getAll("caseIds").map(String).filter(Boolean).slice(0, 100);
+  const operation = String(formData.get("operation") ?? "");
+  if (!ids.length) throw new Error("Select at least one case");
+
+  const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
+  const canEdit = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT);
+  if ((operation === "assign" && !canAssign) || (operation === "archive" && !canEdit)) {
+    throw new Error("Forbidden");
+  }
+  const cases = await prisma.case.findMany({ where: { id: { in: ids } } });
+  if (cases.length !== ids.length || cases.some((c) => !canAccessCase(session.user.tiers, user.id, c))) {
+    throw new Error("One or more cases are not accessible");
+  }
+
+  if (operation === "assign") {
+    const assigneeId = emptyToNull(String(formData.get("assigneeId") ?? ""));
+    if (assigneeId && !(await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true } }))) {
+      throw new Error("Invalid assignee");
+    }
+    await prisma.case.updateMany({ where: { id: { in: ids } }, data: { assignedAttorneyId: assigneeId } });
+  } else if (operation === "archive") {
+    await prisma.case.updateMany({ where: { id: { in: ids } }, data: { archived: true } });
+  } else {
+    throw new Error("Invalid bulk operation");
+  }
+
+  revalidatePath("/dashboard/cases");
+}
+
 export async function addFiling(formData: FormData) {
   const { session, user } = await requireStaff();
   const caseId = String(formData.get("caseId") ?? "");

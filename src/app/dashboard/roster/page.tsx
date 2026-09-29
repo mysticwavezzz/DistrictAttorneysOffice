@@ -8,18 +8,22 @@ import { UNITS } from "@/config/units";
 import { addRosterEntry, removeRosterEntry } from "./actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
+import { getSiteConfiguration } from "@/lib/site-settings";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
 type RosterEntry = Awaited<ReturnType<typeof prisma.rosterEntry.findMany>>[number];
 
-export default async function RosterPage() {
+export default async function RosterPage({ searchParams }: { searchParams: Promise<{ q?: string; rank?: string; unit?: string }> }) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW)) {
     redirect("/login?error=forbidden");
   }
 
   const canManage = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE);
+  const divisions = await getSiteConfiguration("divisions", UNITS);
+  const ranks = await getSiteConfiguration("ranks", RANKS);
+  const filters = await searchParams;
 
   let entries: RosterEntry[] = [];
   let activeDiscordIds = new Set<string>();
@@ -33,13 +37,18 @@ export default async function RosterPage() {
   } catch (error) {
     console.error("Failed to load roster", error);
   }
+  const filteredEntries = entries.filter((entry) =>
+    (!filters.q || `${entry.name} ${entry.discordUserId ?? ""}`.toLowerCase().includes(filters.q.toLowerCase())) &&
+    (!filters.rank || entry.rank === filters.rank) && (!filters.unit || entry.unit === filters.unit)
+  );
+  const vacantUnits = new Set(divisions.filter((division) => !entries.some((entry) => entry.unit === division.value)).map((division) => division.value));
 
   const groups: { key: string; label: string; description?: string; entries: RosterEntry[] }[] = [
-    ...UNITS.map((u) => ({ key: u.value, label: u.label, description: u.description, entries: [] as RosterEntry[] })),
+    ...divisions.map((u) => ({ key: u.value, label: u.label, description: u.description, entries: [] as RosterEntry[] })),
     { key: "", label: "Unassigned", entries: [] as RosterEntry[] },
   ];
   const unassignedGroup = groups[groups.length - 1]!;
-  for (const entry of entries) {
+  for (const entry of filteredEntries) {
     const group = groups.find((g) => g.key === (entry.unit ?? "")) ?? unassignedGroup;
     group.entries.push(entry);
   }
@@ -50,6 +59,14 @@ export default async function RosterPage() {
       <div key={group.key} style={{ marginBottom: 18 }}>
         <h3 style={{ marginBottom: 4 }}>{group.label}</h3>
         {group.description && <p className="note-inline">{group.description}</p>}
+        <div className="roster-cards">
+          {group.entries.map((entry) => <article className="roster-card" key={`card-${entry.id}`}>
+            {entry.imageUrl && <img src={entry.imageUrl} alt="" loading="lazy" />}
+            <h4>{entry.name}</h4><p>{entry.rank ?? "Rank not set"}</p>
+            <span className={`pill ${entry.discordUserId ? (activeDiscordIds.has(entry.discordUserId) ? "pill-green" : "pill-red") : "pill-muted"}`}>{entry.discordUserId ? (activeDiscordIds.has(entry.discordUserId) ? "Active" : "Inactive") : "Not linked"}</span>
+            {canManage && <p><Link href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></p>}
+          </article>)}
+        </div>
         <div className="tablewrap">
           <table className="stat">
             <thead>
@@ -100,10 +117,23 @@ export default async function RosterPage() {
     <div>
       <h1>Staff Roster</h1>
 
-      {entries.length === 0 ? (
-        <div className="message">No roster entries yet.</div>
+      <form method="get" className="formbox roster-filters" aria-label="Filter staff roster">
+        <div className="field"><label htmlFor="roster-search">Search name or Discord ID</label><input id="roster-search" name="q" defaultValue={filters.q} /></div>
+        <div className="field"><label htmlFor="roster-rank">Rank</label><select id="roster-rank" name="rank" defaultValue={filters.rank ?? ""}><option value="">All ranks</option>{ranks.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
+        <div className="field"><label htmlFor="roster-unit">Division</label><select id="roster-unit" name="unit" defaultValue={filters.unit ?? ""}><option value="">All divisions</option>{divisions.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</select></div>
+        <button className="govbtn" type="submit">Filter</button><Link className="govbtn-outline" href="/dashboard/roster">Clear</Link>
+      </form>
+
+      {filteredEntries.length === 0 ? (
+        <div className="message">{entries.length ? "No staff match these filters." : "No roster entries yet."}</div>
       ) : (
-        groups.map(renderGroup)
+        groups.map((group) => vacantUnits.has(group.key) && group.key !== "" ? (
+          <section key={group.key} className="vacant-unit" aria-label={`${group.label} has no assigned staff`}>
+            <h2>{group.label}</h2>
+            {group.description && <p className="note-inline">{group.description}</p>}
+            <p><span className="pill pill-muted">Position vacant</span> No staff are currently assigned to this unit.</p>
+          </section>
+        ) : renderGroup(group))
       )}
 
       {canManage && (
@@ -126,7 +156,7 @@ export default async function RosterPage() {
                   <option value="" disabled>
                     Select a rank
                   </option>
-                  {RANKS.map((r) => (
+                  {ranks.map((r) => (
                     <option key={r.value} value={r.value}>
                       {r.label}
                     </option>
@@ -139,7 +169,7 @@ export default async function RosterPage() {
                 </label>
                 <select id="unit" name="unit" defaultValue="">
                   <option value="">No unit set</option>
-                  {UNITS.map((u) => (
+                  {divisions.map((u) => (
                     <option key={u.value} value={u.value}>
                       {u.label}
                     </option>
