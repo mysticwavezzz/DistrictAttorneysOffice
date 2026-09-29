@@ -72,7 +72,7 @@ export function NotificationBell() {
             items.map((n) => (
               <Link
                 key={n.id}
-                href={n.link ?? "/dashboard/notifications"}
+                href={n.link ?? "/notifications"}
                 className="notif-item"
                 onClick={() => setOpen(false)}
               >
@@ -81,7 +81,7 @@ export function NotificationBell() {
               </Link>
             ))
           )}
-          <Link href="/dashboard/notifications" className="notif-viewall" onClick={() => setOpen(false)}>
+          <Link href="/notifications" className="notif-viewall" onClick={() => setOpen(false)}>
             View all
           </Link>
         </div>

@@ -31,4 +31,9 @@ describe("findRouteRule", () => {
   it("does not treat an unrelated path with a matching prefix substring as protected", () => {
     expect(findRouteRule("/dashboard-public")).toBeNull();
   });
+
+  it("gates the public-site bulletin route to bulletin:view, separate from the dashboard", () => {
+    const rule = findRouteRule("/bulletin");
+    expect(rule?.capabilities).toEqual([CAPABILITIES.BULLETIN_VIEW]);
+  });
 });

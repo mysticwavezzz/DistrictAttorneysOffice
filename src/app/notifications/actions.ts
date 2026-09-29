@@ -26,7 +26,7 @@ export async function markNotificationRead(formData: FormData) {
     data: { isRead: true },
   });
 
-  revalidatePath("/dashboard/notifications");
+  revalidatePath("/notifications");
 }
 
 export async function markAllNotificationsRead() {
@@ -38,5 +38,5 @@ export async function markAllNotificationsRead() {
     data: { isRead: true },
   });
 
-  revalidatePath("/dashboard/notifications");
+  revalidatePath("/notifications");
 }

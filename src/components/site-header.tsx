@@ -22,8 +22,11 @@ export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {})
   const isStaff = Boolean(session?.user?.discordUserId);
   const canViewDashboard =
     isStaff && hasCapability(session!.user.tiers, CAPABILITIES.DASHBOARD_VIEW);
+  const canViewBulletin = isStaff && hasCapability(session!.user.tiers, CAPABILITIES.BULLETIN_VIEW);
 
-  const navItems = staffNav ?? siteConfig.nav;
+  const navItems =
+    staffNav ??
+    (canViewBulletin ? [...siteConfig.nav, { label: "LE Bulletin", href: "/bulletin" }] : siteConfig.nav);
   const active = activeHref ?? navItems[0]?.href;
 
   return (
@@ -36,9 +39,10 @@ export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {})
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <TextSizeToggle />
             <ThemeToggle />
-            {staffNav ? (
+            {isStaff ? (
               <>
                 <NotificationBell />
+                {!staffNav && canViewDashboard && <Link href="/dashboard">Staff Dashboard</Link>}
                 <span>{session!.user.displayName}</span>
                 <form
                   action={async () => {
@@ -51,8 +55,6 @@ export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {})
                   </button>
                 </form>
               </>
-            ) : canViewDashboard ? (
-              <Link href="/dashboard">Staff Dashboard</Link>
             ) : (
               <Link href="/login">Staff Login</Link>
             )}
@@ -86,20 +88,22 @@ export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {})
             {item.label}
           </Link>
         ))}
-        <div className="nav-group">
-          {staffNav ? (
-            <Link href="/">Public Site</Link>
-          ) : (
-            <>
-              <span className="nav-group-label">Staff</span>
-              {canViewDashboard ? (
-                <Link href="/dashboard">Dashboard</Link>
-              ) : (
-                <Link href="/login">Sign In</Link>
-              )}
-            </>
-          )}
-        </div>
+        {(!isStaff || canViewDashboard || staffNav) && (
+          <div className="nav-group">
+            {staffNav ? (
+              <Link href="/">Public Site</Link>
+            ) : (
+              <>
+                <span className="nav-group-label">Staff</span>
+                {canViewDashboard ? (
+                  <Link href="/dashboard">Dashboard</Link>
+                ) : (
+                  <Link href="/login">Sign In</Link>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </nav>
     </>
   );

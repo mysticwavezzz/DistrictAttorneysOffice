@@ -11,7 +11,7 @@ import { notifyMany } from "@/lib/notifications";
 
 function revalidateAll() {
   revalidatePath("/dashboard/announcements");
-  revalidatePath("/dashboard/bulletin");
+  revalidatePath("/bulletin");
   revalidatePath("/");
 }
 
@@ -54,7 +54,7 @@ export async function createAnnouncement(formData: FormData) {
     await notifyMany(Array.from(recipients), {
       type: "release_published",
       title: `New ${data.audience === "PUBLIC" ? "public release" : "LE bulletin post"}: ${created.title}`,
-      link: data.audience === "PUBLIC" ? `/announcements/${created.id}` : "/dashboard/bulletin",
+      link: data.audience === "PUBLIC" ? `/announcements/${created.id}` : "/bulletin",
     });
   }
 

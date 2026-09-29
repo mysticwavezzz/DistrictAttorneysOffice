@@ -11,7 +11,6 @@ export default async function DashboardOverviewPage() {
   const canViewCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW);
   const canViewAllCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
   const canViewRoster = hasCapability(tiers, CAPABILITIES.ROSTER_VIEW);
-  const canViewBulletin = hasCapability(tiers, CAPABILITIES.BULLETIN_VIEW);
   const canManageAnnouncements = hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE);
   const canApproveRequests = hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS);
 
@@ -53,17 +52,6 @@ export default async function DashboardOverviewPage() {
       rosterCount = await prisma.rosterEntry.count();
     } catch (error) {
       console.error("Failed to load roster count", error);
-    }
-  }
-
-  let bulletinCount = 0;
-  if (canViewBulletin) {
-    try {
-      bulletinCount = await prisma.announcement.count({
-        where: { audience: "LAW_ENFORCEMENT", isPublished: true },
-      });
-    } catch (error) {
-      console.error("Failed to load bulletin count", error);
     }
   }
 
@@ -118,12 +106,6 @@ export default async function DashboardOverviewPage() {
           <Link href="/dashboard/roster" className="card">
             <span className="card-label">Roster</span>
             <span className="card-value">{rosterCount}</span>
-          </Link>
-        )}
-        {canViewBulletin && (
-          <Link href="/dashboard/bulletin" className="card">
-            <span className="card-label">LE Bulletin Posts</span>
-            <span className="card-value">{bulletinCount}</span>
           </Link>
         )}
         {canManageAnnouncements && (

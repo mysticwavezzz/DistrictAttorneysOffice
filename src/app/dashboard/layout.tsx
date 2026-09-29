@@ -34,11 +34,6 @@ export default async function DashboardLayout({
     },
     { label: "Roster", href: "/dashboard/roster", show: hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) },
     {
-      label: "LE Bulletin",
-      href: "/dashboard/bulletin",
-      show: hasCapability(tiers, CAPABILITIES.BULLETIN_VIEW),
-    },
-    {
       label: "Public Releases",
       href: "/dashboard/announcements",
       show: hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE),

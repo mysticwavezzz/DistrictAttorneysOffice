@@ -156,10 +156,10 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     );
   });
 
-  it("law enforcement and government tiers reach the staff portal but not case data", async () => {
+  it("law enforcement cannot reach the staff dashboard or case data", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     expect(hasCapability([PERMISSION_TIERS.LAW_ENFORCEMENT], CAPABILITIES.DASHBOARD_VIEW)).toBe(
-      true
+      false
     );
     expect(hasCapability([PERMISSION_TIERS.LAW_ENFORCEMENT], CAPABILITIES.CASES_VIEW)).toBe(false);
     expect(hasCapability([PERMISSION_TIERS.GOVERNMENT], CAPABILITIES.CASES_VIEW)).toBe(false);

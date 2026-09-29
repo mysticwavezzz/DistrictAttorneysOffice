@@ -23,7 +23,7 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
     id: PERMISSION_TIERS.LAW_ENFORCEMENT,
     label: "Law Enforcement",
     description: "Verified member of a recognized law enforcement agency.",
-    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.ROSTER_VIEW, CAPABILITIES.BULLETIN_VIEW],
+    capabilities: [CAPABILITIES.BULLETIN_VIEW],
   },
   [PERMISSION_TIERS.GOVERNMENT]: {
     id: PERMISSION_TIERS.GOVERNMENT,
