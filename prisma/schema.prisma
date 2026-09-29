@@ -89,7 +89,9 @@ model Case {
 model Announcement {
   id          String   @id @default(cuid())
   title       String
+  summary     String?
   body        String
+  imageUrl    String?
   audience    String   @default("PUBLIC")
   publishedAt DateTime @default(now())
   isPublished Boolean  @default(true)

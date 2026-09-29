@@ -12,6 +12,14 @@ async function getPublishedAnnouncements(): Promise<AnnouncementListItem[]> {
       where: { isPublished: true, audience: "PUBLIC" },
       orderBy: { publishedAt: "desc" },
       take: 6,
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        body: true,
+        imageUrl: true,
+        publishedAt: true,
+      },
     });
   } catch (error) {
     console.error("Failed to load announcements", error);

@@ -39,6 +39,7 @@ export default async function BulletinPage() {
               {dateFormatter.format(post.publishedAt)} — {post.title}
             </summary>
             <div className="letter-body">
+              {post.imageUrl && <img src={post.imageUrl} alt="" className="release-hero" />}
               <p style={{ whiteSpace: "pre-wrap" }}>{post.body}</p>
             </div>
           </details>

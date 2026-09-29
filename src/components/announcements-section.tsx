@@ -1,10 +1,11 @@
-import { Seal } from "./seal";
-import { siteConfig } from "@/config/site";
+import Link from "next/link";
 
 export interface AnnouncementListItem {
   id: string;
   title: string;
+  summary: string | null;
   body: string;
+  imageUrl: string | null;
   publishedAt: Date;
 }
 
@@ -14,6 +15,12 @@ function formatDate(date: Date): string {
     month: "long",
     day: "numeric",
   }).format(date);
+}
+
+function previewText(announcement: AnnouncementListItem): string {
+  const source = announcement.summary?.trim() || announcement.body;
+  if (source.length <= 220) return source;
+  return `${source.slice(0, 220).trimEnd()}…`;
 }
 
 export function AnnouncementsSection({
@@ -30,29 +37,27 @@ export function AnnouncementsSection({
           There are no public announcements at this time. Please check back soon.
         </div>
       ) : (
-        announcements.map((announcement, index) => (
-          <details key={announcement.id} className="letter" open={index === 0}>
-            <summary>
-              {formatDate(announcement.publishedAt)} — {announcement.title}
-            </summary>
-            <div className="letter-body">
-              <div className="seal">
-                <Seal />
-              </div>
-              <div className="letter-head">
-                {siteConfig.county} {siteConfig.name}
-              </div>
-              <p>{announcement.body}</p>
-              <div className="letter-close">
-                <div className="letter-sign">Office of the District Attorney</div>
-              </div>
-              <div className="letter-disc">
-                This release is published for the {siteConfig.county} roleplay community and
-                does not describe any real event, agency, or person.
-              </div>
-            </div>
-          </details>
-        ))
+        <div className="release-list">
+          {announcements.map((announcement) => (
+            <Link
+              key={announcement.id}
+              href={`/announcements/${announcement.id}`}
+              className="release-card"
+            >
+              {announcement.imageUrl && (
+                <span className="release-card-thumb">
+                  <img src={announcement.imageUrl} alt="" />
+                </span>
+              )}
+              <span className="release-card-body">
+                <span className="release-card-date">{formatDate(announcement.publishedAt)}</span>
+                <span className="release-card-title">{announcement.title}</span>
+                <span className="release-card-excerpt">{previewText(announcement)}</span>
+                <span className="release-card-more">Read Full Release &rarr;</span>
+              </span>
+            </Link>
+          ))}
+        </div>
       )}
     </section>
   );

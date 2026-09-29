@@ -3,7 +3,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { createAnnouncement } from "./actions";
+import { createAnnouncement, deleteAnnouncement } from "./actions";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
@@ -33,12 +33,13 @@ export default async function AnnouncementsAdminPage() {
               <th>Status</th>
               <th>Published</th>
               <th />
+              <th />
             </tr>
           </thead>
           <tbody>
             {posts.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: "center", color: "var(--ink-soft)" }}>
+                <td colSpan={6} style={{ textAlign: "center", color: "var(--ink-soft)" }}>
                   No posts yet.
                 </td>
               </tr>
@@ -62,6 +63,14 @@ export default async function AnnouncementsAdminPage() {
                   <td>
                     <Link href={`/dashboard/announcements/${post.id}`}>Edit</Link>
                   </td>
+                  <td>
+                    <form action={deleteAnnouncement}>
+                      <input type="hidden" name="id" value={post.id} />
+                      <button type="submit" className="linklike">
+                        Delete
+                      </button>
+                    </form>
+                  </td>
                 </tr>
               ))
             )}
@@ -76,8 +85,20 @@ export default async function AnnouncementsAdminPage() {
           <input type="text" id="title" name="title" required maxLength={200} />
         </div>
         <div className="field">
-          <label htmlFor="body">Body</label>
+          <label htmlFor="summary">
+            Summary <span className="hint">(optional — shown on the homepage; full body shows on the release page)</span>
+          </label>
+          <input type="text" id="summary" name="summary" maxLength={300} />
+        </div>
+        <div className="field">
+          <label htmlFor="body">Full Release Body</label>
           <textarea id="body" name="body" required rows={6} maxLength={8000} />
+        </div>
+        <div className="field">
+          <label htmlFor="imageUrl">
+            Image URL <span className="hint">(optional — link to a hosted image)</span>
+          </label>
+          <input type="text" id="imageUrl" name="imageUrl" maxLength={2000} placeholder="https://" />
         </div>
         <div className="field" style={{ maxWidth: 260 }}>
           <label htmlFor="audience">Audience</label>

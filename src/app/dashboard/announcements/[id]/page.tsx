@@ -30,8 +30,27 @@ export default async function EditAnnouncementPage({ params }: { params: { id: s
           <input type="text" id="title" name="title" required maxLength={200} defaultValue={post.title} />
         </div>
         <div className="field">
-          <label htmlFor="body">Body</label>
+          <label htmlFor="summary">
+            Summary <span className="hint">(optional — shown on the homepage; full body shows on the release page)</span>
+          </label>
+          <input type="text" id="summary" name="summary" maxLength={300} defaultValue={post.summary ?? ""} />
+        </div>
+        <div className="field">
+          <label htmlFor="body">Full Release Body</label>
           <textarea id="body" name="body" required rows={6} maxLength={8000} defaultValue={post.body} />
+        </div>
+        <div className="field">
+          <label htmlFor="imageUrl">
+            Image URL <span className="hint">(optional — link to a hosted image)</span>
+          </label>
+          <input
+            type="text"
+            id="imageUrl"
+            name="imageUrl"
+            maxLength={2000}
+            placeholder="https://"
+            defaultValue={post.imageUrl ?? ""}
+          />
         </div>
         <div className="field-row">
           <div className="field" style={{ maxWidth: 260 }}>

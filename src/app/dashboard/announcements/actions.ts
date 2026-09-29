@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { announcementInputSchema } from "@/lib/validation/announcement";
+import { emptyToNull } from "@/lib/validation/case";
 
 function revalidateAll() {
   revalidatePath("/dashboard/announcements");
@@ -32,7 +33,9 @@ export async function createAnnouncement(formData: FormData) {
   await prisma.announcement.create({
     data: {
       title: data.title,
+      summary: emptyToNull(data.summary),
       body: data.body,
+      imageUrl: emptyToNull(data.imageUrl),
       audience: data.audience,
       createdById: creator?.id,
     },
@@ -61,7 +64,9 @@ export async function updateAnnouncement(formData: FormData) {
     where: { id },
     data: {
       title: data.title,
+      summary: emptyToNull(data.summary),
       body: data.body,
+      imageUrl: emptyToNull(data.imageUrl),
       audience: data.audience,
       isPublished: formData.get("isPublished") === "on",
     },
