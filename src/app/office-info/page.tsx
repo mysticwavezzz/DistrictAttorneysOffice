@@ -85,39 +85,37 @@ export default async function OfficeInfoPage() {
           {leadership.length === 0 ? (
             <div className="message">Leadership listings will appear here once published.</div>
           ) : (
-            <div className="tablewrap">
-              <table className="stat leadership-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 64 }} />
-                    <th>Name</th>
-                    <th>Serving Since</th>
-                    <th>About</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leadership.map((entry) => (
-                    <tr key={entry.id}>
-                      <td>
-                        <span className="leadership-photo">
-                          {entry.imageUrl ? (
-                            <img src={entry.imageUrl} alt="" />
-                          ) : (
-                            <span className="leadership-photo-fallback" aria-hidden="true" />
-                          )}
-                        </span>
-                      </td>
-                      <td>
-                        <strong>{entry.name}</strong>
-                        <br />
-                        <span className="note-inline">{entry.rank}</span>
-                      </td>
-                      <td>{formatTenure(entry.startDate)}</td>
-                      <td>{entry.about ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="infobox-grid">
+              {leadership.map((entry) => (
+                <div key={entry.id} className="infobox">
+                  <div className="infobox-title">{entry.name}</div>
+                  <div className="infobox-photo">
+                    {entry.imageUrl ? (
+                      <img src={entry.imageUrl} alt="" />
+                    ) : (
+                      <span className="infobox-photo-fallback" aria-hidden="true" />
+                    )}
+                  </div>
+                  <table className="infobox-table">
+                    <tbody>
+                      <tr>
+                        <th>Position</th>
+                        <td>{entry.rank}</td>
+                      </tr>
+                      <tr>
+                        <th>Serving Since</th>
+                        <td>{formatTenure(entry.startDate)}</td>
+                      </tr>
+                      {entry.about && (
+                        <tr>
+                          <th>About</th>
+                          <td>{entry.about}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </div>
           )}
         </main>

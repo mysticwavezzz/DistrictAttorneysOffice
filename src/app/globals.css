@@ -1312,57 +1312,81 @@ table.stat tbody tr:hover {
 }
 
 
-.leadership-table td {
+.infobox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0 0 16px;
+  align-items: flex-start;
+}
+
+.infobox {
+  width: 240px;
+  flex: none;
+  border: 1px solid var(--bd);
+  background: var(--box-alt);
+  font-size: 12px;
+}
+
+.infobox-title {
+  padding: 6px 8px;
+  text-align: center;
+  font: bold 14px/1.3 var(--serif);
+  color: var(--heading);
+  background: var(--box);
+  border-bottom: 1px solid var(--bd);
+}
+
+.infobox-photo {
+  border-bottom: 1px solid var(--bd);
+  background: var(--box);
+}
+
+.infobox-photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.infobox-photo-fallback {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--stripe);
+}
+
+.infobox-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.infobox-table th,
+.infobox-table td {
+  text-align: left;
   vertical-align: top;
+  padding: 5px 8px;
+  border-top: 1px solid var(--bd-lt);
+  font-size: 11.5px;
 }
 
-.leadership-photo {
-  display: block;
-  width: 56px;
-  height: 56px;
-  overflow: hidden;
-  border: 1px solid var(--bd-lt);
-  background: var(--box-alt);
+.infobox-table tr:first-child th,
+.infobox-table tr:first-child td {
+  border-top: 0;
 }
 
-.leadership-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.infobox-table th {
+  width: 38%;
+  font-weight: bold;
+  color: var(--ink-soft);
+  white-space: nowrap;
 }
 
-.leadership-photo-fallback {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: var(--box-alt);
+.infobox-table td {
+  color: var(--ink);
 }
 
-@media (max-width: 620px) {
-  .leadership-table thead {
-    display: none;
-  }
-
-  .leadership-table,
-  .leadership-table tbody,
-  .leadership-table tr,
-  .leadership-table td {
-    display: block;
+@media (max-width: 420px) {
+  .infobox {
     width: 100%;
-  }
-
-  .leadership-table tr {
-    border-bottom: 2px solid var(--bd);
-    padding-bottom: 8px;
-    margin-bottom: 8px;
-  }
-
-  .leadership-table td {
-    border: 0;
-  }
-
-  .leadership-photo {
-    margin-bottom: 6px;
   }
 }
