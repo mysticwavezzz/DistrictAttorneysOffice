@@ -10,10 +10,12 @@ import { getSiteSettings } from "@/lib/site-settings";
 import { env } from "@/lib/env";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { ClearDataForm } from "./clear-data-form";
-import { updateMaintenanceSettings, updateNotificationSettings, saveApplicationConfiguration } from "./actions";
+import { updateMaintenanceSettings, updateNotificationSettings, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup } from "./actions";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
 import { getSiteConfiguration } from "@/lib/site-settings";
+import { prisma } from "@/lib/prisma";
+import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
 
 export default async function SiteSettingsPage() {
   const session = await auth();
@@ -31,6 +33,11 @@ export default async function SiteSettingsPage() {
     getSiteConfiguration("divisions", UNITS),
     getSiteConfiguration("ranks", RANKS),
     getSiteConfiguration("caseStatuses", CASE_STATUSES),
+  ]);
+  const [tipConfiguration, backups, auditLogs] = await Promise.all([
+    getSiteConfiguration("crimeTipForm", null),
+    prisma.configurationBackup.findMany({ orderBy: { createdAt: "desc" }, take: 10 }).catch(() => []),
+    prisma.settingsAuditLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }).catch(() => []),
   ]);
 
   return (
@@ -133,6 +140,8 @@ export default async function SiteSettingsPage() {
             Disable notifications for everyone
           </label>
         </div>
+        <div className="field"><label htmlFor="deadlineReminderDays">Upcoming deadline reminders (days before, comma-separated)</label><input id="deadlineReminderDays" name="deadlineReminderDays" defaultValue={settings.deadlineReminderDays} placeholder="7,3,1" /></div>
+        <div className="field"><label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}><input type="checkbox" name="overdueRemindersEnabled" defaultChecked={settings.overdueRemindersEnabled}/> Send reminders for overdue deadlines</label></div>
       </FormWithPendingSubmit>
 
       <h2>System Status</h2>
@@ -161,8 +170,8 @@ export default async function SiteSettingsPage() {
             <tr>
               <th>Criminal tip line (Google Form)</th>
               <td>
-                <span className={`pill ${env.GOOGLE_FORM_ACTION_URL ? "pill-green" : "pill-gold"}`}>
-                  {env.GOOGLE_FORM_ACTION_URL ? "Configured" : "Not configured"}
+                <span className={`pill ${tipConfiguration ? "pill-green" : "pill-gold"}`}>
+                  {tipConfiguration ? "Configured" : "Using built-in form configuration"}
                 </span>
               </td>
             </tr>
@@ -185,6 +194,9 @@ export default async function SiteSettingsPage() {
         <div className="field"><label htmlFor="ranks">Ranks (JSON)</label><textarea id="ranks" name="ranks" rows={12} defaultValue={JSON.stringify(ranks, null, 2)} spellCheck={false} /></div>
         <h3>Case status options</h3>
         <div className="field"><label htmlFor="caseStatuses">Case statuses (JSON)</label><textarea id="caseStatuses" name="caseStatuses" rows={14} defaultValue={JSON.stringify(caseStatuses, null, 2)} spellCheck={false} /></div>
+        <h3>Crime tip Google Forms mapping</h3>
+        <p className="note-inline">Updates the public report form destination and Google field IDs; it never submits a test response.</p>
+        <div className="field"><label htmlFor="crimeTipForm">Google Forms configuration (JSON)</label><textarea id="crimeTipForm" name="crimeTipForm" rows={14} defaultValue={JSON.stringify(tipConfiguration ?? CRIME_TIP_FORM, null, 2)} spellCheck={false}/></div>
       </FormWithPendingSubmit>
       <div className="tablewrap">
         <table className="stat">
@@ -220,6 +232,14 @@ export default async function SiteSettingsPage() {
           </tbody>
         </table>
       </div>
+
+      <h2>Configuration Backups</h2>
+      <p className="note-inline">Automatic snapshots are created before settings changes and restores. These cover application settings only, not cases or the SQLite database.</p>
+      <form action={saveConfigurationBackup}><button className="govbtn-outline" type="submit">Create backup now</button></form>
+      {backups.length > 0 && <FormWithPendingSubmit action={restoreConfigurationBackup} submitLabel="Restore selected configuration" pendingLabel="Restoring…" className="formbox"><div className="field"><label htmlFor="backupId">Backup</label><select id="backupId" name="backupId" required defaultValue=""><option value="" disabled>Select a backup</option>{backups.map((backup)=><option key={backup.id} value={backup.id}>{backup.createdAt.toLocaleString()} — {backup.actorName}</option>)}</select></div><p className="note-inline">Restoring replaces current settings. A safety backup is created first.</p></FormWithPendingSubmit>}
+      <h2>Settings Audit Trail</h2>
+      <div className="tablewrap"><table className="stat"><thead><tr><th>When</th><th>Who</th><th>Change</th><th>Details</th></tr></thead><tbody>{auditLogs.length ? auditLogs.map((entry)=><tr key={entry.id}><td>{entry.createdAt.toLocaleString()}</td><td>{entry.actorName}</td><td>{entry.action}</td><td>{entry.details}</td></tr>) : <tr><td colSpan={4}>No settings changes recorded yet.</td></tr>}</tbody></table></div>
+      <p><Link href="/98981/status">Open integration health and access diagnostics →</Link></p>
 
       <h2>Affidavit of Probable Cause Routing</h2>
       <p className="note-inline">Affidavit target units are defined in the configured divisions.</p>

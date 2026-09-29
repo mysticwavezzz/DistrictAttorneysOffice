@@ -14,7 +14,9 @@ import { CASE_STATUSES } from "@/config/case-statuses";
 import { ALL_TIERS } from "@/lib/permissions/tiers";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { getSiteConfiguration, updateSiteConfiguration } from "@/lib/site-settings";
+import { createConfigurationBackup, recordSettingsAudit } from "@/lib/settings-audit";
 import { z } from "zod";
+import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
 
 async function requireSettingsManager() {
   const session = await auth();
@@ -34,7 +36,9 @@ export async function updateMaintenanceSettings(formData: FormData) {
     throw new Error("Invalid estimated return time");
   }
 
+  await createConfigurationBackup(session.user.displayName);
   await updateSiteSettings({ maintenanceMode, maintenanceMessage: maintenanceMessage || null, maintenanceEstimatedAt });
+  await recordSettingsAudit(session.user.displayName, "Maintenance settings changed", `Mode ${maintenanceMode ? "enabled" : "disabled"}; return-time setting ${maintenanceEstimatedAt ? "updated" : "cleared"}.`);
 
   await logActivity(
     session.user.displayName,
@@ -49,8 +53,16 @@ export async function updateMaintenanceSettings(formData: FormData) {
 export async function updateNotificationSettings(formData: FormData) {
   const session = await requireSettingsManager();
   const notificationsDisabled = formData.get("notificationsDisabled") === "on";
+  const deadlineReminderDays = String(formData.get("deadlineReminderDays") ?? "7,3,1").trim();
+  const reminderDays = deadlineReminderDays.split(",").map((value) => Number(value.trim()));
+  if (!deadlineReminderDays || reminderDays.length > 10 || reminderDays.some((day) => !Number.isInteger(day) || day < 1 || day > 90)) {
+    throw new Error("Reminder days must be comma-separated whole numbers between 1 and 90.");
+  }
+  const overdueRemindersEnabled = formData.get("overdueRemindersEnabled") === "on";
 
-  await updateSiteSettings({ notificationsDisabled });
+  await createConfigurationBackup(session.user.displayName);
+  await updateSiteSettings({ notificationsDisabled, deadlineReminderDays: Array.from(new Set(reminderDays)).sort((a, b) => b - a).join(","), overdueRemindersEnabled });
+  await recordSettingsAudit(session.user.displayName, "Notification and deadline settings changed", `Notifications ${notificationsDisabled ? "disabled" : "enabled"}; reminders ${reminderDays.length} day(s) before deadline; overdue reminders ${overdueRemindersEnabled ? "enabled" : "disabled"}.`);
 
   await logActivity(
     session.user.displayName,
@@ -90,6 +102,13 @@ export async function saveApplicationConfiguration(formData: FormData) {
   const divisions = divisionsSchema.parse(parseJsonField(formData, "divisions"));
   const ranks = ranksSchema.parse(parseJsonField(formData, "ranks"));
   const caseStatuses = statusesSchema.parse(parseJsonField(formData, "caseStatuses"));
+  const crimeTipFormSchema = z.object({
+    viewUrl: z.string().url().refine((url) => new URL(url).hostname === "docs.google.com", "Use a Google Forms view URL."),
+    actionUrl: z.string().url().refine((url) => new URL(url).hostname === "docs.google.com" && new URL(url).pathname.endsWith("/formResponse"), "Use a Google Forms formResponse URL."),
+    entries: z.object(Object.fromEntries(Object.keys(CRIME_TIP_FORM.entries).map((key) => [key, z.string().regex(/^entry\.\d+$/)])) as Record<keyof typeof CRIME_TIP_FORM.entries, z.ZodString>),
+    crimeTypes: z.array(z.string().trim().min(1).max(100)).min(2).max(20),
+  });
+  const crimeTipForm = crimeTipFormSchema.parse(parseJsonField(formData, "crimeTipForm"));
 
   if (!ALL_TIERS.some((tier) => (tierCapabilities[tier] ?? []).includes(CAPABILITIES.SETTINGS_MANAGE))) {
     throw new Error("At least one permission tier must retain site settings access.");
@@ -113,15 +132,89 @@ export async function saveApplicationConfiguration(formData: FormData) {
   if (new Set(ranks.map((rank) => rank.value)).size !== ranks.length) throw new Error("Rank values must be unique.");
   if (new Set(caseStatuses.map((status) => status.value)).size !== caseStatuses.length) throw new Error("Case status values must be unique.");
 
+  await createConfigurationBackup(session.user.displayName);
   await Promise.all([
     updateSiteConfiguration("discordRoleMappings", roleMappings),
     updateSiteConfiguration("tierCapabilities", tierCapabilities),
     updateSiteConfiguration("divisions", divisions),
     updateSiteConfiguration("ranks", ranks),
     updateSiteConfiguration("caseStatuses", caseStatuses),
+    updateSiteConfiguration("crimeTipForm", crimeTipForm),
   ]);
-  await logActivity(session.user.displayName, "updated", "application configuration", "permissions, divisions, ranks, and case statuses");
+  await recordSettingsAudit(session.user.displayName, "Application configuration changed", "Discord role mappings, tier permissions, divisions, ranks, case statuses, and Google Forms integration saved.");
+  await logActivity(session.user.displayName, "updated", "application configuration", "permissions, divisions, ranks, case statuses, and crime tip routing");
   revalidatePath("/98981");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/cases");
+  revalidatePath("/dashboard/roster");
+  revalidatePath("/dashboard/affidavits");
+  revalidatePath("/office-info");
+}
+
+export async function saveConfigurationBackup() {
+  const session = await requireSettingsManager();
+  const backup = await createConfigurationBackup(session.user.displayName);
+  await recordSettingsAudit(session.user.displayName, "Configuration backup created", `Backup ${backup.id} created.`);
+  revalidatePath("/98981");
+}
+
+export async function restoreConfigurationBackup(formData: FormData) {
+  const session = await requireSettingsManager();
+  const id = String(formData.get("backupId") ?? "");
+  if (!id) throw new Error("Choose a configuration backup.");
+  const backup = await prisma.configurationBackup.findUnique({ where: { id } });
+  if (!backup) throw new Error("Configuration backup not found.");
+
+  let payload: unknown;
+  try { payload = JSON.parse(backup.payload); } catch { throw new Error("This backup is unreadable."); }
+  const settingsSchema = z.object({
+    id: z.number().optional(),
+    maintenanceMode: z.boolean(),
+    maintenanceMessage: z.string().nullable(),
+    maintenanceEstimatedAt: z.string().nullable().or(z.date()).nullable().optional(),
+    notificationsDisabled: z.boolean(),
+    deadlineReminderDays: z.string().optional(),
+    overdueRemindersEnabled: z.boolean().optional(),
+  });
+  const backupSchema = z.object({
+    siteSettings: settingsSchema.nullable(),
+    configurations: z.array(z.object({ key: z.string().min(1).max(100), value: z.string().max(100_000) })),
+  });
+  const parsed = backupSchema.parse(payload);
+  await createConfigurationBackup(session.user.displayName);
+  await prisma.$transaction(async (tx) => {
+    const settings = parsed.siteSettings;
+    if (settings) {
+      await tx.siteSettings.upsert({
+        where: { id: 1 },
+        create: {
+          id: 1,
+          maintenanceMode: settings.maintenanceMode,
+          maintenanceMessage: settings.maintenanceMessage,
+          maintenanceEstimatedAt: settings.maintenanceEstimatedAt ? new Date(settings.maintenanceEstimatedAt) : null,
+          notificationsDisabled: settings.notificationsDisabled,
+          deadlineReminderDays: settings.deadlineReminderDays ?? "7,3,1",
+          overdueRemindersEnabled: settings.overdueRemindersEnabled ?? true,
+        },
+        update: {
+          maintenanceMode: settings.maintenanceMode,
+          maintenanceMessage: settings.maintenanceMessage,
+          maintenanceEstimatedAt: settings.maintenanceEstimatedAt ? new Date(settings.maintenanceEstimatedAt) : null,
+          notificationsDisabled: settings.notificationsDisabled,
+          deadlineReminderDays: settings.deadlineReminderDays ?? "7,3,1",
+          overdueRemindersEnabled: settings.overdueRemindersEnabled ?? true,
+        },
+      });
+    } else await tx.siteSettings.deleteMany({ where: { id: 1 } });
+    const keys = parsed.configurations.map((item) => item.key);
+    await tx.siteConfiguration.deleteMany({ where: { key: { notIn: keys } } });
+    for (const item of parsed.configurations) {
+      await tx.siteConfiguration.upsert({ where: { key: item.key }, create: item, update: { value: item.value } });
+    }
+  });
+  await recordSettingsAudit(session.user.displayName, "Configuration restored", `Restored backup ${id} from ${backup.createdAt.toISOString()}. A pre-restore backup was also created.`);
+  revalidatePath("/98981");
+  revalidatePath("/98981/status");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/cases");
   revalidatePath("/dashboard/roster");

@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "smoke": "node scripts/site-smoke.mjs",
     "test:watch": "vitest",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

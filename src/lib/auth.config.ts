@@ -5,7 +5,9 @@ import { fetchDiscordGuildMember, discordAvatarUrl } from "./discord/guild";
 import { resolveTiersFromDiscordRoles } from "./permissions/resolve";
 import { env } from "./env";
 
-const ROLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+// Resolve Discord membership on each authenticated request so a page refresh
+// reflects removed roles immediately instead of keeping revoked access cached.
+const ROLE_REFRESH_INTERVAL_MS = 0;
 
 export const authConfig = {
   session: { strategy: "jwt" },

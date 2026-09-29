@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser } from "@/lib/case-access";
 import { caseStatusColor } from "@/config/case-statuses";
-import { bulkUpdateCases } from "./actions";
+import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 
 type CaseWithAttorney = Prisma.CaseGetPayload<{ include: { assignedAttorney: true } }>;
 
@@ -33,7 +33,7 @@ function deadlinePill(date: Date | null): string | null {
 export default async function CasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string; status?: string; page?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; status?: string; page?: string; sort?: string; dir?: string; mine?: string; deadline?: string; review?: string }>;
 }) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) {
@@ -56,9 +56,12 @@ export default async function CasesPage({
   const pageSize = 25;
 
   const user = await localUser(session.user.discordUserId);
+  const mineOnly = filters.mine === "1";
+  const overdueOnly = filters.deadline === "overdue";
+  const reviewOnly = filters.review === "1";
 
   const where: Prisma.CaseWhereInput = { archived: tab === "archived" };
-  if (!viewAll && user) {
+  if ((!viewAll || mineOnly) && user) {
     where.OR = [{ assignedAttorneyId: user.id }, { createdById: user.id }];
   }
   if (q) {
@@ -75,6 +78,8 @@ export default async function CasesPage({
   if (statusFilter) {
     where.stage = statusFilter;
   }
+  if (overdueOnly) where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), { OR: [{ discDue: { lt: new Date() } }, { pretrial: { lt: new Date() } }, { appealBy: { lt: new Date() } }] }];
+  if (reviewOnly) where.actionRequests = { some: { status: "PENDING" } };
 
   let cases: CaseWithAttorney[] = [];
   let totalCases = 0;
@@ -88,7 +93,7 @@ export default async function CasesPage({
   }
 
   const qs = (overrides: Record<string, string>) => {
-    const params = new URLSearchParams({ tab, q, status: statusFilter, page: String(page), sort, dir: direction, ...overrides });
+    const params = new URLSearchParams({ tab, q, status: statusFilter, page: String(page), sort, dir: direction, ...(mineOnly ? { mine: "1" } : {}), ...(overdueOnly ? { deadline: "overdue" } : {}), ...(reviewOnly ? { review: "1" } : {}), ...overrides });
     for (const [key, value] of Array.from(params.entries())) {
       if (!value) params.delete(key);
     }
@@ -153,10 +158,24 @@ export default async function CasesPage({
         <Link href={`/dashboard/cases?tab=${tab}`} className="govbtn-outline">Clear filters</Link>
       </form>
 
+      <div className="tabs-row" aria-label="Case shortcuts">
+        <Link href={`/dashboard/cases${qs({ tab: "ongoing", mine: "1", deadline: "", review: "", page: "1" })}`}>My active cases</Link>
+        <Link href={`/dashboard/cases${qs({ tab: "ongoing", mine: "", deadline: "overdue", review: "", page: "1" })}`}>Overdue deadlines</Link>
+        <Link href={`/dashboard/cases${qs({ tab: "ongoing", mine: "", deadline: "", review: "1", page: "1" })}`}>Awaiting review</Link>
+      </div>
+      {user && <>
+        <form action={saveCaseFilter} className="field-row" style={{ alignItems: "flex-end" }}>
+          <input type="hidden" name="query" value={qs({ page: "1" })} />
+          <div className="field"><label htmlFor="saved-filter-name">Save current filters</label><input id="saved-filter-name" name="name" maxLength={60} required placeholder="e.g. My active cases" /></div>
+          <button className="govbtn-outline" type="submit">Save filter</button>
+        </form>
+        {(() => { let saved: {id:string;name:string;query:string}[]=[]; try { saved=JSON.parse(user.savedCaseFilters || "[]"); } catch {} return saved.length > 0 && <div className="tabs-row" aria-label="Saved case filters">{saved.map((item)=><span key={item.id}><Link href={`/dashboard/cases?${item.query}`}>{item.name}</Link> <form action={deleteCaseFilter} style={{display:"inline"}}><input type="hidden" name="id" value={item.id}/><button className="linklike" type="submit" aria-label={`Delete saved filter ${item.name}`}>×</button></form></span>)}</div>; })()}
+      </>}
+
       {totalCases > 0 && <p className="note-inline" aria-live="polite">Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCases)} of {totalCases} cases</p>}
       <form action={bulkUpdateCases}>
       <div className="tablewrap">
-        <table className="stat">
+        <table className="stat mobile-cards">
           <thead>
             <tr>
               <th scope="col"><span className="sr-only">Select</span></th>
@@ -187,31 +206,31 @@ export default async function CasesPage({
                 const color = caseStatusColor(c.stage);
                 return (
                   <tr key={c.id}>
-                    <td><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></td>
-                    <td>
+                    <td data-label="Select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></td>
+                    <td data-label="Case">
                       <Link href={`/dashboard/cases/${c.id}`}>{c.title}</Link>{" "}
                       {c.isDraft && <span className="pill pill-muted">Draft</span>}
                     </td>
-                    <td>{c.assignedAttorney?.displayName ?? "Unassigned"}</td>
-                    <td className="mono">{c.caseNumber}</td>
-                    <td>{text(c.type)}</td>
-                    <td>
+                    <td data-label="Assigned">{c.assignedAttorney?.displayName ?? "Unassigned"}</td>
+                    <td data-label="Case #" className="mono">{c.caseNumber}</td>
+                    <td data-label="Type">{text(c.type)}</td>
+                    <td data-label="Stage">
                       {c.stage ? <span className={`pill pill-${color}`}>{c.stage}</span> : "—"}
                     </td>
-                    <td>{text(c.disclosures)}</td>
-                    <td>{fmt(c.discGiven)}</td>
-                    <td>
+                    <td data-label="Disclosures">{text(c.disclosures)}</td>
+                    <td data-label="Disclosure given">{fmt(c.discGiven)}</td>
+                    <td data-label="Disclosure due">
                       {fmt(c.discDue)}
                       {deadlinePill(c.discDue) && <span className={`pill ${deadlinePill(c.discDue)}`} style={{ marginLeft: 4 }}>!</span>}
                     </td>
-                    <td>
+                    <td data-label="Pretrial">
                       {fmt(c.pretrial)}
                       {deadlinePill(c.pretrial) && <span className={`pill ${deadlinePill(c.pretrial)}`} style={{ marginLeft: 4 }}>!</span>}
                     </td>
-                    <td>{text(c.otherDates)}</td>
-                    <td>{text(c.outcome)}</td>
-                    <td>{fmt(c.closedOn)}</td>
-                    <td>
+                    <td data-label="Other dates">{text(c.otherDates)}</td>
+                    <td data-label="Outcome">{text(c.outcome)}</td>
+                    <td data-label="Closed on">{fmt(c.closedOn)}</td>
+                    <td data-label="Appeal by">
                       {fmt(c.appealBy)}
                       {deadlinePill(c.appealBy) && <span className={`pill ${deadlinePill(c.appealBy)}`} style={{ marginLeft: 4 }}>!</span>}
                     </td>

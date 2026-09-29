@@ -94,3 +94,13 @@ export async function removeRosterEntry(formData: FormData) {
   revalidatePath("/dashboard/roster");
   revalidatePath("/office-info");
 }
+
+export async function setRosterActive(formData: FormData) {
+  const session = await requireManager();
+  const id = String(formData.get("id") ?? "");
+  const isActive = formData.get("isActive") === "true";
+  const entry = await prisma.rosterEntry.update({ where: { id }, data: { isActive } });
+  await logActivity(session.user.displayName, isActive ? "reactivated" : "deactivated", "roster entry", entry.name);
+  revalidatePath("/dashboard/roster");
+  revalidatePath("/office-info");
+}

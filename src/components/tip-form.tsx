@@ -2,152 +2,107 @@
 
 import { useRef, useState, type FormEvent } from "react";
 
-type SubmitState =
-  | { status: "idle" }
-  | { status: "submitting" }
-  | { status: "success" }
-  | { status: "error"; message: string };
+type SubmitState = "idle" | "submitting" | "success" | { error: string };
 
-const DETAILS_MIN_LENGTH = 20;
-const DETAILS_MAX_LENGTH = 4000;
-
-export function TipForm() {
-  const [state, setState] = useState<SubmitState>({ status: "idle" });
+export function TipForm({
+  crimeTypes,
+  defaultRobloxIdentity = "",
+  defaultDiscordIdentity = "",
+}: {
+  crimeTypes: readonly string[];
+  defaultRobloxIdentity?: string;
+  defaultDiscordIdentity?: string;
+}) {
+  const [state, setState] = useState<SubmitState>("idle");
+  const [crimeType, setCrimeType] = useState("");
   const renderedAtRef = useRef(Date.now());
   const formRef = useRef<HTMLFormElement>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (state.status === "submitting") return;
-
+    if (state === "submitting") return;
     const form = event.currentTarget;
+    if (!form.reportValidity()) return;
     const data = new FormData(form);
-    const details = String(data.get("details") ?? "").trim();
-
-    if (details.length < DETAILS_MIN_LENGTH) {
-      setState({
-        status: "error",
-        message: `Please provide at least ${DETAILS_MIN_LENGTH} characters of detail.`,
-      });
-      return;
-    }
-
-    setState({ status: "submitting" });
-
+    const body = {
+      submitterRoblox: String(data.get("submitterRoblox") ?? ""),
+      submitterDiscord: String(data.get("submitterDiscord") ?? ""),
+      legalAcknowledgment: data.get("legalAcknowledgment") === "on",
+      crimeType: String(data.get("crimeType") ?? ""),
+      crimeTypeOther: String(data.get("crimeTypeOther") ?? ""),
+      incidentDateTime: String(data.get("incidentDateTime") ?? ""),
+      location: String(data.get("location") ?? ""),
+      suspectRoblox: String(data.get("suspectRoblox") ?? ""),
+      suspectDiscord: String(data.get("suspectDiscord") ?? ""),
+      suspectInformation: String(data.get("suspectInformation") ?? ""),
+      narrative: String(data.get("narrative") ?? ""),
+      evidence: String(data.get("evidence") ?? ""),
+      witnesses: String(data.get("witnesses") ?? ""),
+      identityWaiver: data.get("identityWaiver") === "on",
+      truthAffirmation: data.get("truthAffirmation") === "on",
+      signature: String(data.get("signature") ?? "").toUpperCase(),
+      website: String(data.get("website") ?? ""),
+      renderedAt: renderedAtRef.current,
+    };
+    setState("submitting");
     try {
-      const res = await fetch("/api/tips", {
+      const response = await fetch("/api/tips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: String(data.get("name") ?? ""),
-          contact: String(data.get("contact") ?? ""),
-          location: String(data.get("location") ?? ""),
-          details,
-          website: String(data.get("website") ?? ""),
-          renderedAt: renderedAtRef.current,
-        }),
+        body: JSON.stringify(body),
       });
-
-      const json = (await res.json().catch(() => null)) as
-        | { success?: boolean; error?: string }
-        | null;
-
-      if (!res.ok || !json?.success) {
-        setState({
-          status: "error",
-          message: json?.error ?? "We couldn't submit your tip. Please try again.",
-        });
+      const result = await response.json().catch(() => null) as { success?: boolean; error?: string } | null;
+      if (!response.ok || !result?.success) {
+        setState({ error: result?.error ?? "We couldn't submit your report. Please try again." });
         return;
       }
-
-      setState({ status: "success" });
+      setState("success");
       formRef.current?.reset();
-      renderedAtRef.current = Date.now();
+      setCrimeType("");
     } catch {
-      setState({
-        status: "error",
-        message: "A network error occurred. Please check your connection and try again.",
-      });
+      setState({ error: "A connection error occurred. Please check your connection and try again." });
     }
   }
 
-  if (state.status === "success") {
-    return (
-      <div className="message message-success" role="status">
-        <strong>Tip received.</strong> Thank you — your information has been submitted to our
-        office for review.{" "}
-        <button
-          type="button"
-          onClick={() => setState({ status: "idle" })}
-          className="login-link"
-          style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }}
-        >
-          Submit another tip
-        </button>
-      </div>
-    );
+  if (state === "success") {
+    return <div className="message message-success" role="status"><strong>Report submitted.</strong> Your information was forwarded to the District Attorney’s Office Google Form. This confirmation means Google accepted the response; it does not guarantee an investigation or a reply. <button type="button" className="linklike" onClick={() => { renderedAtRef.current = Date.now(); setState("idle"); }}>Submit another report</button></div>;
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="formbox" noValidate>
-      <div style={{ position: "absolute", left: "-9999px" }} aria-hidden="true">
-        <label htmlFor="website">Leave this field blank</label>
-        <input type="text" id="website" name="website" tabIndex={-1} autoComplete="off" />
+    <form ref={formRef} onSubmit={handleSubmit} className="formbox">
+      <div className="field" style={{ position: "absolute", left: "-10000px" }} aria-hidden="true"><label htmlFor="tip-website">Leave blank</label><input id="tip-website" name="website" tabIndex={-1} autoComplete="off" /></div>
+      <h2>Submitter Information</h2>
+      <div className="field-row">
+        <div className="field"><label htmlFor="tip-roblox">Your Roblox username and ID *</label><input id="tip-roblox" name="submitterRoblox" required maxLength={120} defaultValue={defaultRobloxIdentity} placeholder="Username / numeric ID" /></div>
+        <div className="field"><label htmlFor="tip-discord">Your Discord username and ID *</label><input id="tip-discord" name="submitterDiscord" required maxLength={120} defaultValue={defaultDiscordIdentity} placeholder="Username / numeric ID" /></div>
       </div>
-
       <div className="field">
-        <label htmlFor="name">
-          Name <span className="hint">(optional — you may remain anonymous)</span>
-        </label>
-        <input type="text" id="name" name="name" maxLength={100} />
+        <label className="checkline"><input type="checkbox" name="legalAcknowledgment" required /> I understand that knowingly false or malicious reports are prohibited in this roleplay community, and I wish to proceed.</label>
       </div>
 
-      <div className="field">
-        <label htmlFor="contact">
-          Contact Information <span className="hint">(optional)</span>
-        </label>
-        <input
-          type="text"
-          id="contact"
-          name="contact"
-          maxLength={200}
-          placeholder="Phone number or email, if you'd like a follow-up"
-        />
+      <h2>Tip Details</h2>
+      <fieldset className="field"><legend className="field-label">Type of crime / incident *</legend><div className="choice-list">{crimeTypes.map((type) => <label className="checkline" key={type}><input type="radio" name="crimeType" value={type} required checked={crimeType === type} onChange={() => setCrimeType(type)} />{type === "Other:" ? "Other" : type}</label>)}</div></fieldset>
+      {crimeType === "Other:" && <div className="field"><label htmlFor="tip-other">Describe the other incident type *</label><input id="tip-other" name="crimeTypeOther" required maxLength={120} /></div>}
+      <div className="field-row">
+        <div className="field"><label htmlFor="tip-date">Date and time of incident *</label><input id="tip-date" name="incidentDateTime" type="datetime-local" required /></div>
+        <div className="field"><label htmlFor="tip-location">Location of incident *</label><input id="tip-location" name="location" required maxLength={300} /></div>
       </div>
-
-      <div className="field">
-        <label htmlFor="location">
-          Location of Incident <span className="hint">(optional)</span>
-        </label>
-        <input type="text" id="location" name="location" maxLength={200} />
+      <div className="field-row">
+        <div className="field"><label htmlFor="suspect-roblox">Suspect Roblox username *</label><input id="suspect-roblox" name="suspectRoblox" required maxLength={120} placeholder="Type N/A if unknown" /></div>
+        <div className="field"><label htmlFor="suspect-discord">Suspect Discord username *</label><input id="suspect-discord" name="suspectDiscord" required maxLength={120} placeholder="Type N/A if unknown" /></div>
       </div>
+      <div className="field"><label htmlFor="suspect-info">Suspect information *</label><textarea id="suspect-info" name="suspectInformation" required maxLength={2000} rows={3} placeholder="Names, descriptions, clothing, vehicles, affiliations, or N/A if unknown." /></div>
+      <div className="field"><label htmlFor="tip-narrative">Describe what happened before, during, and after the incident *</label><textarea id="tip-narrative" name="narrative" required minLength={20} maxLength={8000} rows={7} /></div>
+      <div className="field"><label htmlFor="tip-evidence">Photo/video evidence links *</label><textarea id="tip-evidence" name="evidence" required maxLength={2000} rows={2} placeholder="Paste links or type N/A." /></div>
+      <div className="field"><label htmlFor="tip-witnesses">Witnesses and their involvement *</label><textarea id="tip-witnesses" name="witnesses" required maxLength={2000} rows={2} placeholder="Provide known witnesses or type N/A." /></div>
 
-      <div className="field">
-        <label htmlFor="details">Tip Details *</label>
-        <textarea
-          id="details"
-          name="details"
-          required
-          minLength={DETAILS_MIN_LENGTH}
-          maxLength={DETAILS_MAX_LENGTH}
-          rows={6}
-          placeholder="Please describe what you know. Include dates, locations, and any names if available."
-        />
-      </div>
+      <h2>Final Review and Declaration</h2>
+      <div className="field"><label className="checkline"><input type="checkbox" name="identityWaiver" required /> I understand this is not anonymous to the form owner or investigators, and I may be contacted in-character about a roleplay case.</label></div>
+      <div className="field"><label className="checkline"><input type="checkbox" name="truthAffirmation" required /> I affirm that this report is accurate and submitted in good faith within the roleplay setting.</label></div>
+      <div className="field"><label htmlFor="tip-signature">Electronic signature — Roblox username in ALL CAPS *</label><input id="tip-signature" name="signature" required maxLength={120} pattern="[A-Z0-9_ ]+" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} /></div>
 
-      {state.status === "error" && (
-        <p role="alert" className="message message-error">
-          {state.message}
-        </p>
-      )}
-
-      <button type="submit" disabled={state.status === "submitting"} className="govbtn">
-        {state.status === "submitting" ? "Submitting…" : "Submit Tip"}
-      </button>
-
-      <p className="note-inline" style={{ marginTop: 10 }}>
-        Submissions are routed to office staff for review. For emergencies, always call 911.
-      </p>
+      {typeof state === "object" && <p className="message message-error" role="alert">{state.error}</p>}
+      <button type="submit" className="govbtn" disabled={state === "submitting"}>{state === "submitting" ? "Submitting report…" : "Submit Official Tip"}</button>
     </form>
   );
 }

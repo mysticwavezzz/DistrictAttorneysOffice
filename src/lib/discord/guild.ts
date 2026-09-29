@@ -6,6 +6,7 @@ const guildMemberSchema = z.object({
   nick: z.string().nullable().optional(),
   roles: z.array(z.string()),
 });
+const guildRoleSchema = z.array(z.object({ id: z.string(), name: z.string() }));
 
 export interface DiscordGuildMember {
   nick: string | null;
@@ -39,6 +40,15 @@ export async function fetchDiscordGuildMember(
 
   const json = guildMemberSchema.parse(await res.json());
   return { nick: json.nick ?? null, roles: json.roles };
+}
+
+export async function fetchDiscordGuildRoles(botToken: string, guildId: string) {
+  const res = await fetch(`${DISCORD_API_BASE}/guilds/${guildId}/roles`, {
+    headers: { Authorization: `Bot ${botToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new DiscordApiError(`Discord guild role lookup returned ${res.status}`, res.status);
+  return guildRoleSchema.parse(await res.json());
 }
 
 export function discordAvatarUrl(profile: {

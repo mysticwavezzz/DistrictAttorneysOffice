@@ -212,6 +212,27 @@ export async function bulkUpdateCases(formData: FormData) {
   revalidatePath("/dashboard/cases");
 }
 
+export async function saveCaseFilter(formData: FormData) {
+  const { user } = await requireStaff();
+  const name = String(formData.get("name") ?? "").trim().slice(0, 60);
+  const raw = String(formData.get("query") ?? "");
+  const params = new URLSearchParams(raw.startsWith("?") ? raw.slice(1) : raw);
+  for (const key of Array.from(params.keys())) if (!["tab", "q", "status", "mine", "deadline", "review"].includes(key)) params.delete(key);
+  const existing = JSON.parse(user.savedCaseFilters || "[]") as { id: string; name: string; query: string }[];
+  if (!name || existing.length >= 20) throw new Error("Filter name is required; up to 20 filters may be saved.");
+  existing.push({ id: crypto.randomUUID(), name, query: params.toString() });
+  await prisma.user.update({ where: { id: user.id }, data: { savedCaseFilters: JSON.stringify(existing) } });
+  revalidatePath("/dashboard/cases");
+}
+
+export async function deleteCaseFilter(formData: FormData) {
+  const { user } = await requireStaff();
+  const id = String(formData.get("id") ?? "");
+  const existing = JSON.parse(user.savedCaseFilters || "[]") as { id: string; name: string; query: string }[];
+  await prisma.user.update({ where: { id: user.id }, data: { savedCaseFilters: JSON.stringify(existing.filter((item) => item.id !== id)) } });
+  revalidatePath("/dashboard/cases");
+}
+
 export async function addFiling(formData: FormData) {
   const { session, user } = await requireStaff();
   const caseId = String(formData.get("caseId") ?? "");

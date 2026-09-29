@@ -1,45 +1,30 @@
 import { describe, it, expect } from "vitest";
 import { tipFormSchema } from "./tip";
 
-const validBase = {
-  details: "There is suspicious activity happening near the old courthouse every night.",
+const validTip = {
+  submitterRoblox: "Reporter / 1234",
+  submitterDiscord: "Reporter / 1234",
+  legalAcknowledgment: true,
+  crimeType: "Robbery / Theft",
+  incidentDateTime: "2026-09-20T10:00",
+  location: "Harrison County",
+  suspectRoblox: "Unknown",
+  suspectDiscord: "Unknown",
+  suspectInformation: "Dark clothing",
+  narrative: "I saw a person take property from the store and leave in a vehicle.",
+  evidence: "N/A",
+  witnesses: "N/A",
+  identityWaiver: true,
+  truthAffirmation: true,
+  signature: "REPORTER",
+  website: "",
   renderedAt: Date.now(),
 };
 
 describe("tipFormSchema", () => {
-  it("accepts a minimal valid submission with only required fields", () => {
-    const result = tipFormSchema.safeParse(validBase);
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects details shorter than 20 characters", () => {
-    const result = tipFormSchema.safeParse({ ...validBase, details: "too short" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects details longer than 4000 characters", () => {
-    const result = tipFormSchema.safeParse({ ...validBase, details: "a".repeat(4001) });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a non-empty honeypot field", () => {
-    const result = tipFormSchema.safeParse({ ...validBase, website: "http://spam.example" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a missing renderedAt timestamp", () => {
-    const { renderedAt: _renderedAt, ...withoutTimestamp } = validBase;
-    const result = tipFormSchema.safeParse(withoutTimestamp);
-    expect(result.success).toBe(false);
-  });
-
-  it("trims whitespace and defaults optional fields to empty strings", () => {
-    const result = tipFormSchema.safeParse({ ...validBase, name: "  Jane Doe  " });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.name).toBe("Jane Doe");
-      expect(result.data.contact).toBe("");
-      expect(result.data.location).toBe("");
-    }
-  });
+  it("accepts a complete valid submission", () => expect(tipFormSchema.safeParse(validTip).success).toBe(true));
+  it("requires both legal acknowledgments", () => expect(tipFormSchema.safeParse({ ...validTip, identityWaiver: false }).success).toBe(false));
+  it("requires an uppercase electronic signature", () => expect(tipFormSchema.safeParse({ ...validTip, signature: "Reporter" }).success).toBe(false));
+  it("rejects a non-empty honeypot field", () => expect(tipFormSchema.safeParse({ ...validTip, website: "spam" }).success).toBe(false));
+  it("requires a rendered timestamp", () => { const { renderedAt: _timestamp, ...input } = validTip; expect(tipFormSchema.safeParse(input).success).toBe(false); });
 });

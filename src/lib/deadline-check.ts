@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
+import { getSiteSettings } from "@/lib/site-settings";
 
-const WARNING_WINDOW_DAYS = 3;
 const RENOTIFY_HOURS = 20;
 
 async function alreadyNotified(caseId: string): Promise<boolean> {
@@ -13,8 +13,13 @@ async function alreadyNotified(caseId: string): Promise<boolean> {
 }
 
 export async function runDeadlineCheck() {
+  const settings = await getSiteSettings();
+  const reminderDays = settings.deadlineReminderDays.split(",").map(Number).filter((day) => Number.isInteger(day) && day > 0 && day <= 90);
+  const maxDays = Math.max(0, ...reminderDays);
   const soon = new Date();
-  soon.setDate(soon.getDate() + WARNING_WINDOW_DAYS);
+  soon.setDate(soon.getDate() + maxDays);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   let cases: Awaited<ReturnType<typeof prisma.case.findMany>> = [];
   try {
@@ -22,7 +27,10 @@ export async function runDeadlineCheck() {
       where: {
         archived: false,
         assignedAttorneyId: { not: null },
-        OR: [{ discDue: { lte: soon } }, { pretrial: { lte: soon } }, { appealBy: { lte: soon } }],
+        OR: [
+          ...(settings.overdueRemindersEnabled ? [{ discDue: { lte: today } }, { pretrial: { lte: today } }, { appealBy: { lte: today } }] : []),
+          ...(maxDays ? [{ discDue: { gt: today, lte: soon } }, { pretrial: { gt: today, lte: soon } }, { appealBy: { gt: today, lte: soon } }] : []),
+        ],
       },
     });
   } catch (error) {
@@ -35,14 +43,22 @@ export async function runDeadlineCheck() {
     if (await alreadyNotified(c.id)) continue;
 
     const deadlines: string[] = [];
-    if (c.discDue) deadlines.push(`Discovery due ${c.discDue.toDateString()}`);
-    if (c.pretrial) deadlines.push(`Pretrial ${c.pretrial.toDateString()}`);
-    if (c.appealBy) deadlines.push(`Appeal deadline ${c.appealBy.toDateString()}`);
+    const describe = (label: string, date: Date | null) => {
+      if (!date) return;
+      const days = Math.ceil((new Date(date).setHours(0, 0, 0, 0) - today.getTime()) / 86_400_000);
+      if (days <= 0 ? settings.overdueRemindersEnabled : reminderDays.includes(days)) {
+        deadlines.push(`${label} ${days < 0 ? `overdue by ${Math.abs(days)} days` : days === 0 ? "due today" : `due in ${days} days`} (${date.toDateString()})`);
+      }
+    };
+    describe("Discovery", c.discDue);
+    describe("Pretrial", c.pretrial);
+    describe("Appeal deadline", c.appealBy);
+    if (deadlines.length === 0) continue;
 
     await notify({
       userId: c.assignedAttorneyId,
       type: "case_deadline",
-      title: `Upcoming deadline on ${c.caseNumber}`,
+      title: `${deadlines.some((d) => d.includes("overdue")) ? "Overdue deadline" : "Upcoming deadline"} on ${c.caseNumber}`,
       body: deadlines.join(" — "),
       link: `/dashboard/cases/${c.id}`,
     });

@@ -1185,6 +1185,16 @@ table.stat tbody tr:hover {
   }
 }
 
+@media (max-width: 640px) {
+  table.stat.mobile-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+  table.stat.mobile-cards, table.stat.mobile-cards tbody { display: block; width: 100%; }
+  table.stat.mobile-cards tr { display: block; margin: 0 0 12px; padding: 6px 10px; border: 1px solid var(--bd-lt); border-radius: 8px; background: var(--paper); }
+  table.stat.mobile-cards td { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border: 0; border-bottom: 1px solid var(--bd-lt); padding: 8px 2px; text-align: right; overflow-wrap: anywhere; }
+  table.stat.mobile-cards td:last-child { border-bottom: 0; }
+  table.stat.mobile-cards td::before { content: attr(data-label); font-weight: 700; color: var(--ink-soft); text-align: left; flex: 0 0 34%; }
+  table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
+}
+
 @media (max-width: 460px) {
   .lockup-main {
     font-size: 19px;

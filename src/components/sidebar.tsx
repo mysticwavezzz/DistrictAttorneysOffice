@@ -10,7 +10,7 @@ export function Sidebar() {
             <a href="#announcements">Announcements</a>
           </li>
           <li>
-            <a href="#tips">Submit a Tip</a>
+            <a href="/report-crime">Report a Crime</a>
           </li>
           <li>
             <a href="/office-info">Office Info</a>

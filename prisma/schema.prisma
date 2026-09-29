@@ -8,15 +8,16 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  discordUserId String   @unique
-  username      String
-  displayName   String
-  avatarUrl     String?
-  tiers         String   @default("")
-  mutedTypes    String   @default("")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(cuid())
+  discordUserId    String   @unique
+  username         String
+  displayName      String
+  avatarUrl        String?
+  tiers            String   @default("")
+  mutedTypes       String   @default("")
+  savedCaseFilters String   @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   accounts             Account[]
   sessions             Session[]
@@ -185,6 +186,7 @@ model RosterEntry {
   imageUrl      String?
   about         String?
   startDate     DateTime?
+  isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -233,12 +235,14 @@ model RecordsRequest {
 }
 
 model SiteSettings {
-  id                     Int       @id @default(1)
-  maintenanceMode        Boolean   @default(false)
-  maintenanceMessage     String?
-  maintenanceEstimatedAt DateTime?
-  notificationsDisabled  Boolean   @default(false)
-  updatedAt              DateTime  @updatedAt
+  id                      Int       @id @default(1)
+  maintenanceMode         Boolean   @default(false)
+  maintenanceMessage      String?
+  maintenanceEstimatedAt  DateTime?
+  notificationsDisabled   Boolean   @default(false)
+  deadlineReminderDays    String    @default("7,3,1")
+  overdueRemindersEnabled Boolean   @default(true)
+  updatedAt               DateTime  @updatedAt
 }
 
 model SiteConfiguration {
@@ -251,4 +255,23 @@ model RateLimitBucket {
   key     String   @id
   count   Int
   resetAt DateTime
+}
+
+model SettingsAuditLog {
+  id        String   @id @default(cuid())
+  actorName String
+  action    String
+  details   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model ConfigurationBackup {
+  id        String   @id @default(cuid())
+  actorName String
+  payload   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

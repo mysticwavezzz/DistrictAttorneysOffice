@@ -12,9 +12,11 @@ export function RoleSyncPoller() {
   const prevKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Refresh Discord roles immediately when the dashboard mounts (including a hard refresh).
+    update();
     const interval = setInterval(() => {
       update();
-    }, SYNC_INTERVAL_MS);
+    }, 60_000);
     return () => clearInterval(interval);
   }, [update]);
 
