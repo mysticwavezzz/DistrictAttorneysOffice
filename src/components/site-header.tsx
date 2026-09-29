@@ -16,7 +16,7 @@ export async function SiteHeader() {
       <div className="util">
         <div className="util-in">
           <div>
-            {siteConfig.county} Executive&apos;s Office &nbsp;|&nbsp; {siteConfig.name}
+            {siteConfig.county} {siteConfig.name}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <TextSizeToggle />
