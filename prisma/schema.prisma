@@ -14,6 +14,7 @@ model User {
   displayName   String
   avatarUrl     String?
   tiers         String    @default("")
+  mutedTypes    String    @default("")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -80,6 +81,7 @@ model Case {
   closedOn           DateTime?
   appealBy           DateTime?
   archived           Boolean   @default(false)
+  isDraft            Boolean   @default(false)
   summary            String
   assignedAttorneyId String?
   createdById        String
@@ -91,6 +93,8 @@ model Case {
   filings          CaseFiling[]
   comments         CaseComment[]
   actionRequests   CaseActionRequest[]
+  relatedTo        Case[] @relation("CaseRelations")
+  relatedFrom      Case[] @relation("CaseRelations")
 
   @@index([archived])
 }
@@ -174,8 +178,33 @@ model RosterEntry {
   name          String
   discordUserId String?
   position      String
+  rank          String?
+  imageUrl      String?
+  about         String?
   badgeNumber   String?
   startDate     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  actorName   String
+  action      String
+  targetType  String
+  targetLabel String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model RecordsRequest {
+  id        String   @id @default(cuid())
+  name      String
+  contact   String
+  details   String
+  status    String   @default("NEW")
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
 }

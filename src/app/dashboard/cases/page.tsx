@@ -102,6 +102,13 @@ export default async function CasesPage({
               Propose New Case
             </Link>
           )}
+          <Link
+            href={`/dashboard/cases/export${qs({})}`}
+            className="govbtn-outline"
+            style={{ color: "var(--link)", border: "1px solid var(--bd)" }}
+          >
+            Export CSV
+          </Link>
         </div>
       </div>
 
@@ -172,7 +179,8 @@ export default async function CasesPage({
                 return (
                   <tr key={c.id}>
                     <td>
-                      <Link href={`/dashboard/cases/${c.id}`}>{c.title}</Link>
+                      <Link href={`/dashboard/cases/${c.id}`}>{c.title}</Link>{" "}
+                      {c.isDraft && <span className="pill pill-muted">Draft</span>}
                     </td>
                     <td>{c.assignedAttorney?.displayName ?? "Unassigned"}</td>
                     <td className="mono">{c.caseNumber}</td>

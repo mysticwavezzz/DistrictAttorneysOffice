@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
 import { caseFilingSchema, caseCommentSchema } from "@/lib/validation/case-extras";
-import { localUser, canAccessCase } from "@/lib/case-access";
+import { localUser, canAccessCase, generateCaseNumber } from "@/lib/case-access";
 import { notify } from "@/lib/notifications";
 
 async function requireStaff() {
@@ -16,6 +16,21 @@ async function requireStaff() {
   const user = await localUser(session.user.discordUserId);
   if (!user) throw new Error("Local staff record not found");
   return { session, user };
+}
+
+async function resolveRelatedCaseIds(raw: FormDataEntryValue | null, selfId?: string): Promise<string[]> {
+  const text = String(raw ?? "").trim();
+  if (!text) return [];
+  const numbers = text
+    .split(",")
+    .map((n) => n.trim())
+    .filter(Boolean);
+  if (numbers.length === 0) return [];
+  const matches = await prisma.case.findMany({
+    where: { caseNumber: { in: numbers } },
+    select: { id: true },
+  });
+  return matches.map((m) => m.id).filter((id) => id !== selfId);
 }
 
 export async function createCase(formData: FormData) {
@@ -29,11 +44,13 @@ export async function createCase(formData: FormData) {
   const data = parsed.data;
 
   const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
+  const caseNumber = emptyToNull(data.caseNumber) ?? (await generateCaseNumber());
+  const relatedIds = await resolveRelatedCaseIds(formData.get("relatedCaseNumbers"));
 
   const created = await prisma.case.create({
     data: {
       title: data.title,
-      caseNumber: data.caseNumber,
+      caseNumber,
       type: emptyToNull(data.type),
       stage: emptyToNull(data.stage),
       disclosures: emptyToNull(data.disclosures),
@@ -47,6 +64,8 @@ export async function createCase(formData: FormData) {
       summary: emptyToNull(data.summary) ?? "",
       assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) : user.id,
       createdById: user.id,
+      isDraft: formData.get("isDraft") === "on",
+      relatedTo: relatedIds.length > 0 ? { connect: relatedIds.map((id) => ({ id })) } : undefined,
     },
   });
 
@@ -85,12 +104,15 @@ export async function updateCase(formData: FormData) {
 
   const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
   const nextAssignee = canAssign ? emptyToNull(data.assignedAttorneyId) : existing.assignedAttorneyId;
+  const caseNumber = emptyToNull(data.caseNumber) ?? existing.caseNumber;
+  const relatedIds = await resolveRelatedCaseIds(formData.get("relatedCaseNumbers"), id);
+  const nextIsDraft = formData.get("isDraft") === "on";
 
   await prisma.case.update({
     where: { id },
     data: {
       title: data.title,
-      caseNumber: data.caseNumber,
+      caseNumber,
       type: emptyToNull(data.type),
       stage: emptyToNull(data.stage),
       disclosures: emptyToNull(data.disclosures),
@@ -104,12 +126,17 @@ export async function updateCase(formData: FormData) {
       summary: emptyToNull(data.summary) ?? "",
       assignedAttorneyId: nextAssignee,
       archived: formData.get("archived") === "on",
+      isDraft: nextIsDraft,
+      relatedTo: { set: relatedIds.map((rid) => ({ id: rid })) },
     },
   });
 
   const systemNotes: string[] = [];
   if (emptyToNull(data.stage) !== existing.stage) {
     systemNotes.push(`Status changed to "${emptyToNull(data.stage) ?? "None"}" by ${session.user.displayName}.`);
+  }
+  if (existing.isDraft && !nextIsDraft) {
+    systemNotes.push(`Published from draft by ${session.user.displayName}.`);
   }
   if (canAssign && nextAssignee !== existing.assignedAttorneyId) {
     if (nextAssignee) {

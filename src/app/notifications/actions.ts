@@ -40,3 +40,20 @@ export async function markAllNotificationsRead() {
 
   revalidatePath("/notifications");
 }
+
+export async function updateNotificationPreferences(formData: FormData) {
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Forbidden");
+
+  const { NOTIFICATION_TYPES } = await import("@/lib/notifications");
+  const muted = NOTIFICATION_TYPES.map((t) => t.value).filter(
+    (value) => formData.get(`mute_${value}`) === "on"
+  );
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { mutedTypes: muted.join(",") },
+  });
+
+  revalidatePath("/notifications");
+}

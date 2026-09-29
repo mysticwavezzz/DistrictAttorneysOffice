@@ -7,13 +7,14 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { Seal } from "@/components/seal";
+import { formatReleaseBody } from "@/lib/format-release-body";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "long" });
 
 async function getAnnouncement(id: string) {
   try {
     return await prisma.announcement.findFirst({
-      where: { id, audience: "PUBLIC", isPublished: true },
+      where: { id, audience: "PUBLIC", isPublished: true, publishedAt: { lte: new Date() } },
     });
   } catch (error) {
     console.error("Failed to load announcement", error);
@@ -77,7 +78,7 @@ export default async function AnnouncementDetailPage({
               <div className="letter-head">
                 {siteConfig.county} {siteConfig.name}
               </div>
-              <p style={{ whiteSpace: "pre-wrap" }}>{announcement.body}</p>
+              <p dangerouslySetInnerHTML={{ __html: formatReleaseBody(announcement.body) }} />
               <div className="letter-close">
                 <div className="letter-sign">Office of the District Attorney</div>
               </div>

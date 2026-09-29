@@ -10,6 +10,9 @@ export const PROTECTED_ROUTES: RouteRule[] = [
   { prefix: "/dashboard/cases", capabilities: [CAPABILITIES.CASES_VIEW] },
   { prefix: "/dashboard/roster", capabilities: [CAPABILITIES.ROSTER_VIEW] },
   { prefix: "/dashboard/announcements", capabilities: [CAPABILITIES.ANNOUNCEMENTS_MANAGE] },
+  { prefix: "/dashboard/records-requests", capabilities: [CAPABILITIES.REQUESTS_VIEW] },
+  { prefix: "/dashboard/activity", capabilities: [CAPABILITIES.ACTIVITY_VIEW] },
+  { prefix: "/dashboard/search", capabilities: [CAPABILITIES.DASHBOARD_VIEW] },
   { prefix: "/dashboard", capabilities: [CAPABILITIES.DASHBOARD_VIEW] },
   { prefix: "/bulletin", capabilities: [CAPABILITIES.BULLETIN_VIEW] },
   {

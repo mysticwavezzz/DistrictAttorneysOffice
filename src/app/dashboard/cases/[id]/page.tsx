@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -14,6 +15,8 @@ type CaseWithRelations = Prisma.CaseGetPayload<{
     createdBy: true;
     filings: { include: { addedBy: true } };
     comments: { include: { author: true } };
+    relatedTo: true;
+    relatedFrom: true;
   };
 }>;
 
@@ -43,6 +46,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         createdBy: true,
         filings: { include: { addedBy: true }, orderBy: { createdAt: "desc" } },
         comments: { include: { author: true }, orderBy: { createdAt: "asc" } },
+        relatedTo: true,
+        relatedFrom: true,
       },
     });
   } catch (error) {
@@ -71,6 +76,27 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   }
 
   const statusColor = caseStatusColor(caseRecord.stage);
+  const relatedCasesMap = new Map<string, { id: string; caseNumber: string; title: string }>();
+  for (const c of [...caseRecord.relatedTo, ...caseRecord.relatedFrom]) {
+    relatedCasesMap.set(c.id, c);
+  }
+  const relatedCases = Array.from(relatedCasesMap.values());
+  const relatedCaseNumbersDefault = caseRecord.relatedTo.map((c) => c.caseNumber).join(", ");
+
+  const relatedCasesSection = relatedCases.length > 0 && (
+    <div className="formbox">
+      <h3 style={{ marginTop: 0 }}>Related Cases</h3>
+      <ul style={{ paddingLeft: 18, margin: 0 }}>
+        {relatedCases.map((c) => (
+          <li key={c.id} style={{ fontSize: 12.5 }}>
+            <Link href={`/dashboard/cases/${c.id}`}>
+              {c.caseNumber} &mdash; {c.title}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 
   const filingsAndComments = (
     <>
@@ -147,6 +173,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         <p className="subtitle">
           {caseRecord.archived ? "Archived" : "Ongoing"} &middot;{" "}
           {caseRecord.stage ? <span className={`pill pill-${statusColor}`}>{caseRecord.stage}</span> : "No status set"}
+          {caseRecord.isDraft && <span className="pill pill-muted" style={{ marginLeft: 6 }}>Draft</span>}
         </p>
 
         <div className="formbox">
@@ -167,6 +194,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           <h3>Summary</h3>
           <p style={{ whiteSpace: "pre-wrap" }}>{caseRecord.summary}</p>
         </div>
+
+        {relatedCasesSection}
 
         <div className="formbox">{filingsAndComments}</div>
 
@@ -360,16 +389,39 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         </div>
 
         <div className="field">
-          <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
-            <input type="checkbox" name="archived" defaultChecked={caseRecord.archived} />
-            Archived
+          <label htmlFor="relatedCaseNumbers">
+            Related Case Numbers <span className="hint">(optional — comma-separated)</span>
           </label>
+          <input
+            type="text"
+            id="relatedCaseNumbers"
+            name="relatedCaseNumbers"
+            maxLength={500}
+            defaultValue={relatedCaseNumbersDefault}
+          />
+        </div>
+
+        <div className="field-row">
+          <div className="field">
+            <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
+              <input type="checkbox" name="archived" defaultChecked={caseRecord.archived} />
+              Archived
+            </label>
+          </div>
+          <div className="field">
+            <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
+              <input type="checkbox" name="isDraft" defaultChecked={caseRecord.isDraft} />
+              Draft (only visible to you and Supervising ADA+)
+            </label>
+          </div>
         </div>
 
         <button type="submit" className="govbtn">
           Save Changes
         </button>
       </form>
+
+      {relatedCasesSection}
 
       <div className="formbox">{filingsAndComments}</div>
 

@@ -45,8 +45,10 @@ export default async function NewCasePage() {
             <input type="text" id="title" name="title" required maxLength={200} />
           </div>
           <div className="field" style={{ flex: "1 1 180px" }}>
-            <label htmlFor="caseNumber">Case #</label>
-            <input type="text" id="caseNumber" name="caseNumber" required maxLength={50} />
+            <label htmlFor="caseNumber">
+              Case # <span className="hint">(optional — auto-generated if left blank)</span>
+            </label>
+            <input type="text" id="caseNumber" name="caseNumber" maxLength={50} placeholder="Auto-generated" />
           </div>
         </div>
 
@@ -126,6 +128,22 @@ export default async function NewCasePage() {
           <label htmlFor="summary">Summary</label>
           <textarea id="summary" name="summary" rows={4} maxLength={4000} />
         </div>
+
+        <div className="field">
+          <label htmlFor="relatedCaseNumbers">
+            Related Case Numbers <span className="hint">(optional — comma-separated)</span>
+          </label>
+          <input type="text" id="relatedCaseNumbers" name="relatedCaseNumbers" maxLength={500} />
+        </div>
+
+        {canCreate && (
+          <div className="field">
+            <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
+              <input type="checkbox" name="isDraft" />
+              Save as draft (only visible to you and Supervising ADA+ until published)
+            </label>
+          </div>
+        )}
 
         <button type="submit" className="govbtn">
           {canCreate ? "Create Case" : "Submit for Review"}

@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
-import { localUser } from "@/lib/case-access";
+import { localUser, generateCaseNumber } from "@/lib/case-access";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 
 async function requireProposer() {
@@ -81,10 +81,11 @@ export async function reviewCaseRequest(formData: FormData) {
     const data = JSON.parse(request.proposedData) as Record<string, string | undefined>;
 
     if (request.kind === "CREATE") {
+      const caseNumber = emptyToNull(data.caseNumber) ?? (await generateCaseNumber());
       await prisma.case.create({
         data: {
           title: data.title ?? "",
-          caseNumber: data.caseNumber ?? "",
+          caseNumber,
           type: emptyToNull(data.type),
           stage: emptyToNull(data.stage),
           disclosures: emptyToNull(data.disclosures),

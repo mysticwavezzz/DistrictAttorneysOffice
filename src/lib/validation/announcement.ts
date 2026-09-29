@@ -15,4 +15,5 @@ export const announcementInputSchema = z.object({
     .optional()
     .or(z.literal("")),
   audience: z.enum(ANNOUNCEMENT_AUDIENCES),
+  publishedAt: z.string().trim().optional().or(z.literal("")),
 });

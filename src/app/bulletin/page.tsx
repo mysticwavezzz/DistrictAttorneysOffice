@@ -5,6 +5,7 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
+import { formatReleaseBody } from "@/lib/format-release-body";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "long" });
 
@@ -17,7 +18,7 @@ export default async function BulletinPage() {
   let posts: Awaited<ReturnType<typeof prisma.announcement.findMany>> = [];
   try {
     posts = await prisma.announcement.findMany({
-      where: { audience: "LAW_ENFORCEMENT", isPublished: true },
+      where: { audience: "LAW_ENFORCEMENT", isPublished: true, publishedAt: { lte: new Date() } },
       orderBy: { publishedAt: "desc" },
     });
   } catch (error) {
@@ -53,7 +54,7 @@ export default async function BulletinPage() {
                 </summary>
                 <div className="letter-body">
                   {post.imageUrl && <img src={post.imageUrl} alt="" className="release-hero" />}
-                  <p style={{ whiteSpace: "pre-wrap" }}>{post.body}</p>
+                  <p dangerouslySetInnerHTML={{ __html: formatReleaseBody(post.body) }} />
                 </div>
               </details>
             ))

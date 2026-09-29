@@ -7,12 +7,20 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { announcementInputSchema } from "@/lib/validation/announcement";
 import { emptyToNull } from "@/lib/validation/case";
-import { notifyMany } from "@/lib/notifications";
+import { notifyMany, userIdsWithCapability } from "@/lib/notifications";
+import { logActivity } from "@/lib/activity-log";
 
 function revalidateAll() {
   revalidatePath("/dashboard/announcements");
   revalidatePath("/bulletin");
   revalidatePath("/");
+}
+
+function resolvePublishedAt(raw: string | undefined): Date {
+  const trimmed = emptyToNull(raw);
+  if (!trimmed) return new Date();
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
 export async function createAnnouncement(formData: FormData) {
@@ -31,6 +39,10 @@ export async function createAnnouncement(formData: FormData) {
     where: { discordUserId: session.user.discordUserId },
   });
 
+  const isPublished = formData.get("isPublished") === "on";
+  const publishedAt = resolvePublishedAt(data.publishedAt);
+  const isScheduledFuture = publishedAt.getTime() > Date.now();
+
   const created = await prisma.announcement.create({
     data: {
       title: data.title,
@@ -39,11 +51,14 @@ export async function createAnnouncement(formData: FormData) {
       imageUrl: emptyToNull(data.imageUrl),
       audience: data.audience,
       createdById: creator?.id,
+      isPublished,
+      publishedAt,
     },
   });
 
-  if (created.isPublished) {
-    const { userIdsWithCapability } = await import("@/lib/notifications");
+  await logActivity(session.user.displayName, "created", "release", created.title);
+
+  if (created.isPublished && !isScheduledFuture) {
     const capability =
       data.audience === "PUBLIC" ? CAPABILITIES.DASHBOARD_VIEW : CAPABILITIES.BULLETIN_VIEW;
     const recipients = new Set(await userIdsWithCapability(capability));
@@ -86,9 +101,11 @@ export async function updateAnnouncement(formData: FormData) {
       imageUrl: emptyToNull(data.imageUrl),
       audience: data.audience,
       isPublished: formData.get("isPublished") === "on",
+      publishedAt: resolvePublishedAt(data.publishedAt),
     },
   });
 
+  await logActivity(session.user.displayName, "edited", "release", data.title);
   revalidateAll();
   redirect("/dashboard/announcements");
 }
@@ -102,8 +119,10 @@ export async function deleteAnnouncement(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing announcement id");
 
+  const post = await prisma.announcement.findUnique({ where: { id } });
   await prisma.announcement.delete({ where: { id } });
 
+  await logActivity(session.user.displayName, "deleted", "release", post?.title ?? id);
   revalidateAll();
   redirect("/dashboard/announcements");
 }

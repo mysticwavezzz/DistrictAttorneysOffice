@@ -112,9 +112,20 @@ async function main() {
 
   await prisma.rosterEntry.createMany({
     data: [
-      { name: "Demo Attorney", position: "District Attorney", badgeNumber: "DA-001" },
-      { name: "Demo ADA", position: "Assistant District Attorney", badgeNumber: "DA-002" },
-      { name: "Demo Paralegal", position: "Paralegal", badgeNumber: "DA-003" },
+      {
+        name: "Demo Attorney",
+        position: "District Attorney",
+        rank: "District Attorney",
+        badgeNumber: "DA-001",
+        about: "Heads the office and sets prosecutorial priorities for the county.",
+      },
+      {
+        name: "Demo ADA",
+        position: "Assistant District Attorney",
+        rank: "Assistant District Attorney",
+        badgeNumber: "DA-002",
+      },
+      { name: "Demo Paralegal", position: "Paralegal", rank: "Paralegal", badgeNumber: "DA-003" },
     ],
   });
 }

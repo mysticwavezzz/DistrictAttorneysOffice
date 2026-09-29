@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { siteConfig } from "@/config/site";
 import { SiteHeader } from "@/components/site-header";
@@ -9,7 +10,7 @@ import { TipsSection } from "@/components/tips-section";
 async function getPublishedAnnouncements(): Promise<AnnouncementListItem[]> {
   try {
     return await prisma.announcement.findMany({
-      where: { isPublished: true, audience: "PUBLIC" },
+      where: { isPublished: true, audience: "PUBLIC", publishedAt: { lte: new Date() } },
       orderBy: { publishedAt: "desc" },
       take: 6,
       select: {
@@ -61,18 +62,6 @@ export default async function HomePage() {
                 </span>
               </div>
               <div className="card">
-                <span className="card-label">Email</span>
-                <span className="card-value" style={{ fontSize: 14 }}>
-                  {siteConfig.contact.email}
-                </span>
-              </div>
-              <div className="card">
-                <span className="card-label">Address</span>
-                <span className="card-value" style={{ fontSize: 14 }}>
-                  {siteConfig.contact.address}
-                </span>
-              </div>
-              <div className="card">
                 <span className="card-label">Hours</span>
                 <span className="card-value" style={{ fontSize: 14 }}>
                   {siteConfig.hours[0]?.time}
@@ -81,8 +70,7 @@ export default async function HomePage() {
               </div>
             </div>
             <p className="source">
-              Public records requests should be directed to the office&apos;s records desk during
-              regular business hours. Certain records may be sealed or exempt from disclosure.
+              <Link href="/office-info">See full office information &amp; leadership &rarr;</Link>
             </p>
           </section>
 

@@ -13,6 +13,7 @@ export default async function DashboardOverviewPage() {
   const canViewRoster = hasCapability(tiers, CAPABILITIES.ROSTER_VIEW);
   const canManageAnnouncements = hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE);
   const canApproveRequests = hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const canViewRequests = hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW);
 
   const user = await localUser(session!.user.discordUserId);
 
@@ -64,6 +65,29 @@ export default async function DashboardOverviewPage() {
     }
   }
 
+  let releasesThisMonth = 0;
+  if (canManageAnnouncements) {
+    try {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      releasesThisMonth = await prisma.announcement.count({
+        where: { isPublished: true, publishedAt: { gte: monthStart } },
+      });
+    } catch (error) {
+      console.error("Failed to load release count", error);
+    }
+  }
+
+  let newRecordsRequests = 0;
+  if (canViewRequests) {
+    try {
+      newRecordsRequests = await prisma.recordsRequest.count({ where: { status: "NEW" } });
+    } catch (error) {
+      console.error("Failed to load records request count", error);
+    }
+  }
+
   return (
     <div>
       <p className="eyebrow">Staff Portal</p>
@@ -110,10 +134,14 @@ export default async function DashboardOverviewPage() {
         )}
         {canManageAnnouncements && (
           <Link href="/dashboard/announcements" className="card">
-            <span className="card-label">Manage Releases</span>
-            <span className="card-value" style={{ fontSize: 15 }}>
-              Public &amp; LE Posts
-            </span>
+            <span className="card-label">Releases This Month</span>
+            <span className="card-value">{releasesThisMonth}</span>
+          </Link>
+        )}
+        {canViewRequests && newRecordsRequests > 0 && (
+          <Link href="/dashboard/records-requests" className="card">
+            <span className="card-label">New Records Requests</span>
+            <span className="card-value">{newRecordsRequests}</span>
           </Link>
         )}
       </div>

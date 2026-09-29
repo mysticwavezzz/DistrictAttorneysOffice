@@ -61,6 +61,17 @@ export default async function EditAnnouncementPage({ params }: { params: { id: s
             </select>
           </div>
           <div className="field">
+            <label htmlFor="publishedAt">
+              Publish At <span className="hint">(future date schedules it)</span>
+            </label>
+            <input
+              type="datetime-local"
+              id="publishedAt"
+              name="publishedAt"
+              defaultValue={post.publishedAt.toISOString().slice(0, 16)}
+            />
+          </div>
+          <div className="field">
             <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
               <input type="checkbox" name="isPublished" defaultChecked={post.isPublished} />
               Published

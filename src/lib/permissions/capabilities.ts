@@ -12,6 +12,8 @@ export const CAPABILITIES = {
   ROSTER_MANAGE: "roster:manage",
   BULLETIN_VIEW: "bulletin:view",
   ANNOUNCEMENTS_MANAGE: "announcements:manage",
+  REQUESTS_VIEW: "requests:view",
+  ACTIVITY_VIEW: "activity:view",
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];

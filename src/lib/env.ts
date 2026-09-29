@@ -17,6 +17,10 @@ const envSchema = z.object({
   DISCORD_CLIENT_SECRET: z.string().min(1, "DISCORD_CLIENT_SECRET is required"),
   DISCORD_BOT_TOKEN: z.string().min(1, "DISCORD_BOT_TOKEN is required"),
   DISCORD_GUILD_ID: z.string().min(1, "DISCORD_GUILD_ID is required"),
+  DISCORD_DM_NOTIFICATIONS: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 

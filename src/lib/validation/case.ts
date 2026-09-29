@@ -4,7 +4,7 @@ const optionalText = z.string().trim().optional().or(z.literal(""));
 
 export const caseInputSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
-  caseNumber: z.string().trim().min(1, "Case number is required").max(50),
+  caseNumber: z.string().trim().max(50).optional().or(z.literal("")),
   type: optionalText,
   stage: optionalText,
   disclosures: z.string().trim().max(2000).optional().or(z.literal("")),

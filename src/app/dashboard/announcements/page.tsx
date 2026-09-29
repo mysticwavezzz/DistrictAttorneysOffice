@@ -5,7 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { createAnnouncement, deleteAnnouncement } from "./actions";
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
+
+function statusPill(post: { isPublished: boolean; publishedAt: Date }) {
+  if (!post.isPublished) return <span className="pill pill-muted">Draft</span>;
+  if (post.publishedAt.getTime() > Date.now()) return <span className="pill pill-gold">Scheduled</span>;
+  return <span className="pill pill-green">Published</span>;
+}
 
 export default async function AnnouncementsAdminPage() {
   const session = await auth();
@@ -54,11 +60,7 @@ export default async function AnnouncementsAdminPage() {
                       {post.audience === "PUBLIC" ? "Public" : "Law Enforcement"}
                     </span>
                   </td>
-                  <td>
-                    <span className={`pill ${post.isPublished ? "pill-green" : "pill-muted"}`}>
-                      {post.isPublished ? "Published" : "Draft"}
-                    </span>
-                  </td>
+                  <td>{statusPill(post)}</td>
                   <td>{dateFormatter.format(post.publishedAt)}</td>
                   <td>
                     <Link href={`/dashboard/announcements/${post.id}`}>Edit</Link>
@@ -91,7 +93,10 @@ export default async function AnnouncementsAdminPage() {
           <input type="text" id="summary" name="summary" maxLength={300} />
         </div>
         <div className="field">
-          <label htmlFor="body">Full Release Body</label>
+          <label htmlFor="body">
+            Full Release Body{" "}
+            <span className="hint">(supports **bold**, *italic*, and [link text](https://...))</span>
+          </label>
           <textarea id="body" name="body" required rows={6} maxLength={8000} />
         </div>
         <div className="field">
@@ -100,15 +105,29 @@ export default async function AnnouncementsAdminPage() {
           </label>
           <input type="text" id="imageUrl" name="imageUrl" maxLength={2000} placeholder="https://" />
         </div>
-        <div className="field" style={{ maxWidth: 260 }}>
-          <label htmlFor="audience">Audience</label>
-          <select id="audience" name="audience" defaultValue="PUBLIC">
-            <option value="PUBLIC">Public (shown on homepage)</option>
-            <option value="LAW_ENFORCEMENT">Law Enforcement Only</option>
-          </select>
+        <div className="field-row">
+          <div className="field" style={{ maxWidth: 260 }}>
+            <label htmlFor="audience">Audience</label>
+            <select id="audience" name="audience" defaultValue="PUBLIC">
+              <option value="PUBLIC">Public (shown on homepage)</option>
+              <option value="LAW_ENFORCEMENT">Law Enforcement Only</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="publishedAt">
+              Publish At <span className="hint">(optional — leave blank for immediately)</span>
+            </label>
+            <input type="datetime-local" id="publishedAt" name="publishedAt" />
+          </div>
+        </div>
+        <div className="field">
+          <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
+            <input type="checkbox" name="isPublished" defaultChecked />
+            Published (uncheck to save as a draft)
+          </label>
         </div>
         <button type="submit" className="govbtn">
-          Publish
+          Save Release
         </button>
       </form>
     </div>

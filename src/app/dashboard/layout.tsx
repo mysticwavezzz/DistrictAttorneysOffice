@@ -38,6 +38,17 @@ export default async function DashboardLayout({
       href: "/dashboard/announcements",
       show: hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE),
     },
+    {
+      label: "Records Requests",
+      href: "/dashboard/records-requests",
+      show: hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW),
+    },
+    { label: "Search", href: "/dashboard/search", show: true },
+    {
+      label: "Activity Log",
+      href: "/dashboard/activity",
+      show: hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW),
+    },
   ];
   const staffNav = sections.filter((s) => s.show);
 
