@@ -58,8 +58,7 @@ export default async function AffidavitsPage() {
         </ol>
         {a.linkedCase && <p><strong>Linked case:</strong> <Link href={`/dashboard/cases/${a.linkedCase.id}`}>{a.linkedCase.caseNumber} — {a.linkedCase.title}</Link></p>}
         <p><Link href={`/dashboard/affidavits/${a.id}`}>Printable affidavit view →</Link></p>
-        <p style={{ fontSize: 12 }}>Subject: {a.subject}</p>
-        <p style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{a.narrative}</p>
+        {a.documentUrl ? <p><strong>AOPC document:</strong> <a href={a.documentUrl} target="_blank" rel="noopener noreferrer">Open submitted AOPC link →</a></p> : a.pdfFileName ? <p><strong>AOPC document:</strong> <a href={`/api/aopcs/${a.id}/pdf`}>View or download {a.pdfFileName} →</a></p> : <><p style={{ fontSize: 12 }}>Subject: {a.subject}</p><p style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{a.narrative}</p></>}
 
         {a.status === "PENDING" ? (
           canReview && (
@@ -140,15 +139,9 @@ export default async function AffidavitsPage() {
                   ))}
                 </select>
               </div>
-              <div className="field">
-                <label htmlFor="subject">Subject</label>
-                <input type="text" id="subject" name="subject" required maxLength={200} />
-              </div>
+              <div className="field"><label htmlFor="submittingOfficer">Submitting Officer</label><input id="submittingOfficer" value={session.user.displayName} readOnly aria-describedby="officer-hint"/><span className="hint" id="officer-hint">Filled from your signed-in staff account.</span></div>
             </div>
-            <div className="field">
-              <label htmlFor="narrative">Narrative</label>
-              <textarea id="narrative" name="narrative" required rows={8} maxLength={8000} />
-            </div>
+            <fieldset className="field" style={{ border: "1px solid var(--bd-lt)", padding: 12 }}><legend>AOPC document <span className="hint">(provide a link or upload one PDF)</span></legend><div className="field"><label htmlFor="documentUrl">Link to the AOPC</label><input type="url" id="documentUrl" name="documentUrl" maxLength={2000} placeholder="https://…" /></div><p className="note-inline" aria-hidden="true">— or —</p><div className="field"><label htmlFor="aopcPdf">Upload AOPC as PDF (max 5 MB)</label><input type="file" id="aopcPdf" name="pdf" accept="application/pdf,.pdf" /></div></fieldset>
             <button type="submit" className="govbtn">
               Submit Affidavit
             </button>

@@ -30,6 +30,7 @@
      themes on purpose since the chrome itself already goes lighter in dark mode. */
   --chip-bg: #e3d9bf;
   --chip-ink: #2a3d6d;
+  --flag-light: #ffffff;
   --col: 1080px;
   --pad: 18px;
   --serif: Georgia, "Times New Roman", Times, serif;
@@ -38,9 +39,9 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --navy: #6480c2;
-  --navy-dk: #1a2440;
-  --navy-lt: #8098d2;
+  --navy: #354768;
+  --navy-dk: #191f2c;
+  --navy-lt: #29354a;
   --green: #6f9a6d;
   --pine: #7fac4a;
   --sky: #83b6df;
@@ -64,6 +65,9 @@
   --prov: #ddc26e;
   --notice-bg: #262b1c;
   --heading: #a9c0ee;
+  --chip-bg: #303b50;
+  --chip-ink: #f0eee7;
+  --flag-light: #2b3240;
 }
 
 html {
@@ -363,9 +367,9 @@ img {
   background: linear-gradient(
     180deg,
     var(--navy) 0 28%,
-    #ffffff 28% 36%,
+    var(--flag-light) 28% 36%,
     var(--green) 36% 64%,
-    #ffffff 64% 72%,
+    var(--flag-light) 64% 72%,
     var(--navy) 72% 100%
   );
 }
@@ -1200,13 +1204,33 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .profile-trigger:hover, .profile-trigger[aria-expanded="true"] { background: var(--bd-lt); }
 .profile-avatar { width: 28px; height: 28px; object-fit: cover; border-radius: 50%; }
 .profile-avatar-fallback { display: inline-grid; place-items: center; background: var(--navy); color: white; font-weight: 700; }
-.profile-panel { position: absolute; z-index: 30; right: 0; top: calc(100% + 6px); width: min(330px, calc(100vw - 28px)); padding: 10px; background: var(--paper); color: var(--ink); border: 1px solid var(--bd); border-radius: 9px; box-shadow: 0 8px 28px #0003; display: grid; gap: 4px; }
+.profile-panel { position: absolute; z-index: 1000; right: 0; top: calc(100% + 6px); width: min(330px, calc(100vw - 28px)); padding: 10px; background-color: var(--box); color: var(--ink); border: 1px solid var(--bd); border-radius: 9px; box-shadow: 0 10px 30px rgba(0, 0, 0, .32); display: grid; gap: 4px; opacity: 1; }
 .profile-panel a, .profile-panel button { display: block; width: 100%; text-align: left; padding: 9px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; cursor: pointer; text-decoration: none; }
 .profile-panel a:hover, .profile-panel button:hover:not(:disabled) { background: var(--bd-lt); }
 .profile-panel button:disabled { opacity: .65; cursor: wait; }
 .profile-summary { display: grid; gap: 3px; padding: 9px; border-bottom: 1px solid var(--bd-lt); font-size: 12px; overflow-wrap: anywhere; }
 .profile-sync-note, .profile-sync-error { font-size: 11px; padding: 0 9px 6px; }
 .profile-sync-error { color: var(--red, #a32020); }
+
+:root[data-theme="dark"] .nav {
+  background: linear-gradient(180deg, #29354a 0%, #222c3f 46%, #191f2c 100%);
+  border-top-color: #3a4962;
+  border-bottom-color: #111722;
+}
+
+:root[data-theme="dark"] .nav a:hover,
+:root[data-theme="dark"] .nav a:focus-visible {
+  background: rgba(255, 255, 255, .08);
+}
+
+:root[data-theme="dark"] .nav a.on {
+  background: var(--chip-bg);
+  color: var(--chip-ink);
+}
+
+:root[data-theme="dark"] .nav-scroll-btn {
+  background: rgba(255, 255, 255, .035);
+}
 
 .deadline-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--bd); border-left: 1px solid var(--bd); margin: 14px 0; }
 .deadline-calendar-weekday { padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 700; background: var(--bd-lt); border-right: 1px solid var(--bd); border-bottom: 1px solid var(--bd); }

@@ -217,6 +217,9 @@ model Aopc {
   targetUnit    String
   subject       String
   narrative     String
+  documentUrl   String?
+  pdfData       String?
+  pdfFileName   String?
   status        String    @default("PENDING")
   submittedById String
   reviewedById  String?

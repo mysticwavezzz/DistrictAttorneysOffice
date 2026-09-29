@@ -7,6 +7,7 @@ if (!["patch", "medium", "major"].includes(bump)) {
   throw new Error("VERSION_BUMP must be patch, medium, or major.");
 }
 const packagePath = new URL("../package.json", import.meta.url);
+const lockPath = new URL("../package-lock.json", import.meta.url);
 const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
 const parts = String(packageJson.version).split(".").map(Number);
 if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part) || part < 0)) {
@@ -26,4 +27,8 @@ if (bump === "major") {
 
 packageJson.version = parts.join(".");
 writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
-execFileSync("git", ["add", "package.json"]);
+const packageLock = JSON.parse(readFileSync(lockPath, "utf8"));
+packageLock.version = packageJson.version;
+if (packageLock.packages?.[""]) packageLock.packages[""].version = packageJson.version;
+writeFileSync(lockPath, `${JSON.stringify(packageLock, null, 2)}\n`);
+execFileSync("git", ["add", "package.json", "package-lock.json"]);

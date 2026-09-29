@@ -35,9 +35,31 @@ async function requireReviewer() {
 export async function submitAopc(formData: FormData) {
   const { session, user } = await requireSubmitter();
 
-  const parsed = aopcInputSchema.safeParse(Object.fromEntries(formData));
+  const parsed = aopcInputSchema.safeParse({
+    title: formData.get("title"),
+    targetUnit: formData.get("targetUnit"),
+    documentUrl: formData.get("documentUrl"),
+  });
   if (!parsed.success) throw new Error("Invalid affidavit submission");
   const data = parsed.data;
+  const uploadEntry = formData.get("pdf");
+  const file = uploadEntry instanceof File && uploadEntry.size > 0 ? uploadEntry : null;
+  if (Boolean(data.documentUrl) === Boolean(file)) {
+    throw new Error("Provide either a link to the AOPC or upload one PDF.");
+  }
+  let pdfData: string | null = null;
+  let pdfFileName: string | null = null;
+  if (file) {
+    if (file.size > 5 * 1024 * 1024 || !file.name.toLowerCase().endsWith(".pdf")) {
+      throw new Error("Upload a PDF file no larger than 5 MB.");
+    }
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (bytes.length < 5 || bytes.subarray(0, 5).toString("ascii") !== "%PDF-") {
+      throw new Error("The uploaded file is not a valid PDF.");
+    }
+    pdfData = bytes.toString("base64");
+    pdfFileName = file.name.replace(/[\\/\r\n\0]/g, "_").slice(0, 180);
+  }
   const divisions = await getSiteConfiguration("divisions", UNITS);
   if (!divisions.some((unit) => unit.value === data.targetUnit && unit.acceptsAopc)) throw new Error("This division does not accept affidavit referrals");
 
@@ -45,8 +67,11 @@ export async function submitAopc(formData: FormData) {
     data: {
       title: data.title,
       targetUnit: data.targetUnit,
-      subject: data.subject,
-      narrative: data.narrative,
+      subject: data.title,
+      narrative: data.documentUrl ? `AOPC link: ${data.documentUrl}` : `Uploaded PDF: ${pdfFileName}`,
+      documentUrl: data.documentUrl || null,
+      pdfData,
+      pdfFileName,
       submittedById: user.id,
     },
   });

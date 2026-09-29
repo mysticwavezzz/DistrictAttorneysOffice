@@ -13,6 +13,9 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  experimental: {
+    serverActions: { bodySizeLimit: "7mb" },
+  },
   images: {
     remotePatterns: [{ protocol: "https", hostname: "cdn.discordapp.com" }],
   },
