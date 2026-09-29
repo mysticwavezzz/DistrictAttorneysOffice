@@ -5,6 +5,7 @@ export const PERMISSION_TIERS = {
   GOVERNMENT: "government",
   DA_PARALEGAL: "da_paralegal",
   DA_ATTORNEY: "da_attorney",
+  SUPERVISING_ADA: "supervising_ada",
   DISTRICT_ATTORNEY: "district_attorney",
 } as const;
 
@@ -34,12 +35,18 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
     id: PERMISSION_TIERS.DA_PARALEGAL,
     label: "Paralegal",
     description: "District Attorney's Office paralegal staff.",
-    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.CASES_VIEW, CAPABILITIES.ROSTER_VIEW],
+    capabilities: [
+      CAPABILITIES.DASHBOARD_VIEW,
+      CAPABILITIES.CASES_VIEW,
+      CAPABILITIES.CASES_VIEW_ALL,
+      CAPABILITIES.CASES_PROPOSE_EDIT,
+      CAPABILITIES.ROSTER_VIEW,
+    ],
   },
   [PERMISSION_TIERS.DA_ATTORNEY]: {
     id: PERMISSION_TIERS.DA_ATTORNEY,
     label: "Attorney",
-    description: "District Attorney's Office prosecuting attorney.",
+    description: "District Attorney's Office prosecuting attorney (Assistant District Attorney).",
     capabilities: [
       CAPABILITIES.DASHBOARD_VIEW,
       CAPABILITIES.CASES_VIEW,
@@ -49,6 +56,21 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.ANNOUNCEMENTS_MANAGE,
     ],
   },
+  [PERMISSION_TIERS.SUPERVISING_ADA]: {
+    id: PERMISSION_TIERS.SUPERVISING_ADA,
+    label: "Supervising ADA",
+    description: "Supervises assistant district attorneys; oversees the full case docket.",
+    capabilities: [
+      CAPABILITIES.DASHBOARD_VIEW,
+      CAPABILITIES.CASES_VIEW,
+      CAPABILITIES.CASES_VIEW_ALL,
+      CAPABILITIES.CASES_CREATE,
+      CAPABILITIES.CASES_EDIT,
+      CAPABILITIES.CASES_ASSIGN,
+      CAPABILITIES.CASES_APPROVE_EDITS,
+      CAPABILITIES.ROSTER_VIEW,
+    ],
+  },
   [PERMISSION_TIERS.DISTRICT_ATTORNEY]: {
     id: PERMISSION_TIERS.DISTRICT_ATTORNEY,
     label: "District Attorney",
@@ -56,10 +78,12 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
     capabilities: [
       CAPABILITIES.DASHBOARD_VIEW,
       CAPABILITIES.CASES_VIEW,
+      CAPABILITIES.CASES_VIEW_ALL,
       CAPABILITIES.CASES_CREATE,
       CAPABILITIES.CASES_EDIT,
       CAPABILITIES.CASES_DELETE,
-      CAPABILITIES.CASES_MANAGE_STAFF,
+      CAPABILITIES.CASES_ASSIGN,
+      CAPABILITIES.CASES_APPROVE_EDITS,
       CAPABILITIES.ROSTER_VIEW,
       CAPABILITIES.ROSTER_MANAGE,
       CAPABILITIES.ANNOUNCEMENTS_MANAGE,

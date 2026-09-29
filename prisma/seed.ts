@@ -5,11 +5,34 @@ const prisma = new PrismaClient();
 async function main() {
   const attorney = await prisma.user.upsert({
     where: { discordUserId: "1" },
-    update: {},
+    update: { tiers: "district_attorney" },
     create: {
       discordUserId: "1",
       username: "demo_attorney",
       displayName: "Demo Attorney",
+      tiers: "district_attorney",
+    },
+  });
+
+  const ada = await prisma.user.upsert({
+    where: { discordUserId: "2" },
+    update: { tiers: "da_attorney" },
+    create: {
+      discordUserId: "2",
+      username: "demo_ada",
+      displayName: "Demo ADA",
+      tiers: "da_attorney",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { discordUserId: "3" },
+    update: { tiers: "da_paralegal" },
+    create: {
+      discordUserId: "3",
+      username: "demo_paralegal",
+      displayName: "Demo Paralegal",
+      tiers: "da_paralegal",
     },
   });
 
@@ -69,15 +92,15 @@ async function main() {
         type: "Misdemeanor",
         stage: "Pretrial",
         summary: "Charges filed; arraignment scheduled.",
-        assignedAttorneyId: attorney.id,
-        createdById: attorney.id,
+        assignedAttorneyId: ada.id,
+        createdById: ada.id,
         archived: false,
       },
       {
         caseNumber: "DA-2026-0121",
         title: "State v. Roe",
         type: "Felony",
-        stage: "Closed",
+        stage: "Closed - Plea Agreement",
         outcome: "Plea agreement",
         summary: "Resolved via plea agreement.",
         assignedAttorneyId: attorney.id,
@@ -90,6 +113,8 @@ async function main() {
   await prisma.rosterEntry.createMany({
     data: [
       { name: "Demo Attorney", position: "District Attorney", badgeNumber: "DA-001" },
+      { name: "Demo ADA", position: "Assistant District Attorney", badgeNumber: "DA-002" },
+      { name: "Demo Paralegal", position: "Paralegal", badgeNumber: "DA-003" },
     ],
   });
 }

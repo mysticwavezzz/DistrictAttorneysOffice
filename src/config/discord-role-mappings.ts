@@ -35,6 +35,12 @@ export const DISCORD_TIER_ROLE_MAPPINGS: DiscordTierMapping[] = [
     ],
   },
   {
+    tier: PERMISSION_TIERS.SUPERVISING_ADA,
+    roleIds: [
+      "1554309202862678037", // Supervising ADA
+    ],
+  },
+  {
     tier: PERMISSION_TIERS.DISTRICT_ATTORNEY,
     roleIds: [
       "1554275816827916329", // DA

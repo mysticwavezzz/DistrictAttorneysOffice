@@ -19,16 +19,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               username: token.username ?? discordProfile.id,
               displayName: token.displayName ?? discordProfile.id,
               avatarUrl: token.avatarUrl ?? null,
+              tiers: (token.tiers ?? []).join(","),
             },
             create: {
               discordUserId: discordProfile.id,
               username: token.username ?? discordProfile.id,
               displayName: token.displayName ?? discordProfile.id,
               avatarUrl: token.avatarUrl ?? null,
+              tiers: (token.tiers ?? []).join(","),
             },
           });
         } catch (error) {
           console.error("Failed to upsert local user record", error);
+        }
+      } else if (token.discordUserId && params.trigger === "update") {
+        try {
+          await prisma.user.updateMany({
+            where: { discordUserId: token.discordUserId },
+            data: {
+              displayName: token.displayName ?? token.discordUserId,
+              tiers: (token.tiers ?? []).join(","),
+            },
+          });
+        } catch (error) {
+          console.error("Failed to sync local user record", error);
         }
       }
 

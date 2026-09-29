@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { siteConfig } from "@/config/site";
 
@@ -21,13 +22,31 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
+const THEME_SCRIPT = `
+(function () {
+  try {
+    var stored = localStorage.getItem("da-theme") || "auto";
+    var effective = stored;
+    if (stored === "auto") {
+      effective = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", effective);
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const nonce = headers().get("x-nonce") ?? undefined;
+
   return (
     <html lang="en">
+      <head>
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

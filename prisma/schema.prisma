@@ -13,14 +13,20 @@ model User {
   username      String
   displayName   String
   avatarUrl     String?
+  tiers         String    @default("")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts            Account[]
-  sessions            Session[]
-  assignedCases       Case[]         @relation("AssignedAttorney")
-  createdCases        Case[]         @relation("CreatedBy")
-  createdAnnouncements Announcement[] @relation("CreatedAnnouncements")
+  accounts             Account[]
+  sessions             Session[]
+  assignedCases        Case[]              @relation("AssignedAttorney")
+  createdCases         Case[]              @relation("CreatedBy")
+  createdAnnouncements Announcement[]      @relation("CreatedAnnouncements")
+  filingsAdded         CaseFiling[]        @relation("FilingsAdded")
+  commentsAuthored     CaseComment[]       @relation("CommentsAuthored")
+  requestsSubmitted    CaseActionRequest[] @relation("RequestsSubmitted")
+  requestsReviewed     CaseActionRequest[] @relation("RequestsReviewed")
+  notifications        Notification[]
 }
 
 model Account {
@@ -82,8 +88,69 @@ model Case {
 
   assignedAttorney User? @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
   createdBy        User  @relation("CreatedBy", fields: [createdById], references: [id])
+  filings          CaseFiling[]
+  comments         CaseComment[]
+  actionRequests   CaseActionRequest[]
 
   @@index([archived])
+}
+
+model CaseFiling {
+  id        String   @id @default(cuid())
+  caseId    String
+  title     String
+  url       String
+  addedById String
+  createdAt DateTime @default(now())
+
+  case    Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  addedBy User @relation("FilingsAdded", fields: [addedById], references: [id])
+}
+
+model CaseComment {
+  id        String   @id @default(cuid())
+  caseId    String
+  body      String
+  isSystem  Boolean  @default(false)
+  authorId  String?
+  createdAt DateTime @default(now())
+
+  case   Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author User? @relation("CommentsAuthored", fields: [authorId], references: [id])
+}
+
+model CaseActionRequest {
+  id            String    @id @default(cuid())
+  kind          String
+  caseId        String?
+  status        String    @default("PENDING")
+  proposedData  String
+  requestedById String
+  reviewedById  String?
+  reviewNote    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  case        Case? @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  requestedBy User  @relation("RequestsSubmitted", fields: [requestedById], references: [id])
+  reviewedBy  User? @relation("RequestsReviewed", fields: [reviewedById], references: [id])
+
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
 }
 
 model Announcement {

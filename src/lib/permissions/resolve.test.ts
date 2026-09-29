@@ -132,14 +132,28 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     const { capabilitiesForTiers, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     const caps = capabilitiesForTiers([PERMISSION_TIERS.DISTRICT_ATTORNEY]);
     expect(caps.has(CAPABILITIES.CASES_DELETE)).toBe(true);
-    expect(caps.has(CAPABILITIES.CASES_MANAGE_STAFF)).toBe(true);
+    expect(caps.has(CAPABILITIES.CASES_ASSIGN)).toBe(true);
   });
 
-  it("paralegal can view but not delete cases", async () => {
+  it("paralegal can view all cases and propose edits, but not delete or assign", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     const tiers = [PERMISSION_TIERS.DA_PARALEGAL];
     expect(hasCapability(tiers, CAPABILITIES.CASES_VIEW)).toBe(true);
+    expect(hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL)).toBe(true);
+    expect(hasCapability(tiers, CAPABILITIES.CASES_PROPOSE_EDIT)).toBe(true);
     expect(hasCapability(tiers, CAPABILITIES.CASES_DELETE)).toBe(false);
+    expect(hasCapability(tiers, CAPABILITIES.CASES_ASSIGN)).toBe(false);
+  });
+
+  it("ADA cannot view all cases, but supervising ADA and above can", async () => {
+    const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
+    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.CASES_ASSIGN)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_VIEW_ALL)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_ASSIGN)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(
+      true
+    );
   });
 
   it("law enforcement and government tiers reach the staff portal but not case data", async () => {
@@ -174,7 +188,7 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     const { hasAnyCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     const result = hasAnyCapability(
       [PERMISSION_TIERS.DA_ATTORNEY],
-      [CAPABILITIES.CASES_MANAGE_STAFF, CAPABILITIES.CASES_EDIT]
+      [CAPABILITIES.CASES_ASSIGN, CAPABILITIES.CASES_EDIT]
     );
     expect(result).toBe(true);
   });

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { announcementInputSchema } from "@/lib/validation/announcement";
 import { emptyToNull } from "@/lib/validation/case";
+import { notifyMany } from "@/lib/notifications";
 
 function revalidateAll() {
   revalidatePath("/dashboard/announcements");
@@ -30,7 +31,7 @@ export async function createAnnouncement(formData: FormData) {
     where: { discordUserId: session.user.discordUserId },
   });
 
-  await prisma.announcement.create({
+  const created = await prisma.announcement.create({
     data: {
       title: data.title,
       summary: emptyToNull(data.summary),
@@ -40,6 +41,22 @@ export async function createAnnouncement(formData: FormData) {
       createdById: creator?.id,
     },
   });
+
+  if (created.isPublished) {
+    const { userIdsWithCapability } = await import("@/lib/notifications");
+    const capability =
+      data.audience === "PUBLIC" ? CAPABILITIES.DASHBOARD_VIEW : CAPABILITIES.BULLETIN_VIEW;
+    const recipients = new Set(await userIdsWithCapability(capability));
+    if (data.audience === "LAW_ENFORCEMENT") {
+      for (const id of await userIdsWithCapability(CAPABILITIES.ANNOUNCEMENTS_MANAGE)) recipients.add(id);
+    }
+    recipients.delete(creator?.id ?? "");
+    await notifyMany(Array.from(recipients), {
+      type: "release_published",
+      title: `New ${data.audience === "PUBLIC" ? "public release" : "LE bulletin post"}: ${created.title}`,
+      link: data.audience === "PUBLIC" ? `/announcements/${created.id}` : "/dashboard/bulletin",
+    });
+  }
 
   revalidateAll();
   redirect("/dashboard/announcements");

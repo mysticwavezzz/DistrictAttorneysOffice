@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { SessionProvider } from "next-auth/react";
 import { auth } from "@/lib/auth";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { SiteHeader, type NavItem } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { RoleSyncPoller } from "@/components/role-sync-poller";
 
 export default async function DashboardLayout({
   children,
@@ -25,6 +27,11 @@ export default async function DashboardLayout({
   const sections: (NavItem & { show: boolean })[] = [
     { label: "Overview", href: "/dashboard", show: true },
     { label: "Cases", href: "/dashboard/cases", show: hasCapability(tiers, CAPABILITIES.CASES_VIEW) },
+    {
+      label: "Case Requests",
+      href: "/dashboard/cases/requests",
+      show: hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS),
+    },
     { label: "Roster", href: "/dashboard/roster", show: hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) },
     {
       label: "LE Bulletin",
@@ -73,6 +80,10 @@ export default async function DashboardLayout({
       </div>
 
       <SiteFooter />
+
+      <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}>
+        <RoleSyncPoller />
+      </SessionProvider>
     </div>
   );
 }

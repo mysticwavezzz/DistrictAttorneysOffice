@@ -12,7 +12,7 @@ function buildCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "img-src 'self' data: https://cdn.discordapp.com",
+    "img-src 'self' data: https:",
     "connect-src 'self'",
     "frame-src 'none'",
     "form-action 'self'",

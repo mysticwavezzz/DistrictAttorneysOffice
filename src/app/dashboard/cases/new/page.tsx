@@ -2,29 +2,43 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
+import { CASE_STATUSES } from "@/config/case-statuses";
 import { createCase } from "../actions";
+import { submitCaseRequest } from "../requests/actions";
 
 export default async function NewCasePage() {
   const session = await auth();
-  if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE)) {
+  const canCreate = session?.user && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
+  const canPropose = session?.user && hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
+  if (!session?.user || (!canCreate && !canPropose)) {
     redirect("/login?error=forbidden");
   }
 
+  const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
   let attorneys: { id: string; displayName: string }[] = [];
-  try {
-    attorneys = await prisma.user.findMany({
-      select: { id: true, displayName: true },
-      orderBy: { displayName: "asc" },
-    });
-  } catch (error) {
-    console.error("Failed to load attorneys", error);
+  if (canAssign) {
+    try {
+      attorneys = await prisma.user.findMany({
+        select: { id: true, displayName: true },
+        orderBy: { displayName: "asc" },
+      });
+    } catch (error) {
+      console.error("Failed to load attorneys", error);
+    }
   }
+
+  const action = canCreate ? createCase : submitCaseRequest;
 
   return (
     <div>
-      <h1>New Case</h1>
+      <h1>{canCreate ? "New Case" : "Propose New Case"}</h1>
+      {!canCreate && (
+        <p className="note-inline">
+          This will be submitted for review by a Supervising ADA before it appears on the docket.
+        </p>
+      )}
 
-      <form action={createCase} className="formbox">
+      <form action={action} className="formbox">
         <div className="field-row">
           <div className="field" style={{ flex: "1 1 260px" }}>
             <label htmlFor="title">Case Title</label>
@@ -42,20 +56,29 @@ export default async function NewCasePage() {
             <input type="text" id="type" name="type" maxLength={100} placeholder="Felony, Misdemeanor, …" />
           </div>
           <div className="field" style={{ flex: "1 1 180px" }}>
-            <label htmlFor="stage">Stage</label>
-            <input type="text" id="stage" name="stage" maxLength={100} placeholder="Awaiting Filing, Discovery, …" />
-          </div>
-          <div className="field" style={{ flex: "1 1 220px" }}>
-            <label htmlFor="assignedAttorneyId">Assigned</label>
-            <select id="assignedAttorneyId" name="assignedAttorneyId">
-              <option value="">Unassigned</option>
-              {attorneys.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.displayName}
+            <label htmlFor="stage">Status</label>
+            <select id="stage" name="stage" defaultValue="">
+              <option value="">No status set</option>
+              {CASE_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))}
             </select>
           </div>
+          {canAssign && (
+            <div className="field" style={{ flex: "1 1 220px" }}>
+              <label htmlFor="assignedAttorneyId">Assigned</label>
+              <select id="assignedAttorneyId" name="assignedAttorneyId">
+                <option value="">Unassigned</option>
+                {attorneys.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="field">
@@ -105,7 +128,7 @@ export default async function NewCasePage() {
         </div>
 
         <button type="submit" className="govbtn">
-          Create Case
+          {canCreate ? "Create Case" : "Submit for Review"}
         </button>
       </form>
     </div>

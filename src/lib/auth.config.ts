@@ -23,7 +23,7 @@ export const authConfig = {
     }),
   ],
   callbacks: {
-    async jwt({ token, account, profile }) {
+    async jwt({ token, account, profile, trigger }) {
       if (account && profile) {
         const discordProfile = profile as DiscordProfile;
         token.discordUserId = discordProfile.id;
@@ -34,8 +34,9 @@ export const authConfig = {
       const now = Date.now();
       const isStale =
         !token.tiersFetchedAt || now - token.tiersFetchedAt > ROLE_REFRESH_INTERVAL_MS;
+      const forced = trigger === "update";
 
-      if (token.discordUserId && (isStale || (account && profile))) {
+      if (token.discordUserId && (isStale || forced || (account && profile))) {
         try {
           const member = await fetchDiscordGuildMember(
             env.DISCORD_BOT_TOKEN,

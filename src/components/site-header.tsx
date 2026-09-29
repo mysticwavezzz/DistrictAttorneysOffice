@@ -3,6 +3,8 @@ import { auth, signOut } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { Seal } from "./seal";
 import { TextSizeToggle } from "./text-size-toggle";
+import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "./notification-bell";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 
 export interface NavItem {
@@ -33,8 +35,10 @@ export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {})
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <TextSizeToggle />
+            <ThemeToggle />
             {staffNav ? (
               <>
+                <NotificationBell />
                 <span>{session!.user.displayName}</span>
                 <form
                   action={async () => {
