@@ -43,22 +43,27 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
     (!filters.rank || entry.rank === filters.rank) && (!filters.unit || entry.unit === filters.unit)
   );
   const vacantUnits = new Set(divisions.filter((division) => !entries.some((entry) => entry.unit === division.value)).map((division) => division.value));
+  const officeRanks = new Set(["District Attorney", "Deputy District Attorney", "Chief of Staff"]);
 
   const groups: { key: string; label: string; description?: string; entries: RosterEntry[] }[] = [
+    { key: "__office__", label: "Office of the District Attorney", description: "District Attorney, Deputy District Attorney, and Chief of Staff.", entries: [] as RosterEntry[] },
     ...divisions.map((u) => ({ key: u.value, label: u.label, description: u.description, entries: [] as RosterEntry[] })),
     { key: "", label: "Unassigned", entries: [] as RosterEntry[] },
   ];
   const unassignedGroup = groups[groups.length - 1]!;
   for (const entry of filteredEntries) {
-    const group = groups.find((g) => g.key === (entry.unit ?? "")) ?? unassignedGroup;
+    const group = officeRanks.has(entry.rank ?? "") && !entry.unit
+      ? groups[0]!
+      : groups.find((g) => g.key === (entry.unit ?? "")) ?? unassignedGroup;
     group.entries.push(entry);
   }
 
   function renderGroup(group: (typeof groups)[number]) {
-    if (group.entries.length === 0) return null;
+    if (group.entries.length === 0 && group.key !== "__office__") return null;
     return (
-      <div key={group.key} style={{ marginBottom: 18 }}>
-        <h3 style={{ marginBottom: 4 }}>{group.label}</h3>
+      <details key={group.key} className="roster-division" open={group.key === "__office__"}>
+        <summary><span>{group.label}</span><span className="roster-division-count">{group.entries.length} staff</span></summary>
+        <div className="roster-division-body">
         {group.description && <p className="note-inline">{group.description}</p>}
         <div className="roster-cards">
           {group.entries.map((entry) => <article className="roster-card" key={`card-${entry.id}`}>
@@ -114,7 +119,8 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </details>
     );
   }
 

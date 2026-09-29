@@ -1190,6 +1190,19 @@ table.stat tbody tr:hover {
 }
 
 .aopc-page { display: grid; gap: 14px; }
+.nav-group { margin-bottom: 12px; }
+.nav-group > strong { display: block; margin: 0 0 5px; color: var(--ink-soft); font: bold 10px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+.nav-group ul { margin: 0; }
+.section-lede { margin: -8px 0 12px; color: var(--ink-soft); font-size: 13px; }
+.card-action { display: flex; flex-direction: column; gap: 5px; }
+.card-action-label { color: var(--link); font-size: 12px; font-weight: 700; }
+.card-urgent { border-color: var(--down); }
+.dashboard-overview section { margin: 0 0 28px; }
+.roster-division { margin: 0 0 14px; border: 1px solid var(--bd); background: var(--box); }
+.roster-division > summary { display: flex; justify-content: space-between; gap: 12px; cursor: pointer; padding: 12px 14px; color: var(--ink); font: bold 18px/1.3 var(--serif); }
+.roster-division > summary::-webkit-details-marker { color: var(--link); }
+.roster-division-count { color: var(--ink-soft); font: 11px/1.3 var(--sans); align-self: center; }
+.roster-division-body { padding: 0 14px 14px; }
 .aopc-page > h1, .aopc-page > .lede { margin-bottom: 0; }
 .aopc-section { border: 1px solid var(--bd); background: var(--box); }
 .aopc-section > summary { cursor: pointer; list-style: none; padding: 13px 16px; font: bold 16px/1.35 var(--serif); color: var(--ink); }

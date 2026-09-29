@@ -23,40 +23,13 @@ export default async function DashboardLayout({
   }
 
   const tiers = session.user.tiers;
-  const sections: (NavItem & { show: boolean })[] = [
-    { label: "Overview", href: "/dashboard", show: true },
-    { label: "Cases", href: "/dashboard/cases", show: hasCapability(tiers, CAPABILITIES.CASES_VIEW) },
-    { label: "Deadline Calendar", href: "/dashboard/cases/calendar", show: hasCapability(tiers, CAPABILITIES.CASES_VIEW) },
-    {
-      label: "Case Requests",
-      href: "/dashboard/cases/requests",
-      show: hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS),
-    },
-    { label: "Roster", href: "/dashboard/roster", show: hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) },
-    {
-      label: "Affidavits of Probable Cause",
-      href: "/dashboard/affidavits",
-      show:
-        hasCapability(tiers, CAPABILITIES.AOPC_SUBMIT) || hasCapability(tiers, CAPABILITIES.AOPC_REVIEW),
-    },
-    {
-      label: "Public Releases",
-      href: "/dashboard/announcements",
-      show: hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE),
-    },
-    {
-      label: "Records Requests",
-      href: "/dashboard/records-requests",
-      show: hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW),
-    },
-    { label: "Search", href: "/dashboard/search", show: true },
-    {
-      label: "Activity Log",
-      href: "/dashboard/activity",
-      show: hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW),
-    },
-  ];
-  const staffNav = sections.filter((s) => s.show);
+  const navGroups = [
+    { label: "Workspace", items: [{ label: "Overview", href: "/dashboard", show: true }, { label: "My Work", href: "/dashboard/cases?mine=1", show: hasCapability(tiers, CAPABILITIES.CASES_VIEW) }, { label: "Notifications", href: "/settings#notifications", show: true }] },
+    { label: "Casework", items: [{ label: "Cases", href: "/dashboard/cases", show: hasCapability(tiers, CAPABILITIES.CASES_VIEW) }, { label: "Deadline Calendar", href: "/dashboard/cases/calendar", show: hasCapability(tiers, CAPABILITIES.CASES_VIEW) }, { label: "Case Requests", href: "/dashboard/cases/requests", show: hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) }] },
+    { label: "Submissions", items: [{ label: "AOPCs", href: "/dashboard/affidavits", show: hasCapability(tiers, CAPABILITIES.AOPC_SUBMIT) || hasCapability(tiers, CAPABILITIES.AOPC_REVIEW) }, { label: "Records Requests", href: "/dashboard/records-requests", show: hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW) }] },
+    { label: "Administration", items: [{ label: "Staff Roster", href: "/dashboard/roster", show: hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) }, { label: "Public Releases", href: "/dashboard/announcements", show: hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE) }, { label: "Activity Log", href: "/dashboard/activity", show: hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) }, { label: "Search", href: "/dashboard/search", show: true }] },
+  ].map((group) => ({ ...group, items: group.items.filter((item) => item.show) })).filter((group) => group.items.length);
+  const staffNav = navGroups.flatMap((group) => group.items);
 
   return (
     <div className="wrap">
@@ -71,11 +44,7 @@ export default async function DashboardLayout({
           <div className="sbox">
             <h3>Staff Portal</h3>
             <ul>
-              {staffNav.map((item) => (
-                <li key={item.href}>
-                  <Link href={item.href}>{item.label}</Link>
-                </li>
-              ))}
+              {navGroups.map((group) => <li key={group.label} className="nav-group"><strong>{group.label}</strong><ul>{group.items.map((item) => <li key={item.href}><Link href={item.href}>{item.label}</Link></li>)}</ul></li>)}
             </ul>
           </div>
         </aside>

@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { TIER_DEFINITIONS, hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser } from "@/lib/case-access";
 
+const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+
 export default async function DashboardOverviewPage() {
   const session = await auth();
   const tiers = session!.user.tiers;
-
   const canViewCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW);
   const canViewAllCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
   const canViewRoster = hasCapability(tiers, CAPABILITIES.ROSTER_VIEW);
@@ -16,203 +17,50 @@ export default async function DashboardOverviewPage() {
   const canViewRequests = hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW);
   const canReviewAopcs = hasCapability(tiers, CAPABILITIES.AOPC_REVIEW);
   const canSubmitAopcs = hasCapability(tiers, CAPABILITIES.AOPC_SUBMIT);
-
   const user = await localUser(session!.user.discordUserId);
+  const personalScope = { OR: [{ assignedAttorneyId: user?.id }, { createdById: user?.id }] };
+  const caseScope = canViewAllCases ? {} : personalScope;
 
-  let ongoingCount = 0;
-  let archivedCount = 0;
-  let deadlineCount = 0;
-  let upcomingCases: { id: string; caseNumber: string; title: string; discDue: Date | null; pretrial: Date | null; appealBy: Date | null }[] = [];
-  if (canViewCases) {
-    try {
-      const scope = canViewAllCases
-        ? {}
-        : { OR: [{ assignedAttorneyId: user?.id }, { createdById: user?.id }] };
-      const soon = new Date();
-      soon.setDate(soon.getDate() + 3);
-      [ongoingCount, archivedCount, deadlineCount] = await Promise.all([
-        prisma.case.count({ where: { archived: false, ...scope } }),
-        prisma.case.count({ where: { archived: true, ...scope } }),
-        prisma.case.count({
-          where: {
-            archived: false,
-            ...scope,
-            AND: [{ OR: [
-              { discDue: { lte: soon } },
-              { pretrial: { lte: soon } },
-              { appealBy: { lte: soon } },
-            ] }],
-          },
-        }),
-      ]);
-      const deadlineLimit = new Date();
-      deadlineLimit.setDate(deadlineLimit.getDate() + 14);
-      upcomingCases = await prisma.case.findMany({
-        where: {
-          archived: false,
-          isDraft: false,
-          ...scope,
-          AND: [{ OR: [
-            { discDue: { lte: deadlineLimit } },
-            { pretrial: { lte: deadlineLimit } },
-            { appealBy: { lte: deadlineLimit } },
-          ] }],
-        },
-        select: { id: true, caseNumber: true, title: true, discDue: true, pretrial: true, appealBy: true },
-        orderBy: { updatedAt: "desc" },
-        take: 10,
-      });
-    } catch (error) {
-      console.error("Failed to load case counts", error);
-    }
-  }
+  const [ongoingCount, myActiveCount, deadlineCount, pendingRequestCount, newRecordsRequests, pendingAopcs, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
+    canViewCases ? prisma.case.count({ where: { archived: false, ...caseScope } }).catch(() => 0) : Promise.resolve(0),
+    canViewCases ? prisma.case.count({ where: { archived: false, ...personalScope } }).catch(() => 0) : Promise.resolve(0),
+    canViewCases ? prisma.case.count({ where: { archived: false, ...caseScope, AND: [{ OR: [{ discDue: { lte: new Date(Date.now() + 3 * 86400000) } }, { pretrial: { lte: new Date(Date.now() + 3 * 86400000) } }, { appealBy: { lte: new Date(Date.now() + 3 * 86400000) } }] }] } }).catch(() => 0) : Promise.resolve(0),
+    canApproveRequests ? prisma.caseActionRequest.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
+    canViewRequests ? prisma.recordsRequest.count({ where: { status: "NEW" } }).catch(() => 0) : Promise.resolve(0),
+    canReviewAopcs ? prisma.aopc.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
+    user ? prisma.notification.count({ where: { userId: user.id, isRead: false } }).catch(() => 0) : Promise.resolve(0),
+    canViewRoster ? prisma.rosterEntry.count().catch(() => 0) : Promise.resolve(0),
+    canManageAnnouncements ? prisma.announcement.count({ where: { isPublished: true, publishedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }).catch(() => 0) : Promise.resolve(0),
+  ]);
 
-  let rosterCount = 0;
-  if (canViewRoster) {
-    try {
-      rosterCount = await prisma.rosterEntry.count();
-    } catch (error) {
-      console.error("Failed to load roster count", error);
-    }
-  }
+  const upcomingCases = canViewCases ? await prisma.case.findMany({
+    where: { archived: false, isDraft: false, ...caseScope, AND: [{ OR: [{ discDue: { lte: new Date(Date.now() + 14 * 86400000) } }, { pretrial: { lte: new Date(Date.now() + 14 * 86400000) } }, { appealBy: { lte: new Date(Date.now() + 14 * 86400000) } }] }] },
+    select: { id: true, caseNumber: true, title: true, discDue: true, pretrial: true, appealBy: true },
+    orderBy: { updatedAt: "desc" }, take: 10,
+  }).catch(() => []) : [];
+  const recentActivity = hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) ? await prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 6 }).catch(() => []) : [];
 
-  let pendingRequestCount = 0;
-  if (canApproveRequests) {
-    try {
-      pendingRequestCount = await prisma.caseActionRequest.count({ where: { status: "PENDING" } });
-    } catch (error) {
-      console.error("Failed to load pending request count", error);
-    }
-  }
+  const actionCards = [
+    canViewCases && { href: "/dashboard/cases?tab=ongoing&deadline=overdue", label: "Deadlines needing attention", value: deadlineCount || "Clear", action: "Review deadlines", urgent: deadlineCount > 0 },
+    canApproveRequests && { href: "/dashboard/cases/requests?status=pending", label: "Pending case requests", value: pendingRequestCount, action: "Review requests", urgent: pendingRequestCount > 0 },
+    canViewRequests && { href: "/dashboard/records-requests?status=NEW", label: "New records requests", value: newRecordsRequests, action: "Open requests", urgent: newRecordsRequests > 0 },
+    canReviewAopcs && { href: "/dashboard/affidavits", label: "Pending AOPCs", value: pendingAopcs, action: "Review AOPCs", urgent: pendingAopcs > 0 },
+    { href: "/settings#notifications", label: "Unread notifications", value: unreadCount, action: "View notifications", urgent: unreadCount > 0 },
+  ].filter(Boolean) as { href: string; label: string; value: number | string; action: string; urgent: boolean }[];
 
-  let releasesThisMonth = 0;
-  if (canManageAnnouncements) {
-    try {
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-      releasesThisMonth = await prisma.announcement.count({
-        where: { isPublished: true, publishedAt: { gte: monthStart } },
-      });
-    } catch (error) {
-      console.error("Failed to load release count", error);
-    }
-  }
+  return <div className="dashboard-overview">
+    <p className="eyebrow">Staff Portal</p>
+    <h1>Welcome, {session!.user.displayName}</h1>
+    <p className="subtitle">{tiers.filter((tier) => tier in TIER_DEFINITIONS).map((tier) => TIER_DEFINITIONS[tier].label).join(", ") || "Staff member"}</p>
 
-  let newRecordsRequests = 0;
-  if (canViewRequests) {
-    try {
-      newRecordsRequests = await prisma.recordsRequest.count({ where: { status: "NEW" } });
-    } catch (error) {
-      console.error("Failed to load records request count", error);
-    }
-  }
+    <section aria-labelledby="attention-heading"><h2 id="attention-heading">Needs Attention</h2><p className="section-lede">Items that need a decision, assignment, or response.</p><div className="cards">{actionCards.map((card) => <Link href={card.href} className={`card card-action ${card.urgent ? "card-urgent" : ""}`} key={card.label}><span className="card-label">{card.label}</span><span className="card-value">{card.value}</span><span className="card-action-label">{card.action}</span></Link>)}</div></section>
 
-  let pendingAopcs = 0;
-  if (canReviewAopcs) {
-    try {
-      pendingAopcs = await prisma.aopc.count({ where: { status: "PENDING" } });
-    } catch (error) {
-      console.error("Failed to load pending affidavit count", error);
-    }
-  }
+    <section aria-labelledby="my-work-heading"><h2 id="my-work-heading">My Work</h2><p className="section-lede">Your assigned and recently created work.</p><div className="cards">{canViewCases && <Link href="/dashboard/cases?mine=1&tab=ongoing" className="card card-action"><span className="card-label">My active cases</span><span className="card-value">{myActiveCount}</span><span className="card-action-label">Open my cases</span></Link>}{canViewCases && <Link href="/dashboard/cases?mine=1&deadline=overdue" className="card card-action"><span className="card-label">My casework</span><span className="card-value">{ongoingCount}</span><span className="card-action-label">View casework</span></Link>}{canSubmitAopcs && <Link href="/dashboard/affidavits#submit-aopc" className="card card-action"><span className="card-label">Submit an AOPC</span><span className="card-value" aria-hidden="true">＋</span><span className="card-action-label">Start submission</span></Link>}</div></section>
 
-  const unreadCount = user
-    ? await prisma.notification.count({ where: { userId: user.id, isRead: false } }).catch(() => 0)
-    : 0;
-  const recentActivity = hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW)
-    ? await prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 6 }).catch(() => [])
-    : [];
+    {canViewCases && <section aria-labelledby="deadlines-heading"><h2 id="deadlines-heading">Upcoming Deadlines</h2>{upcomingCases.length === 0 ? <div className="message message-success">No case deadlines in the next 14 days.</div> : <div className="tablewrap"><table className="stat"><thead><tr><th scope="col">Case</th><th scope="col">Deadline</th><th scope="col">Date</th><th scope="col">Next action</th></tr></thead><tbody>{upcomingCases.flatMap((item) => ([ ["Discovery", item.discDue], ["Pretrial", item.pretrial], ["Appeal", item.appealBy] ] as [string, Date | null][]).filter(([, date]) => date && date.getTime() <= Date.now() + 14 * 86400000).map(([label, date]) => <tr key={`${item.id}-${label}`}><td><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} - {item.title}</Link></td><td>{label}</td><td><time className={date!.getTime() < Date.now() ? "deadline-overdue" : undefined} dateTime={date!.toISOString()}>{dateFormatter.format(date!)}</time></td><td><Link href={`/dashboard/cases/${item.id}`}>{date!.getTime() < Date.now() ? "Resolve overdue item" : "Review case"}</Link></td></tr>))}</tbody></table></div>}</section>}
 
-  return (
-    <div>
-      <p className="eyebrow">Staff Portal</p>
-      <h1>Welcome, {session!.user.displayName}</h1>
-      <p className="subtitle">
-        Staff role{tiers.length === 1 ? "" : "s"}:{" "}
-        {tiers.some((t) => t in TIER_DEFINITIONS)
-          ? tiers.filter((t) => t in TIER_DEFINITIONS).map((t) => TIER_DEFINITIONS[t].label).join(", ")
-          : "No recognized staff role"}
-      </p>
+    {(canViewRoster || canManageAnnouncements) && <section aria-labelledby="admin-heading"><h2 id="admin-heading">Administration</h2><div className="cards">{canViewRoster && <Link href="/dashboard/roster" className="card"><span className="card-label">Staff roster</span><span className="card-value">{rosterCount}</span><span className="card-action-label">Manage staff</span></Link>}{canManageAnnouncements && <Link href="/dashboard/announcements" className="card"><span className="card-label">Releases this month</span><span className="card-value">{releasesThisMonth}</span><span className="card-action-label">Manage releases</span></Link>}</div></section>}
 
-      <h2>Needs Attention</h2>
-      <div className="cards">
-        {canViewCases && (
-          <>
-            <Link href="/dashboard/cases?tab=ongoing" className="card">
-              <span className="card-label">Ongoing Cases</span>
-              <span className="card-value">{ongoingCount}</span>
-            </Link>
-            <Link href="/dashboard/cases?tab=archived" className="card">
-              <span className="card-label">Archived Cases</span>
-              <span className="card-value">{archivedCount}</span>
-            </Link>
-            <Link href="/dashboard/cases?tab=ongoing" className="card">
-                <span className="card-label">Deadlines This Week</span>
-                <span className="card-value" style={{ color: deadlineCount ? "var(--down)" : "var(--up)" }}>
-                  {deadlineCount || "Clear"}
-                </span>
-            </Link>
-          </>
-        )}
-        {canApproveRequests && (
-          <Link href="/dashboard/cases/requests" className="card">
-            <span className="card-label">Pending Case Requests</span>
-            <span className="card-value">{pendingRequestCount}</span>
-          </Link>
-        )}
-        {canViewRoster && (
-          <Link href="/dashboard/roster" className="card">
-            <span className="card-label">Roster</span>
-            <span className="card-value">{rosterCount}</span>
-          </Link>
-        )}
-        {canManageAnnouncements && (
-          <Link href="/dashboard/announcements" className="card">
-            <span className="card-label">Releases This Month</span>
-            <span className="card-value">{releasesThisMonth}</span>
-          </Link>
-        )}
-        {canViewRequests && (
-          <Link href="/dashboard/records-requests" className="card">
-            <span className="card-label">New Records Requests</span>
-            <span className="card-value">{newRecordsRequests}</span>
-          </Link>
-        )}
-        {canReviewAopcs && (
-          <Link href="/dashboard/affidavits" className="card">
-            <span className="card-label">Pending Affidavits</span>
-            <span className="card-value">{pendingAopcs}</span>
-          </Link>
-        )}
-        {canSubmitAopcs && (
-          <Link href="/dashboard/affidavits#submit-aopc" className="card">
-            <span className="card-label">Submit an Affidavit of Probable Cause</span>
-            <span className="card-value" aria-hidden="true">＋</span>
-          </Link>
-        )}
-      </div>
-
-      {canViewCases && (
-        <>
-          <h2>Upcoming Deadlines</h2>
-          {upcomingCases.length === 0 ? <div className="message message-success">No case deadlines in the next 14 days.</div> : (
-            <div className="tablewrap"><table className="stat"><thead><tr><th scope="col">Case</th><th scope="col">Deadline</th><th scope="col">Date</th></tr></thead><tbody>
-              {upcomingCases.flatMap((item) => ([
-                ["Discovery", item.discDue], ["Pretrial", item.pretrial], ["Appeal", item.appealBy],
-              ] as [string, Date | null][]).filter(([, date]) => date && date.getTime() <= Date.now() + 14 * 86400000).map(([label, date]) => (
-                <tr key={`${item.id}-${label}`}><td><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} - {item.title}</Link></td><td>{label}</td><td><time className={date && date.getTime() < Date.now() ? "deadline-overdue" : undefined} dateTime={date?.toISOString()}>{date?.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></td></tr>
-              )))}</tbody></table></div>
-          )}
-        </>
-      )}
-
-      <h2>Notifications</h2>
-      <Link href="/settings#notifications" className="card"><span className="card-label">Unread notifications</span><span className="card-value">{unreadCount}</span></Link>
-
-      {hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) && (
-        <><h2>Recent Activity</h2>{recentActivity.length === 0 ? <div className="message">No recent activity.</div> : <ul className="activity-preview">{recentActivity.map((entry) => <li key={entry.id}><span>{entry.actorName} {entry.action} {entry.targetType} “{entry.targetLabel}”</span><time dateTime={entry.createdAt.toISOString()}>{entry.createdAt.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</time></li>)}</ul>}</>
-      )}
-    </div>
-  );
+    {hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) && <section aria-labelledby="activity-heading"><h2 id="activity-heading">Recent Activity</h2>{recentActivity.length === 0 ? <div className="message">No recent activity.</div> : <ul className="activity-preview">{recentActivity.map((entry) => <li key={entry.id}><span>{entry.actorName} {entry.action} {entry.targetType} &quot;{entry.targetLabel}&quot;</span><time dateTime={entry.createdAt.toISOString()}>{entry.createdAt.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</time></li>)}</ul>}</section>}
+  </div>;
 }
