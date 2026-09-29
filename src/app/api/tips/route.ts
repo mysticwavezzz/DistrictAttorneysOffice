@@ -3,6 +3,7 @@ import { tipFormSchema } from "@/lib/validation/tip";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { CRIME_TIP_FORM, type CrimeTipFormConfiguration } from "@/config/crime-tip-form";
 import { getSiteConfiguration } from "@/lib/site-settings";
+import { isAllowedRequestOrigin } from "@/lib/http/request-origin";
 
 const MIN_HUMAN_FILL_TIME_MS = 3_000;
 
@@ -13,9 +14,14 @@ function getClientIp(req: NextRequest): string {
 }
 
 function isSameOriginRequest(req: NextRequest): boolean {
-  const origin = req.headers.get("origin");
-  if (!origin) return true;
-  return origin === req.nextUrl.origin;
+  return isAllowedRequestOrigin({
+    origin: req.headers.get("origin"),
+    requestUrl: req.nextUrl.href,
+    forwardedHost: req.headers.get("x-forwarded-host"),
+    forwardedProto: req.headers.get("x-forwarded-proto"),
+    host: req.headers.get("host"),
+    configuredSiteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+  });
 }
 
 export async function POST(req: NextRequest) {
