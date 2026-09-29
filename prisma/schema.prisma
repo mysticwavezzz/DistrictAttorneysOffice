@@ -214,7 +214,7 @@ model RosterEntry {
 model Aopc {
   id            String    @id @default(cuid())
   title         String
-  reportId      String?   @unique
+  reportId      String?
   targetUnit    String
   subject       String
   narrative     String

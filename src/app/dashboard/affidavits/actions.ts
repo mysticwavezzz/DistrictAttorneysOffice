@@ -42,7 +42,7 @@ export async function submitAopc(formData: FormData) {
   });
   if (!parsed.success) throw new Error("Invalid affidavit submission");
   const data = parsed.data;
-  if (await prisma.aopc.findUnique({ where: { reportId: data.reportId }, select: { id: true } })) {
+  if (await prisma.aopc.findFirst({ where: { reportId: data.reportId }, select: { id: true } })) {
     redirect("/dashboard/affidavits?error=report-id-in-use");
   }
   const uploadEntry = formData.get("pdf");
