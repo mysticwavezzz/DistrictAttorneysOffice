@@ -24,21 +24,20 @@ export default async function ReportCrimePage() {
       <div className="body">
         <Sidebar />
         <main className="paper" id="main">
-          <p className="eyebrow">Office of the District Attorney</p>
+          <p className="eyebrow">District Attorney&apos;s Office</p>
           <h1>Official Criminal Tip Line</h1>
           <h2>Report Suspicious or Criminal Activity</h2>
-          <p className="lede">The District Attorney’s Office relies on community vigilance to help keep {siteConfig.county} safe. This portal forwards roleplay tips to the office’s investigators.</p>
-          <blockquote className="tip-mission">“To serve {siteConfig.county} with integrity, fairness, and an unwavering commitment to equal justice for all.”</blockquote>
+          <p className="lede">The District Attorney&apos;s Office relies on community vigilance to help keep {siteConfig.county} safe. This portal forwards tips to the office&apos;s investigators.</p>
 
           <section className="tip-notice" aria-labelledby="confidentiality-heading">
-            <h2 id="confidentiality-heading">Confidentiality and Roleplay Notice</h2>
-            <p>This is an in-character roleplay reporting system, not a channel for reporting real-world crimes. The form is hosted by Google Forms, and responses are available to the form owner and staff granted access there. The website cannot guarantee confidentiality or anonymity. Do not submit real sensitive personal information.</p>
-            <p>Within the roleplay setting, investigators will handle reports discreetly. A reporter may be contacted in-character or asked to participate if a report leads to a roleplay case.</p>
+            <h2 id="confidentiality-heading">Confidentiality Notice</h2>
+            <p>The form is hosted by Google Forms, and responses are available to the form owner and staff granted access there. The website cannot guarantee confidentiality or anonymity. Do not submit sensitive personal information.</p>
+            <p>Investigators will handle reports discreetly. A reporter may be contacted if additional information is needed.</p>
           </section>
 
           <section className="tip-notice tip-emergency" aria-labelledby="emergency-heading">
             <h2 id="emergency-heading">Emergency Disclaimer</h2>
-            <p>This tip line is for roleplay investigative information only. If there is a real emergency or someone is in immediate danger, contact local emergency services now.</p>
+            <p>This tip line is not monitored for emergencies. If someone is in immediate danger, contact local emergency services now.</p>
           </section>
 
           <TipForm crimeTypes={form.crimeTypes} defaultDiscordIdentity={discordIdentity} />

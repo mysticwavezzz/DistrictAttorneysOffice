@@ -14,11 +14,11 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "short" });
 const DUE_SOON_DAYS = 3;
 
 function fmt(date: Date | null): string {
-  return date ? dateFormatter.format(date) : "—";
+  return date ? dateFormatter.format(date) : "Not set";
 }
 
 function text(value: string | null): string {
-  return value && value.trim() !== "" ? value : "—";
+  return value && value.trim() !== "" ? value : "Not set";
 }
 
 function deadlinePill(date: Date | null): string | null {
@@ -216,7 +216,7 @@ export default async function CasesPage({
                     <td data-label="Case #" className="mono">{c.caseNumber}</td>
                     <td data-label="Type">{text(c.type)}</td>
                     <td data-label="Stage">
-                      {c.stage ? <span className={`pill pill-${color}`}>{c.stage}</span> : "—"}
+                      {c.stage ? <span className={`pill pill-${color}`}>{c.stage}</span> : "Not set"}
                     </td>
                     <td data-label="Disclosures">{text(c.disclosures)}</td>
                     <td data-label="Disclosure given">{fmt(c.discGiven)}</td>

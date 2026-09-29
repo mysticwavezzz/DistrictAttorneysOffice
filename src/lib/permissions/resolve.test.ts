@@ -49,7 +49,7 @@ describe("resolveTiersFromRobloxRoles", () => {
     const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
     const roles: RobloxGroupRole[] = [
       // Same role name as a DA tier, but in the LE group rather than the DA
-      // group — it should still grant LAW_ENFORCEMENT (LE tier matches by
+      // group. It should still grant LAW_ENFORCEMENT (LE tier matches by
       // rank, not name), but never a DA tier, since those are matched by
       // (group, role name) and this role isn't in the DA group.
       { groupId: LE_GROUP, groupName: "Sheriff's Office", roleName: "Attorney", rank: 50 },

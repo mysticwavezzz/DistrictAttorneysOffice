@@ -80,7 +80,7 @@ export function TipForm({
         <div className="field"><label htmlFor="tip-discord">Your Discord username and ID *</label><input id="tip-discord" name="submitterDiscord" required maxLength={120} defaultValue={defaultDiscordIdentity} placeholder="Username / numeric ID" /></div>
       </div>
       <div className="field">
-        <label className="checkline"><input type="checkbox" name="legalAcknowledgment" required /> I understand that knowingly false or malicious reports are prohibited in this roleplay community, and I wish to proceed.</label>
+        <label className="checkline"><input type="checkbox" name="legalAcknowledgment" required /> I understand that knowingly false or malicious reports are prohibited, and I wish to proceed.</label>
       </div>
 
       <h2>Tip Details</h2>
@@ -100,9 +100,9 @@ export function TipForm({
       <div className="field"><label htmlFor="tip-witnesses">Witnesses and their involvement *</label><textarea id="tip-witnesses" name="witnesses" required maxLength={2000} rows={2} placeholder="Provide known witnesses or type N/A." /></div>
 
       <h2>Final Review and Declaration</h2>
-      <div className="field"><label className="checkline"><input type="checkbox" name="identityWaiver" required /> I understand this is not anonymous to the form owner or investigators, and I may be contacted in-character about a roleplay case.</label></div>
-      <div className="field"><label className="checkline"><input type="checkbox" name="truthAffirmation" required /> I affirm that this report is accurate and submitted in good faith within the roleplay setting.</label></div>
-      <div className="field"><label htmlFor="tip-signature">Electronic signature — Roblox username in ALL CAPS *</label><input id="tip-signature" name="signature" required maxLength={120} pattern="[A-Z0-9_ ]+" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} /></div>
+      <div className="field"><label className="checkline"><input type="checkbox" name="identityWaiver" required /> I understand this is not anonymous to the form owner or investigators, and I may be contacted if additional information is needed.</label></div>
+      <div className="field"><label className="checkline"><input type="checkbox" name="truthAffirmation" required /> I affirm that this report is accurate and submitted in good faith.</label></div>
+      <div className="field"><label htmlFor="tip-signature">Electronic signature: Roblox username in ALL CAPS *</label><input id="tip-signature" name="signature" required maxLength={120} pattern="[A-Z0-9_ ]+" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} /></div>
 
       {typeof state === "object" && "error" in state && <p className="message message-error" role="alert">{state.error} Your entries are still here. Check your connection and retry; do not submit a second copy in Google Forms.</p>}
       <button type="submit" className="govbtn" disabled={state === "submitting"}>{state === "submitting" ? "Submitting report…" : typeof state === "object" && "error" in state ? "Retry submission" : "Submit Official Tip"}</button>

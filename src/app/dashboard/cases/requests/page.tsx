@@ -43,7 +43,7 @@ export default async function CaseRequestsPage({ searchParams }: { searchParams:
           {data.title} <span className="mono">({data.caseNumber})</span>
         </h3>
         <p style={{ fontSize: 12 }}>
-          Type: {data.type || "—"} &middot; Stage: {data.stage || "—"}
+          Type: {data.type || "Not set"} &middot; Stage: {data.stage || "Not set"}
         </p>
         {data.summary && <p style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{data.summary}</p>}
 
@@ -55,7 +55,7 @@ export default async function CaseRequestsPage({ searchParams }: { searchParams:
                 const current = key === "title" ? r.case!.title : key === "caseNumber" ? r.case!.caseNumber : key === "type" ? r.case!.type : key === "stage" ? r.case!.stage : r.case!.summary;
                 const proposed = data[key] ?? "";
                 const changed = (current ?? "") !== proposed;
-                return <tr key={key} className={changed ? "change-highlight" : undefined}><th scope="row">{label}{changed && <span className="pill pill-gold">Changed</span>}</th><td>{current || "—"}</td><td>{proposed || "—"}</td></tr>;
+                return <tr key={key} className={changed ? "change-highlight" : undefined}><th scope="row">{label}{changed && <span className="pill pill-gold">Changed</span>}</th><td>{current || "Not set"}</td><td>{proposed || "Not set"}</td></tr>;
               })}</tbody>
             </table>
           </div>
@@ -88,9 +88,9 @@ export default async function CaseRequestsPage({ searchParams }: { searchParams:
         ) : (
           <p style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
             <span className={`pill ${r.status === "APPROVED" ? "pill-green" : "pill-red"}`}>{r.status}</span>{" "}
-            by {r.reviewedBy?.displayName ?? "—"}
+            by {r.reviewedBy?.displayName ?? "Not available"}
             {r.reviewedAt ? ` on ${dateFormatter.format(r.reviewedAt)}` : ""}
-            {r.reviewNote ? ` — "${r.reviewNote}"` : ""}
+            {r.reviewNote ? `: "${r.reviewNote}"` : ""}
           </p>
         )}
       </div>

@@ -34,9 +34,9 @@ export default async function AffidavitPrintPage({ params }: { params: Promise<{
       <p><strong>Status:</strong> {affidavit.status}</p>
       <p><strong>Submitted by:</strong> {affidavit.submittedBy.displayName} · {dateFormatter.format(affidavit.createdAt)}</p>
       {affidavit.documentUrl ? <p><strong>AOPC document:</strong> <a href={affidavit.documentUrl}>{affidavit.documentUrl}</a></p> : affidavit.pdfFileName ? <p><strong>AOPC document:</strong> <a href={`/api/aopcs/${affidavit.id}/pdf`}>View or download {affidavit.pdfFileName}</a></p> : <><p><strong>Subject:</strong> {affidavit.subject}</p><h2>Narrative</h2><p className="affidavit-narrative">{affidavit.narrative}</p></>}
-      {affidavit.reviewedAt && <p><strong>Reviewed:</strong> {affidavit.reviewedBy?.displayName ?? "—"} · {dateFormatter.format(affidavit.reviewedAt)}</p>}
+      {affidavit.reviewedAt && <p><strong>Reviewed:</strong> {affidavit.reviewedBy?.displayName ?? "Not available"} · {dateFormatter.format(affidavit.reviewedAt)}</p>}
       {affidavit.reviewNote && <p><strong>Review note:</strong> {affidavit.reviewNote}</p>}
-      {affidavit.linkedCase && <p><strong>Linked case:</strong> <Link href={`/dashboard/cases/${affidavit.linkedCase.id}`}>{affidavit.linkedCase.caseNumber} — {affidavit.linkedCase.title}</Link></p>}
+      {affidavit.linkedCase && <p><strong>Linked case:</strong> <Link href={`/dashboard/cases/${affidavit.linkedCase.id}`}>{affidavit.linkedCase.caseNumber} - {affidavit.linkedCase.title}</Link></p>}
       {canReviewAopcs && affidavit.status === "PENDING" && <section className="aopc-detail-review" aria-labelledby="aopc-review-heading">
         <h2 id="aopc-review-heading">Review AOPC</h2>
         <form action={reviewAopc} className="aopc-decision-form">

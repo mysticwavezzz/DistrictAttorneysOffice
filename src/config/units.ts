@@ -62,6 +62,6 @@ export const LEADERSHIP_POSITIONS: LeadershipPosition[] = [
   ...UNITS.map((u) => ({
     rank: UNIT_LEADER_RANK[u.value]!,
     unit: u.value,
-    label: `${UNIT_LEADER_RANK[u.value]} — ${u.label}`,
+    label: `${UNIT_LEADER_RANK[u.value]} - ${u.label}`,
   })),
 ];

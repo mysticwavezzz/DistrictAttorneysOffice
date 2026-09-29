@@ -88,7 +88,7 @@ export default async function AnnouncementsAdminPage() {
         </div>
         <div className="field">
           <label htmlFor="summary">
-            Summary <span className="hint">(optional — shown on the homepage; full body shows on the release page)</span>
+            Summary <span className="hint">(optional. Shown on the homepage; full body shows on the release page)</span>
           </label>
           <input type="text" id="summary" name="summary" maxLength={300} />
         </div>
@@ -101,7 +101,7 @@ export default async function AnnouncementsAdminPage() {
         </div>
         <div className="field">
           <label htmlFor="imageUrl">
-            Image URL <span className="hint">(optional — link to a hosted image)</span>
+            Image URL <span className="hint">(optional. Link to a hosted image)</span>
           </label>
           <input type="text" id="imageUrl" name="imageUrl" maxLength={2000} placeholder="https://" />
         </div>
@@ -115,7 +115,7 @@ export default async function AnnouncementsAdminPage() {
           </div>
           <div className="field">
             <label htmlFor="publishedAt">
-              Publish At <span className="hint">(optional — leave blank for immediately)</span>
+            Publish At <span className="hint">(optional. Leave blank to publish immediately)</span>
             </label>
             <input type="datetime-local" id="publishedAt" name="publishedAt" />
           </div>

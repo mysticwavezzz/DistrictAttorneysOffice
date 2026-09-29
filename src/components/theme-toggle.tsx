@@ -28,7 +28,7 @@ export function ThemeToggle() {
         setTheme(stored);
       }
     } catch {
-      // localStorage unavailable — default theme still renders fine
+      // localStorage unavailable. The default theme still renders.
     }
   }, []);
 

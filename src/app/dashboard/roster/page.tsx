@@ -88,18 +88,18 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                   <tr key={entry.id}>
                     <td data-label="Name">{entry.name}</td>
                     <td data-label="Rank">
-                      {entry.rank ?? "—"}{" "}
+                      {entry.rank ?? "Not assigned"}{" "}
                       {isLeadershipRank(entry.rank) && <span className="pill pill-gold">Leadership</span>}
                     </td>
                     <td data-label="Discord" className="mono">
-                      {entry.discordUserId ?? "—"}{" "}
+                      {entry.discordUserId ?? "Not linked"}{" "}
                       {stale && (
                         <span className="pill pill-red" title="No active staff tier found for this Discord ID">
                           Stale
                         </span>
                       )}
                     </td>
-                    <td data-label="Start date">{entry.startDate ? dateFormatter.format(entry.startDate) : "—"}</td>
+                    <td data-label="Start date">{entry.startDate ? dateFormatter.format(entry.startDate) : "Not set"}</td>
                     <td data-label="Roster status"><span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Active" : "Inactive"}</span></td>
                     {canManage && (
                       <td data-label="Actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -171,7 +171,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
               </div>
               <div className="field">
                 <label htmlFor="unit">
-                  Unit / Bureau <span className="hint">(optional — determines which leadership position a leadership rank fills)</span>
+                  Unit / Bureau <span className="hint">(optional. Determines which leadership position a leadership rank fills)</span>
                 </label>
                 <select id="unit" name="unit" defaultValue="">
                   <option value="">No unit set</option>
@@ -199,13 +199,13 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
             </div>
             <div className="field">
               <label htmlFor="imageUrl">
-                Profile Picture URL <span className="hint">(optional — stored in the staff roster)</span>
+                Profile Picture URL <span className="hint">(optional. Stored in the staff roster)</span>
               </label>
               <input type="text" id="imageUrl" name="imageUrl" maxLength={2000} placeholder="https://" />
             </div>
             <div className="field">
               <label htmlFor="about">
-                About Me <span className="hint">(optional — stored in the staff roster)</span>
+                About Me <span className="hint">(optional. Stored in the staff roster)</span>
               </label>
               <textarea id="about" name="about" rows={3} maxLength={2000} />
             </div>

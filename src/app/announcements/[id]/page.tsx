@@ -83,8 +83,7 @@ export default async function AnnouncementDetailPage({
                 <div className="letter-sign">Office of the District Attorney</div>
               </div>
               <div className="letter-disc">
-                This release is published for the {siteConfig.county} roleplay community and
-                does not describe any real event, agency, or person.
+                This release is published for the {siteConfig.county} community.
               </div>
             </div>
           </div>

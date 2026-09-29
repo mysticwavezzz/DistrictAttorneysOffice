@@ -13,7 +13,7 @@ import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
 import type { PermissionTier } from "@/lib/permissions/tiers";
 
 function Result({ label, ok, detail }: { label: string; ok: boolean | null; detail: string }) {
-  return <tr><th>{label}</th><td><span className={`pill ${ok === null ? "pill-muted" : ok ? "pill-green" : "pill-red"}`}>{ok === null ? "Unknown" : ok ? "Healthy" : "Issue"}</span> — {detail}</td></tr>;
+  return <tr><th>{label}</th><td><span className={`pill ${ok === null ? "pill-muted" : ok ? "pill-green" : "pill-red"}`}>{ok === null ? "Unknown" : ok ? "Healthy" : "Issue"}</span> {detail}</td></tr>;
 }
 
 export default async function AdminStatusPage() {

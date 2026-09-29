@@ -189,7 +189,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           <h2>Deadlines</h2>
           {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map(([label, date]) => {
             const overdue = date!.getTime() < new Date().setHours(0, 0, 0, 0);
-            return <li key={label}><span className={overdue ? "deadline-overdue" : undefined}>{label}: {date!.toLocaleDateString("en-US", { dateStyle: "medium" })}{overdue ? " — OVERDUE" : ""}</span></li>;
+            return <li key={label}><span className={overdue ? "deadline-overdue" : undefined}>{label}: {date!.toLocaleDateString("en-US", { dateStyle: "medium" })}{overdue ? " - OVERDUE" : ""}</span></li>;
           })}</ul>}
         </section>
 
@@ -204,7 +204,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             <div className="card">
               <span className="card-label">Type</span>
               <span className="card-value" style={{ fontSize: 15 }}>
-                {caseRecord.type ?? "—"}
+                {caseRecord.type ?? "Not set"}
               </span>
             </div>
           </div>
@@ -300,7 +300,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         <h2>Deadlines</h2>
         {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map(([label, date]) => {
           const overdue = date!.getTime() < new Date().setHours(0, 0, 0, 0);
-          return <li key={label}><span className={overdue ? "deadline-overdue" : undefined}>{label}: {date!.toLocaleDateString("en-US", { dateStyle: "medium" })}{overdue ? " — OVERDUE" : ""}</span></li>;
+          return <li key={label}><span className={overdue ? "deadline-overdue" : undefined}>{label}: {date!.toLocaleDateString("en-US", { dateStyle: "medium" })}{overdue ? " - OVERDUE" : ""}</span></li>;
         })}</ul>}
       </section>
 
@@ -422,7 +422,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
         <div className="field">
           <label htmlFor="relatedCaseNumbers">
-            Related Case Numbers <span className="hint">(optional — comma-separated)</span>
+            Related Case Numbers <span className="hint">(optional. Separate multiple numbers with commas)</span>
           </label>
           <input
             type="text"

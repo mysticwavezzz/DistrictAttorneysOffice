@@ -24,7 +24,7 @@ export function TextSizeToggle() {
         applySize(stored);
       }
     } catch {
-      // localStorage unavailable — default size still renders fine
+      // localStorage unavailable. The default size still renders.
     }
   }, []);
 

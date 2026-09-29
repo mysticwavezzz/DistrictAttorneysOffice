@@ -30,7 +30,7 @@ export function NotificationBell() {
         setUnreadCount(data.unreadCount ?? 0);
         setItems(data.items ?? []);
       } catch {
-        // best-effort — a failed poll just tries again next interval
+        // Best effort. A failed poll tries again next interval.
       }
     }
 

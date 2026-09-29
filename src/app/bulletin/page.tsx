@@ -37,11 +37,11 @@ export default async function BulletinPage() {
         <Sidebar />
 
         <main className="paper" id="main">
-          <p className="eyebrow">Restricted — Law Enforcement Only</p>
+          <p className="eyebrow">Restricted - Law Enforcement Only</p>
           <h1>Law Enforcement Bulletin</h1>
           <p className="lede">
             Posts here are visible only to signed-in Law Enforcement personnel and District
-            Attorney&apos;s Office staff — not the general public.
+            Attorney&apos;s Office staff. Not the general public.
           </p>
 
           {posts.length === 0 ? (

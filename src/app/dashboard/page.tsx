@@ -201,7 +201,7 @@ export default async function DashboardOverviewPage() {
               {upcomingCases.flatMap((item) => ([
                 ["Discovery", item.discDue], ["Pretrial", item.pretrial], ["Appeal", item.appealBy],
               ] as [string, Date | null][]).filter(([, date]) => date && date.getTime() <= Date.now() + 14 * 86400000).map(([label, date]) => (
-                <tr key={`${item.id}-${label}`}><td><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} — {item.title}</Link></td><td>{label}</td><td><time className={date && date.getTime() < Date.now() ? "deadline-overdue" : undefined} dateTime={date?.toISOString()}>{date?.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></td></tr>
+                <tr key={`${item.id}-${label}`}><td><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} - {item.title}</Link></td><td>{label}</td><td><time className={date && date.getTime() < Date.now() ? "deadline-overdue" : undefined} dateTime={date?.toISOString()}>{date?.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></td></tr>
               )))}</tbody></table></div>
           )}
         </>

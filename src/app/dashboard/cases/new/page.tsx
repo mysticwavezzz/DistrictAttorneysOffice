@@ -48,7 +48,7 @@ export default async function NewCasePage() {
           </div>
           <div className="field" style={{ flex: "1 1 180px" }}>
             <label htmlFor="caseNumber">
-              Case # <span className="hint">(optional — auto-generated if left blank)</span>
+              Case # <span className="hint">(optional. Auto-generated if left blank)</span>
             </label>
             <input type="text" id="caseNumber" name="caseNumber" maxLength={50} placeholder="Auto-generated" />
           </div>
@@ -133,7 +133,7 @@ export default async function NewCasePage() {
 
         <div className="field">
           <label htmlFor="relatedCaseNumbers">
-            Related Case Numbers <span className="hint">(optional — comma-separated)</span>
+            Related Case Numbers <span className="hint">(optional. Separate multiple numbers with commas)</span>
           </label>
           <input type="text" id="relatedCaseNumbers" name="relatedCaseNumbers" maxLength={500} />
         </div>

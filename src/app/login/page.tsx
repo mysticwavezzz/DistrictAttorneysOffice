@@ -53,14 +53,6 @@ export default async function LoginPage({
               </li>
             </ul>
           </div>
-          <div className="sbox">
-            <h3>Notice</h3>
-            <div className="notice">
-              {siteConfig.county} is a Roblox roleplay community. Staff access is granted
-              through the {siteConfig.county} Discord server and is not affiliated with any
-              real government, county, or agency.
-            </div>
-          </div>
         </aside>
 
         <main className="paper" id="main">
@@ -69,7 +61,7 @@ export default async function LoginPage({
           <p className="lede">
             Authorized personnel only. Sign in with the Discord account linked to your Law
             Enforcement, Government, or District Attorney&apos;s Office role. Your server roles
-            are checked automatically — no separate staff account is needed.
+            are checked automatically. No separate staff account is needed.
           </p>
 
           {errorMessage && (
@@ -112,7 +104,6 @@ export default async function LoginPage({
 
           <p className="note-inline" style={{ marginTop: 14 }}>
             Don&apos;t have staff access but think you should? Contact the District Attorney or Deputy District Attorney on our <Link href="/contacts">Contact Us page</Link>.
-            in-game.
           </p>
         </main>
       </div>

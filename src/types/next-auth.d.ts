@@ -14,7 +14,7 @@ declare module "next-auth" {
   }
 }
 
-// augment @auth/core/jwt directly — augmenting "next-auth/jwt" doesn't merge, since it re-exports via `export *`
+// Augment @auth/core/jwt directly. Augmenting "next-auth/jwt" does not merge because it re-exports via `export *`.
 declare module "@auth/core/jwt" {
   interface JWT {
     discordUserId?: string;

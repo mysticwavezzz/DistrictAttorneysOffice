@@ -84,8 +84,8 @@ export default async function SiteSettingsPage() {
       <h2>Maintenance Mode</h2>
       <p className="note-inline">
           {settings.maintenanceMode
-          ? "Currently ON — visitors are redirected to the maintenance page. This admin database remains available."
-          : "Currently OFF — the site is live."}
+          ? "Currently ON. Visitors are redirected to the maintenance page. This admin database remains available."
+          : "Currently OFF. The site is live."}
       </p>
       <FormWithPendingSubmit
         action={updateMaintenanceSettings}
@@ -140,8 +140,8 @@ export default async function SiteSettingsPage() {
       <h2>Notifications</h2>
       <p className="note-inline">
         {settings.notificationsDisabled
-          ? "Currently OFF — no in-site or Discord DM notifications are being sent to anyone."
-          : "Currently ON — notifications send normally."}
+          ? "Currently OFF. No in-site or Discord DM notifications are being sent."
+          : "Currently ON. Notifications are sending normally."}
       </p>
       <FormWithPendingSubmit
         action={updateNotificationSettings}
@@ -174,7 +174,7 @@ export default async function SiteSettingsPage() {
             <tr>
               <th>Discord sign-in</th>
               <td>
-                <span className="pill pill-green">Configured</span> — the app would not start
+                <span className="pill pill-green">Configured</span>. The app would not start
                 without a client ID, secret, bot token, and guild ID.
               </td>
             </tr>
@@ -255,7 +255,7 @@ export default async function SiteSettingsPage() {
       <h2>Configuration Backups</h2>
       <p className="note-inline">Automatic snapshots are created before settings changes and restores. These cover application settings only, not cases or the SQLite database.</p>
       <form action={saveConfigurationBackup}><button className="govbtn-outline" type="submit">Create backup now</button></form>
-      {backups.length > 0 && <FormWithPendingSubmit action={restoreConfigurationBackup} submitLabel="Restore selected configuration" pendingLabel="Restoring…" className="formbox"><div className="field"><label htmlFor="backupId">Backup</label><select id="backupId" name="backupId" required defaultValue=""><option value="" disabled>Select a backup</option>{backups.map((backup)=><option key={backup.id} value={backup.id}>{backup.createdAt.toLocaleString()} — {backup.actorName}</option>)}</select></div><p className="note-inline">Restoring replaces current settings. A safety backup is created first.</p></FormWithPendingSubmit>}
+      {backups.length > 0 && <FormWithPendingSubmit action={restoreConfigurationBackup} submitLabel="Restore selected configuration" pendingLabel="Restoring..." className="formbox"><div className="field"><label htmlFor="backupId">Backup</label><select id="backupId" name="backupId" required defaultValue=""><option value="" disabled>Select a backup</option>{backups.map((backup)=><option key={backup.id} value={backup.id}>{backup.createdAt.toLocaleString()} - {backup.actorName}</option>)}</select></div><p className="note-inline">Restoring replaces current settings. A safety backup is created first.</p></FormWithPendingSubmit>}
       <h2>Settings Audit Trail</h2>
       <div className="tablewrap"><table className="stat"><thead><tr><th>When</th><th>Who</th><th>Change</th><th>Details</th></tr></thead><tbody>{auditLogs.length ? auditLogs.map((entry)=><tr key={entry.id}><td>{entry.createdAt.toLocaleString()}</td><td>{entry.actorName}</td><td>{entry.action}</td><td>{entry.details}</td></tr>) : <tr><td colSpan={4}>No settings changes recorded yet.</td></tr>}</tbody></table></div>
       <p><Link href="/98981/status">Open integration health and access diagnostics →</Link></p>
@@ -282,7 +282,7 @@ export default async function SiteSettingsPage() {
                     <span className="pill pill-muted">No</span>
                   )}
                 </td>
-                <td style={{ fontSize: 11 }}>{unit.leaderRank ?? "—"}</td>
+                <td style={{ fontSize: 11 }}>{unit.leaderRank ?? "Not assigned"}</td>
               </tr>
             ))}
           </tbody>

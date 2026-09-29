@@ -88,7 +88,7 @@ export default async function AffidavitsPage({ searchParams }: { searchParams: P
             <fieldset className="field aopc-document-field">
               <legend>AOPC document <span className="hint">(provide a link or upload one PDF)</span></legend>
               <div className="field"><label htmlFor="documentUrl">Link to the AOPC</label><input type="url" id="documentUrl" name="documentUrl" maxLength={2000} placeholder="https://…" /></div>
-              <p className="note-inline" aria-hidden="true">— or —</p>
+              <p className="note-inline" aria-hidden="true">Or</p>
               <div className="field"><label htmlFor="aopcPdf">Upload AOPC as PDF (max 5 MB)</label><input type="file" id="aopcPdf" name="pdf" accept="application/pdf,.pdf" /></div>
             </fieldset>
             <button type="submit" className="govbtn">Submit AOPC</button>
