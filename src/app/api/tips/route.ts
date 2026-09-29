@@ -60,13 +60,16 @@ export async function POST(req: NextRequest) {
   }
 
   const submittedTooFast = Date.now() - renderedAt < MIN_HUMAN_FILL_TIME_MS;
-  if (website || submittedTooFast) {
+  if (website) {
     return NextResponse.json({ success: true });
   }
+  if (submittedTooFast) return NextResponse.json({ error: "Please wait a moment and try submitting again." }, { status: 429 });
 
   if (!form.actionUrl || !form.entries || !form.actionUrl.startsWith("https://docs.google.com/forms/")) {
     return NextResponse.json({ error: "The online tip line is temporarily unavailable. Please try again later." }, { status: 503 });
   }
+
+  const receipt = tip.submissionReference;
 
   const formData = new URLSearchParams();
   const entry = form.entries;
@@ -82,7 +85,7 @@ export async function POST(req: NextRequest) {
   formData.set(entry.suspectRoblox, tip.suspectRoblox);
   formData.set(entry.suspectDiscord, tip.suspectDiscord);
   formData.set(entry.suspectInformation, tip.suspectInformation);
-  formData.set(entry.narrative, tip.narrative);
+  formData.set(entry.narrative, `${tip.narrative}\n\nSubmission reference: ${receipt}`);
   formData.set(entry.evidence, tip.evidence);
   formData.set(entry.witnesses, tip.witnesses);
   formData.set(entry.identityWaiver, "I do.");
@@ -113,5 +116,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, receipt });
 }

@@ -199,13 +199,13 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
             </div>
             <div className="field">
               <label htmlFor="imageUrl">
-                Profile Picture URL <span className="hint">(optional — shown on Office Info if leadership)</span>
+                Profile Picture URL <span className="hint">(optional — stored in the staff roster)</span>
               </label>
               <input type="text" id="imageUrl" name="imageUrl" maxLength={2000} placeholder="https://" />
             </div>
             <div className="field">
               <label htmlFor="about">
-                About Me <span className="hint">(optional — shown on Office Info if leadership)</span>
+                About Me <span className="hint">(optional — stored in the staff roster)</span>
               </label>
               <textarea id="about" name="about" rows={3} maxLength={2000} />
             </div>

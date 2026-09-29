@@ -52,22 +52,6 @@ export default async function HomePage() {
             transparently for every resident.
           </p>
 
-          <section id="office-info">
-            <h2>Office Information</h2>
-            <div className="cards">
-              <div className="card">
-                <span className="card-label">Hours</span>
-                <span className="card-value" style={{ fontSize: 14 }}>
-                  {siteConfig.hours[0]?.time}
-                </span>
-                <span className="card-change">{siteConfig.hours[0]?.day}</span>
-              </div>
-            </div>
-            <p className="source">
-              <Link href="/office-info">See full office information &amp; leadership &rarr;</Link>
-            </p>
-          </section>
-
           <AnnouncementsSection announcements={announcements} />
 
           <TipsSection />

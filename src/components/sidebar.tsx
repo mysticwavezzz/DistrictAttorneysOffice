@@ -13,7 +13,7 @@ export function Sidebar() {
             <a href="/report-crime">Report a Crime</a>
           </li>
           <li>
-            <a href="/office-info">Office Info</a>
+            <a href="/contacts">Discord Contacts</a>
           </li>
           <li>
             <a href="/records-request">Records Request</a>

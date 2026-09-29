@@ -1192,7 +1192,38 @@ table.stat tbody tr:hover {
   table.stat.mobile-cards td { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border: 0; border-bottom: 1px solid var(--bd-lt); padding: 8px 2px; text-align: right; overflow-wrap: anywhere; }
   table.stat.mobile-cards td:last-child { border-bottom: 0; }
   table.stat.mobile-cards td::before { content: attr(data-label); font-weight: 700; color: var(--ink-soft); text-align: left; flex: 0 0 34%; }
-  table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
+table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
+}
+
+.profile-menu { position: relative; }
+.profile-trigger { display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.profile-trigger:hover, .profile-trigger[aria-expanded="true"] { background: var(--bd-lt); }
+.profile-avatar { width: 28px; height: 28px; object-fit: cover; border-radius: 50%; }
+.profile-avatar-fallback { display: inline-grid; place-items: center; background: var(--navy); color: white; font-weight: 700; }
+.profile-panel { position: absolute; z-index: 30; right: 0; top: calc(100% + 6px); width: min(330px, calc(100vw - 28px)); padding: 10px; background: var(--paper); color: var(--ink); border: 1px solid var(--bd); border-radius: 9px; box-shadow: 0 8px 28px #0003; display: grid; gap: 4px; }
+.profile-panel a, .profile-panel button { display: block; width: 100%; text-align: left; padding: 9px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; cursor: pointer; text-decoration: none; }
+.profile-panel a:hover, .profile-panel button:hover:not(:disabled) { background: var(--bd-lt); }
+.profile-panel button:disabled { opacity: .65; cursor: wait; }
+.profile-summary { display: grid; gap: 3px; padding: 9px; border-bottom: 1px solid var(--bd-lt); font-size: 12px; overflow-wrap: anywhere; }
+.profile-sync-note, .profile-sync-error { font-size: 11px; padding: 0 9px 6px; }
+.profile-sync-error { color: var(--red, #a32020); }
+
+.deadline-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--bd); border-left: 1px solid var(--bd); margin: 14px 0; }
+.deadline-calendar-weekday { padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 700; background: var(--bd-lt); border-right: 1px solid var(--bd); border-bottom: 1px solid var(--bd); }
+.deadline-calendar-day { min-height: 120px; padding: 6px; border-right: 1px solid var(--bd); border-bottom: 1px solid var(--bd); display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.deadline-calendar-day.today { outline: 2px solid var(--navy); outline-offset: -2px; }
+.deadline-calendar-day.blank { background: var(--bd-lt); opacity: .5; }
+.deadline-calendar-event { display: grid; gap: 3px; padding: 5px; border-radius: 5px; background: var(--bd-lt); font-size: 10px; overflow-wrap: anywhere; }
+.deadline-calendar-event > span { font-size: 9px; }
+.deadline-reminder-actions { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.deadline-reminder-actions form { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.deadline-reminder-actions select { font-size: 10px; padding: 2px; }
+@media (max-width: 720px) {
+  .deadline-calendar { grid-template-columns: repeat(2, minmax(0, 1fr)); border: 0; gap: 6px; }
+  .deadline-calendar-weekday { display: none; }
+  .deadline-calendar-day { min-height: 0; border: 1px solid var(--bd); border-radius: 6px; }
+  .deadline-calendar-day::before { content: attr(aria-label); font-size: 11px; font-weight: 700; }
+  .deadline-calendar-day.blank { display: none; }
 }
 
 @media (max-width: 460px) {

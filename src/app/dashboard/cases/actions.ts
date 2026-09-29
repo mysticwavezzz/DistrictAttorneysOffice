@@ -139,9 +139,12 @@ export async function updateCase(formData: FormData) {
     systemNotes.push(`Published from draft by ${session.user.displayName}.`);
   }
   if (canAssign && nextAssignee !== existing.assignedAttorneyId) {
+    const [previous, next] = await Promise.all([
+      existing.assignedAttorneyId ? prisma.user.findUnique({ where: { id: existing.assignedAttorneyId }, select: { displayName: true } }) : null,
+      nextAssignee ? prisma.user.findUnique({ where: { id: nextAssignee }, select: { displayName: true } }) : null,
+    ]);
+    systemNotes.push(`Assignment changed from ${previous?.displayName ?? "Unassigned"} to ${next?.displayName ?? "Unassigned"} by ${session.user.displayName}.`);
     if (nextAssignee) {
-      const assignee = await prisma.user.findUnique({ where: { id: nextAssignee } });
-      systemNotes.push(`Assigned to ${assignee?.displayName ?? "someone"} by ${session.user.displayName}.`);
       if (nextAssignee !== user.id) {
         await notify({
           userId: nextAssignee,
@@ -151,8 +154,6 @@ export async function updateCase(formData: FormData) {
           link: `/dashboard/cases/${id}`,
         });
       }
-    } else {
-      systemNotes.push(`Unassigned by ${session.user.displayName}.`);
     }
   }
   if (systemNotes.length > 0) {
@@ -192,7 +193,7 @@ export async function bulkUpdateCases(formData: FormData) {
   if ((operation === "assign" && !canAssign) || (operation === "archive" && !canEdit)) {
     throw new Error("Forbidden");
   }
-  const cases = await prisma.case.findMany({ where: { id: { in: ids } } });
+  const cases = await prisma.case.findMany({ where: { id: { in: ids } }, include: { assignedAttorney: { select: { displayName: true } } } });
   if (cases.length !== ids.length || cases.some((c) => !canAccessCase(session.user.tiers, user.id, c))) {
     throw new Error("One or more cases are not accessible");
   }
@@ -202,7 +203,11 @@ export async function bulkUpdateCases(formData: FormData) {
     if (assigneeId && !(await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true } }))) {
       throw new Error("Invalid assignee");
     }
-    await prisma.case.updateMany({ where: { id: { in: ids } }, data: { assignedAttorneyId: assigneeId } });
+    const assignee = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { displayName: true } }) : null;
+    await prisma.$transaction([
+      prisma.case.updateMany({ where: { id: { in: ids } }, data: { assignedAttorneyId: assigneeId } }),
+      prisma.caseComment.createMany({ data: cases.map((item) => ({ caseId: item.id, body: `Assignment changed from ${item.assignedAttorney?.displayName ?? "Unassigned"} to ${assignee?.displayName ?? "Unassigned"} by ${session.user.displayName}.`, isSystem: true })) }),
+    ]);
   } else if (operation === "archive") {
     await prisma.case.updateMany({ where: { id: { in: ids } }, data: { archived: true } });
   } else {
@@ -231,6 +236,35 @@ export async function deleteCaseFilter(formData: FormData) {
   const existing = JSON.parse(user.savedCaseFilters || "[]") as { id: string; name: string; query: string }[];
   await prisma.user.update({ where: { id: user.id }, data: { savedCaseFilters: JSON.stringify(existing.filter((item) => item.id !== id)) } });
   revalidatePath("/dashboard/cases");
+}
+
+export async function updateDeadlineReminderState(formData: FormData) {
+  const { session, user } = await requireStaff();
+  if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) throw new Error("Forbidden");
+  const caseId = String(formData.get("caseId") ?? "");
+  const deadlineType = String(formData.get("deadlineType") ?? "");
+  const dueDateRaw = String(formData.get("dueDate") ?? "");
+  const operation = String(formData.get("operation") ?? "");
+  const dueFields = { discDue: "discDue", pretrial: "pretrial", appealBy: "appealBy" } as const;
+  if (!(deadlineType in dueFields) || !["acknowledge", "snooze"].includes(operation)) throw new Error("Invalid reminder action");
+  const dueDate = new Date(dueDateRaw);
+  if (!Number.isFinite(dueDate.getTime())) throw new Error("Invalid due date");
+  const caseRecord = await prisma.case.findUnique({ where: { id: caseId } });
+  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord)) throw new Error("Case not accessible");
+  const field = deadlineType as keyof typeof dueFields;
+  if (caseRecord[field]?.getTime() !== dueDate.getTime()) throw new Error("That deadline has changed. Refresh the calendar and try again.");
+
+  const identity = { userId: user.id, caseId, deadlineType, dueDate };
+  const reminder = await prisma.deadlineReminder.upsert({ where: { userId_caseId_deadlineType_dueDate: identity }, create: identity, update: {} });
+  if (operation === "acknowledge") {
+    await prisma.deadlineReminder.update({ where: { id: reminder.id }, data: { acknowledgedAt: new Date(), snoozedUntil: null } });
+  } else {
+    const days = Number(formData.get("snoozeDays"));
+    if (![1, 3, 7].includes(days)) throw new Error("Choose a valid snooze duration");
+    await prisma.deadlineReminder.update({ where: { id: reminder.id }, data: { acknowledgedAt: null, snoozedUntil: new Date(Date.now() + days * 86_400_000) } });
+  }
+  revalidatePath("/dashboard/cases/calendar");
+  revalidatePath(`/dashboard/cases/${caseId}`);
 }
 
 export async function addFiling(formData: FormData) {

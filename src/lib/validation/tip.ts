@@ -17,6 +17,7 @@ export const tipFormSchema = z.object({
   identityWaiver: z.literal(true),
   truthAffirmation: z.literal(true),
   signature: z.string().trim().min(2).max(120).regex(/^[A-Z0-9_ ]+$/, "Enter your Roblox username in uppercase letters."),
+  submissionReference: z.string().regex(/^HCD-[A-Z0-9]+-[A-Z0-9]{6}$/),
   website: z.string().max(0).optional().default(""),
   renderedAt: z.number().int().positive(),
 });

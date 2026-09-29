@@ -29,6 +29,7 @@ model User {
   requestsSubmitted    CaseActionRequest[] @relation("RequestsSubmitted")
   requestsReviewed     CaseActionRequest[] @relation("RequestsReviewed")
   notifications        Notification[]
+  deadlineReminders    DeadlineReminder[]
   aopcsSubmitted       Aopc[]              @relation("AopcSubmitted")
   aopcsReviewed        Aopc[]              @relation("AopcReviewed")
 }
@@ -91,14 +92,15 @@ model Case {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  assignedAttorney User?               @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
-  createdBy        User                @relation("CreatedBy", fields: [createdById], references: [id])
-  filings          CaseFiling[]
-  comments         CaseComment[]
-  actionRequests   CaseActionRequest[]
-  relatedTo        Case[]              @relation("CaseRelations")
-  relatedFrom      Case[]              @relation("CaseRelations")
-  aopcs            Aopc[]
+  assignedAttorney  User?               @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
+  createdBy         User                @relation("CreatedBy", fields: [createdById], references: [id])
+  filings           CaseFiling[]
+  comments          CaseComment[]
+  actionRequests    CaseActionRequest[]
+  relatedTo         Case[]              @relation("CaseRelations")
+  relatedFrom       Case[]              @relation("CaseRelations")
+  aopcs             Aopc[]
+  deadlineReminders DeadlineReminder[]
 
   @@index([archived])
 }
@@ -159,6 +161,24 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead, createdAt])
+}
+
+model DeadlineReminder {
+  id             String    @id @default(cuid())
+  userId         String
+  caseId         String
+  deadlineType   String
+  dueDate        DateTime
+  acknowledgedAt DateTime?
+  snoozedUntil   DateTime?
+  lastNotifiedAt DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, caseId, deadlineType, dueDate])
+  @@index([userId, acknowledgedAt, snoozedUntil])
 }
 
 model Announcement {

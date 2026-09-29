@@ -93,7 +93,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
         </div>
         <div className="field">
           <label htmlFor="imageUrl">
-            Profile Picture URL <span className="hint">(optional — shown on Office Info if leadership)</span>
+            Profile Picture URL <span className="hint">(optional — stored in the staff roster)</span>
           </label>
           <input
             type="text"
@@ -106,7 +106,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
         </div>
         <div className="field">
           <label htmlFor="about">
-            About Me <span className="hint">(optional — shown on Office Info if leadership)</span>
+            About Me <span className="hint">(optional — stored in the staff roster)</span>
           </label>
           <textarea id="about" name="about" rows={3} maxLength={2000} defaultValue={entry.about ?? ""} />
         </div>

@@ -90,7 +90,7 @@ export function NotificationBell() {
             items.map((n) => (
               <Link
                 key={n.id}
-                href={n.link ?? "/notifications"}
+                href={n.link ?? "/settings#notifications"}
                 className="notif-item"
                 onClick={() => setOpen(false)}
               >
@@ -99,8 +99,8 @@ export function NotificationBell() {
               </Link>
             ))
           )}
-          <Link href="/notifications" className="notif-viewall" onClick={() => setOpen(false)}>
-            View all
+          <Link href="/settings#notifications" className="notif-viewall" onClick={() => setOpen(false)}>
+            Notifications &amp; preferences
           </Link>
         </div>
       )}

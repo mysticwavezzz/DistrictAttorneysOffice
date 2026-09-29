@@ -111,7 +111,7 @@ export default async function LoginPage({
           </div>
 
           <p className="note-inline" style={{ marginTop: 14 }}>
-            Don&apos;t have staff access but think you should? Contact office leadership
+            Don&apos;t have staff access but think you should? Contact the District Attorney or Deputy District Attorney on our <Link href="/contacts">Discord Contacts page</Link>.
             in-game.
           </p>
         </main>

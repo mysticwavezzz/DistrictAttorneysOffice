@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 
-type SubmitState = "idle" | "submitting" | "success" | { error: string };
+type SubmitState = "idle" | "submitting" | { receipt: string } | { error: string };
 
 export function TipForm({
   crimeTypes,
@@ -16,6 +16,7 @@ export function TipForm({
   const [state, setState] = useState<SubmitState>("idle");
   const [crimeType, setCrimeType] = useState("");
   const renderedAtRef = useRef(Date.now());
+  const submissionReferenceRef = useRef<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -23,6 +24,7 @@ export function TipForm({
     if (state === "submitting") return;
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
+    if (!submissionReferenceRef.current) submissionReferenceRef.current = `HCD-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
     const data = new FormData(form);
     const body = {
       submitterRoblox: String(data.get("submitterRoblox") ?? ""),
@@ -41,6 +43,7 @@ export function TipForm({
       identityWaiver: data.get("identityWaiver") === "on",
       truthAffirmation: data.get("truthAffirmation") === "on",
       signature: String(data.get("signature") ?? "").toUpperCase(),
+      submissionReference: submissionReferenceRef.current,
       website: String(data.get("website") ?? ""),
       renderedAt: renderedAtRef.current,
     };
@@ -51,12 +54,12 @@ export function TipForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const result = await response.json().catch(() => null) as { success?: boolean; error?: string } | null;
-      if (!response.ok || !result?.success) {
+      const result = await response.json().catch(() => null) as { success?: boolean; error?: string; receipt?: string } | null;
+      if (!response.ok || !result?.success || !result.receipt) {
         setState({ error: result?.error ?? "We couldn't submit your report. Please try again." });
         return;
       }
-      setState("success");
+      setState({ receipt: result.receipt ?? "Reference unavailable" });
       formRef.current?.reset();
       setCrimeType("");
     } catch {
@@ -64,8 +67,8 @@ export function TipForm({
     }
   }
 
-  if (state === "success") {
-    return <div className="message message-success" role="status"><strong>Report submitted.</strong> Your information was forwarded to the District Attorney’s Office Google Form. This confirmation means Google accepted the response; it does not guarantee an investigation or a reply. <button type="button" className="linklike" onClick={() => { renderedAtRef.current = Date.now(); setState("idle"); }}>Submit another report</button></div>;
+  if (typeof state === "object" && "receipt" in state) {
+    return <div className="message message-success" role="status"><strong>Report submitted.</strong> Reference: <span className="mono">{state.receipt}</span>. Keep this number if you contact investigators through Discord. Your reference was included with the report sent to the office&apos;s Google Form and its Discord webhook. This confirmation does not guarantee an investigation or reply. <button type="button" className="linklike" onClick={() => { renderedAtRef.current = Date.now(); submissionReferenceRef.current = null; setState("idle"); }}>Submit another report</button></div>;
   }
 
   return (
@@ -101,8 +104,8 @@ export function TipForm({
       <div className="field"><label className="checkline"><input type="checkbox" name="truthAffirmation" required /> I affirm that this report is accurate and submitted in good faith within the roleplay setting.</label></div>
       <div className="field"><label htmlFor="tip-signature">Electronic signature — Roblox username in ALL CAPS *</label><input id="tip-signature" name="signature" required maxLength={120} pattern="[A-Z0-9_ ]+" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} /></div>
 
-      {typeof state === "object" && <p className="message message-error" role="alert">{state.error}</p>}
-      <button type="submit" className="govbtn" disabled={state === "submitting"}>{state === "submitting" ? "Submitting report…" : "Submit Official Tip"}</button>
+      {typeof state === "object" && "error" in state && <p className="message message-error" role="alert">{state.error} Your entries are still here. Check your connection and retry; do not submit a second copy in Google Forms.</p>}
+      <button type="submit" className="govbtn" disabled={state === "submitting"}>{state === "submitting" ? "Submitting report…" : typeof state === "object" && "error" in state ? "Retry submission" : "Submit Official Tip"}</button>
     </form>
   );
 }

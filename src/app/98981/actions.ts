@@ -148,7 +148,7 @@ export async function saveApplicationConfiguration(formData: FormData) {
   revalidatePath("/dashboard/cases");
   revalidatePath("/dashboard/roster");
   revalidatePath("/dashboard/affidavits");
-  revalidatePath("/office-info");
+  revalidatePath("/contacts");
 }
 
 export async function saveConfigurationBackup() {
@@ -219,7 +219,7 @@ export async function restoreConfigurationBackup(formData: FormData) {
   revalidatePath("/dashboard/cases");
   revalidatePath("/dashboard/roster");
   revalidatePath("/dashboard/affidavits");
-  revalidatePath("/office-info");
+  revalidatePath("/contacts");
 }
 
 export async function clearAllData(formData: FormData) {

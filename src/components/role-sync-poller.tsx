@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-const SYNC_INTERVAL_MS = 5 * 60_000;
+const SYNC_INTERVAL_MS = 60_000;
 
 export function RoleSyncPoller() {
   const { data: session, update } = useSession();
@@ -16,7 +16,7 @@ export function RoleSyncPoller() {
     update();
     const interval = setInterval(() => {
       update();
-    }, 60_000);
+    }, SYNC_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [update]);
 

@@ -26,7 +26,7 @@ export async function markNotificationRead(formData: FormData) {
     data: { isRead: true },
   });
 
-  revalidatePath("/notifications");
+  revalidatePath("/settings");
 }
 
 export async function markAllNotificationsRead() {
@@ -38,7 +38,7 @@ export async function markAllNotificationsRead() {
     data: { isRead: true },
   });
 
-  revalidatePath("/notifications");
+  revalidatePath("/settings");
 }
 
 export async function updateNotificationPreferences(formData: FormData) {
@@ -55,5 +55,5 @@ export async function updateNotificationPreferences(formData: FormData) {
     data: { mutedTypes: muted.join(",") },
   });
 
-  revalidatePath("/notifications");
+  revalidatePath("/settings");
 }

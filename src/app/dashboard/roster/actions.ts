@@ -45,7 +45,7 @@ export async function addRosterEntry(formData: FormData) {
 
   await logActivity(session.user.displayName, "added", "roster entry", data.name);
   revalidatePath("/dashboard/roster");
-  revalidatePath("/office-info");
+  revalidatePath("/contacts");
 }
 
 export async function updateRosterEntry(formData: FormData) {
@@ -77,7 +77,7 @@ export async function updateRosterEntry(formData: FormData) {
 
   await logActivity(session.user.displayName, "edited", "roster entry", data.name);
   revalidatePath("/dashboard/roster");
-  revalidatePath("/office-info");
+  revalidatePath("/contacts");
   redirect("/dashboard/roster");
 }
 
@@ -92,7 +92,7 @@ export async function removeRosterEntry(formData: FormData) {
 
   await logActivity(session.user.displayName, "removed", "roster entry", entry?.name ?? id);
   revalidatePath("/dashboard/roster");
-  revalidatePath("/office-info");
+  revalidatePath("/contacts");
 }
 
 export async function setRosterActive(formData: FormData) {
@@ -102,5 +102,5 @@ export async function setRosterActive(formData: FormData) {
   const entry = await prisma.rosterEntry.update({ where: { id }, data: { isActive } });
   await logActivity(session.user.displayName, isActive ? "reactivated" : "deactivated", "roster entry", entry.name);
   revalidatePath("/dashboard/roster");
-  revalidatePath("/office-info");
+  revalidatePath("/contacts");
 }

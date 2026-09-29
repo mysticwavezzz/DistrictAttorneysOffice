@@ -17,6 +17,7 @@ const validTip = {
   identityWaiver: true,
   truthAffirmation: true,
   signature: "REPORTER",
+  submissionReference: "HCD-MABC123-ABC123",
   website: "",
   renderedAt: Date.now(),
 };

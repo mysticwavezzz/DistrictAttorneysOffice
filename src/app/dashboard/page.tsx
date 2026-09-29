@@ -201,7 +201,7 @@ export default async function DashboardOverviewPage() {
       )}
 
       <h2>Notifications</h2>
-      <Link href="/notifications" className="card"><span className="card-label">Unread notifications</span><span className="card-value">{unreadCount}</span></Link>
+      <Link href="/settings#notifications" className="card"><span className="card-label">Unread notifications</span><span className="card-value">{unreadCount}</span></Link>
 
       {hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) && (
         <><h2>Recent Activity</h2>{recentActivity.length === 0 ? <div className="message">No recent activity.</div> : <ul className="activity-preview">{recentActivity.map((entry) => <li key={entry.id}><span>{entry.actorName} {entry.action} {entry.targetType} “{entry.targetLabel}”</span><time dateTime={entry.createdAt.toISOString()}>{entry.createdAt.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</time></li>)}</ul>}</>

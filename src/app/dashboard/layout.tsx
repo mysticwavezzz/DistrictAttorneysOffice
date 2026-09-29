@@ -26,6 +26,7 @@ export default async function DashboardLayout({
   const sections: (NavItem & { show: boolean })[] = [
     { label: "Overview", href: "/dashboard", show: true },
     { label: "Cases", href: "/dashboard/cases", show: hasCapability(tiers, CAPABILITIES.CASES_VIEW) },
+    { label: "Deadline Calendar", href: "/dashboard/cases/calendar", show: hasCapability(tiers, CAPABILITIES.CASES_VIEW) },
     {
       label: "Case Requests",
       href: "/dashboard/cases/requests",

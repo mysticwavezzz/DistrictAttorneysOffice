@@ -151,11 +151,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         ) : (
           caseRecord.comments.map((c) => (
             <div key={c.id} className={`comment-item${c.isSystem ? " system" : ""}`}>
-              {!c.isSystem && (
-                <div className="comment-meta">
-                  {c.author?.displayName ?? "Unknown"} &middot; {dateTimeFormatter.format(c.createdAt)}
-                </div>
-              )}
+              <div className="comment-meta">
+                {c.isSystem ? "System history" : c.author?.displayName ?? "Unknown"} &middot; {dateTimeFormatter.format(c.createdAt)}
+              </div>
               <div style={{ whiteSpace: "pre-wrap" }}>{c.body}</div>
             </div>
           ))

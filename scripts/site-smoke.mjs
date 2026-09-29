@@ -8,7 +8,7 @@ async function get(path) {
   return response;
 }
 
-for (const path of ["/", "/office-info", "/records-request", "/report-crime"]) {
+for (const path of ["/", "/contacts", "/records-request", "/report-crime"]) {
   const response = await get(path);
   if (response.status !== 200) { errors.push(`${path}: expected 200, got ${response.status}`); continue; }
   const html = await response.text();
@@ -30,7 +30,7 @@ for (const path of ["/", "/office-info", "/records-request", "/report-crime"]) {
   if (path === "/report-crime" && (!/required/.test(html) || !/name="signature"/.test(html))) errors.push("/report-crime: required validation fields/signature not rendered");
 }
 
-for (const path of ["/98981", "/dashboard/cases", "/dashboard/roster"]) {
+for (const path of ["/98981", "/dashboard/cases", "/dashboard/cases/calendar", "/dashboard/roster", "/settings", "/notifications"]) {
   const response = await get(path);
   if (![302, 303, 307, 308, 401, 403].includes(response.status)) errors.push(`${path}: unauthenticated request was not denied/redirected (HTTP ${response.status})`);
 }

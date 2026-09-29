@@ -119,6 +119,7 @@ export default async function CasesPage({
           <Link href={`/dashboard/cases/export${qs({})}`} className="govbtn-outline">
             Export CSV
           </Link>
+          <Link href="/dashboard/cases/calendar" className="govbtn-outline">Deadline Calendar</Link>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth, signOut } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { Seal } from "./seal";
 import { TextSizeToggle } from "./text-size-toggle";
@@ -7,6 +7,8 @@ import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
 import { NavTabsScroller } from "./nav-tabs-scroller";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
+import { SessionProvider } from "next-auth/react";
+import { ProfileMenu } from "./profile-menu";
 
 export interface NavItem {
   label: string;
@@ -41,18 +43,10 @@ export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
             {isStaff ? (
               <>
                 {!staffNav && canViewDashboard && <Link href="/dashboard">Staff Dashboard</Link>}
-                <span>{session!.user.displayName}</span>
+                <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}>
+                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} discordUserId={session!.user.discordUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} />
+                </SessionProvider>
                 <NotificationBell />
-                <form
-                  action={async () => {
-                    "use server";
-                    await signOut({ redirectTo: "/" });
-                  }}
-                >
-                  <button type="submit" className="linklike">
-                    Sign Out
-                  </button>
-                </form>
               </>
             ) : (
               <Link href="/login">Staff Login</Link>
