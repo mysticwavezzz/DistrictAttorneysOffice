@@ -66,6 +66,24 @@ export function capabilitiesForTiers(tiers: PermissionTier[]): Set<Capability> {
   return capabilities;
 }
 
+export function capabilityMarkersForTiers(
+  tiers: PermissionTier[],
+  configuredCapabilities: Record<string, string[]>
+): string[] {
+  const defaults = new Set<Capability>();
+  const effective = new Set<Capability>();
+  for (const tier of tiers) {
+    const tierDefaults = TIER_DEFINITIONS[tier].capabilities;
+    tierDefaults.forEach((capability) => defaults.add(capability));
+    (configuredCapabilities[tier] as Capability[] | undefined ?? tierDefaults)
+      .forEach((capability) => effective.add(capability));
+  }
+  return [
+    ...Array.from(effective).filter((capability) => !defaults.has(capability)).map((capability) => `cap:${capability}`),
+    ...Array.from(defaults).filter((capability) => !effective.has(capability)).map((capability) => `denycap:${capability}`),
+  ];
+}
+
 export function hasCapability(
   tiers: PermissionTier[],
   capability: Capability

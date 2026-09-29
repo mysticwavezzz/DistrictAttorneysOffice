@@ -23,12 +23,13 @@ function buildCsp(nonce: string): string {
 }
 
 const MAINTENANCE_EXEMPT_PREFIXES = ["/98981", "/login", "/maintenance"];
+const PUBLIC_ASSET_PATTERN = /\.(?:avif|gif|ico|jpe?g|png|svg|webp|woff2?)$/i;
 const MAINTENANCE_CACHE_TTL_MS = 5000;
 
 let maintenanceCache: { enabled: boolean; expiresAt: number } | null = null;
 
 function isMaintenanceExempt(pathname: string): boolean {
-  return MAINTENANCE_EXEMPT_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  return PUBLIC_ASSET_PATTERN.test(pathname) || MAINTENANCE_EXEMPT_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 async function isMaintenanceModeEnabled(origin: string): Promise<boolean> {

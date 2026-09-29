@@ -5,7 +5,7 @@ import { fetchDiscordGuildMember, discordAvatarUrl } from "./discord/guild";
 import { resolveTiersFromDiscordRoles } from "./permissions/resolve";
 import { env } from "./env";
 
-const ROLE_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+const ROLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 export const authConfig = {
   session: { strategy: "jwt" },
@@ -53,20 +53,11 @@ export const authConfig = {
               ? (await import("./permissions/resolve")).resolveTiersFromRoleMappings(member.roles, custom.configuredRoleMappings)
               : resolveTiersFromDiscordRoles(member.roles)
             : [];
-          const configuredCapabilities = new Set<string>();
-          const deniedCapabilities = new Set<string>();
-          for (const tier of resolved) {
-            const grants = custom.configuredTierCapabilities?.[tier];
-            if (!grants) continue;
-            const defaults = (await import("./permissions/tiers")).TIER_DEFINITIONS[tier].capabilities as string[];
-            for (const capability of defaults) if (!grants.includes(capability)) deniedCapabilities.add(capability);
-            for (const capability of grants) if (!defaults.includes(capability)) configuredCapabilities.add(capability);
-          }
-          token.tiers = [
-            ...resolved,
-            ...Array.from(configuredCapabilities, (value) => `cap:${value}`),
-            ...Array.from(deniedCapabilities, (value) => `denycap:${value}`),
-          ] as typeof token.tiers;
+          const markers = (await import("./permissions/resolve")).capabilityMarkersForTiers(
+            resolved,
+            custom.configuredTierCapabilities ?? {}
+          );
+          token.tiers = [...resolved, ...markers] as typeof token.tiers;
           token.tiersFetchedAt = now;
         } catch (error) {
           console.error("Failed to resolve Discord permission tiers", error);
