@@ -10,12 +10,14 @@ import { getSiteSettings } from "@/lib/site-settings";
 import { env } from "@/lib/env";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { ClearDataForm } from "./clear-data-form";
-import { updateMaintenanceSettings, updateNotificationSettings, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup, addCrimeTipBlacklistEntry, removeCrimeTipBlacklistEntry } from "./actions";
+import { updateMaintenanceSettings, updateWebsiteVersion, updateNotificationSettings, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup, addCrimeTipBlacklistEntry, removeCrimeTipBlacklistEntry } from "./actions";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { prisma } from "@/lib/prisma";
 import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
+import { getWebsiteVersion } from "@/lib/site-version";
+import { formatDateTimeInTimeZone } from "@/lib/time-zone";
 
 export default async function SiteSettingsPage() {
   const session = await auth();
@@ -34,11 +36,15 @@ export default async function SiteSettingsPage() {
     getSiteConfiguration("ranks", RANKS),
     getSiteConfiguration("caseStatuses", CASE_STATUSES),
   ]);
-  const [tipConfiguration, backups, auditLogs, tipBlacklist] = await Promise.all([
+  const [tipConfiguration, backups, auditLogs, tipBlacklist, maintenanceExemptTiers, maintenanceExemptUserIds, websiteVersionOverride, websiteVersion] = await Promise.all([
     getSiteConfiguration("crimeTipForm", null),
     prisma.configurationBackup.findMany({ orderBy: { createdAt: "desc" }, take: 10 }).catch(() => []),
     prisma.settingsAuditLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }).catch(() => []),
     prisma.crimeTipBlacklist.findMany({ orderBy: { createdAt: "desc" } }).catch(() => []),
+    getSiteConfiguration<string[]>("maintenanceExemptTiers", []),
+    getSiteConfiguration<string[]>("maintenanceExemptDiscordUserIds", []),
+    getSiteConfiguration<string>("websiteVersion", ""),
+    getWebsiteVersion(),
   ]);
 
   return (
@@ -77,8 +83,8 @@ export default async function SiteSettingsPage() {
 
       <h2>Maintenance Mode</h2>
       <p className="note-inline">
-        {settings.maintenanceMode
-          ? "Currently ON — every page except this one and Staff Login shows a maintenance notice."
+          {settings.maintenanceMode
+          ? "Currently ON — visitors are redirected to the maintenance page. This admin database remains available."
           : "Currently OFF — the site is live."}
       </p>
       <FormWithPendingSubmit
@@ -107,17 +113,29 @@ export default async function SiteSettingsPage() {
           />
         </div>
         <div className="field">
-          <label htmlFor="maintenanceEstimatedAt">Estimated return time <span className="hint">(optional)</span></label>
+          <label htmlFor="maintenanceEstimatedAt">Estimated return time <span className="hint">(optional, Eastern Time)</span></label>
           <input
             id="maintenanceEstimatedAt"
             name="maintenanceEstimatedAt"
             type="datetime-local"
-            defaultValue={settings.maintenanceEstimatedAt
-              ? new Date(settings.maintenanceEstimatedAt.getTime() - settings.maintenanceEstimatedAt.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
-              : ""}
+            defaultValue={settings.maintenanceEstimatedAt ? formatDateTimeInTimeZone(settings.maintenanceEstimatedAt, "America/New_York") : ""}
           />
         </div>
+        <h3>Maintenance Exemptions</h3>
+        <p className="note-inline">Selected permission tiers (as granted through Discord role mappings) and individual Discord accounts can continue using the site while maintenance mode is on. The admin database sign-in flow remains available. Enter Discord user IDs (not usernames), separated by commas or new lines.</p>
+        <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend>Exempt permission tiers</legend>
+          <div className="cards">{Object.values(TIER_DEFINITIONS).map((tier) => <label key={tier.id} style={{ display: "flex", alignItems: "center", gap: 8, textTransform: "none" }}><input type="checkbox" name="maintenanceExemptTiers" value={tier.id} defaultChecked={maintenanceExemptTiers.includes(tier.id)}/>{tier.label}</label>)}</div>
+        </fieldset>
+        <div className="field"><label htmlFor="maintenanceExemptDiscordUserIds">Exempt Discord user IDs</label><textarea id="maintenanceExemptDiscordUserIds" name="maintenanceExemptDiscordUserIds" rows={3} maxLength={2600} defaultValue={maintenanceExemptUserIds.join("\n")} placeholder="123456789012345678" /></div>
       </FormWithPendingSubmit>
+
+      <h2>Website Version</h2>
+      <p className="note-inline">Current version: <strong>{websiteVersion}</strong>. Each Git commit automatically increments the patch number by default. For medium or major releases, set <code>VERSION_BUMP=medium</code> or <code>VERSION_BUMP=major</code> before committing. A manual value overrides the automatic version; clear it to return to automatic versioning.</p>
+      <form action={updateWebsiteVersion} className="formbox">
+        <div className="field"><label htmlFor="websiteVersion">Manual version override <span className="hint">(blank uses the automatic version)</span></label><input id="websiteVersion" name="websiteVersion" inputMode="numeric" pattern="[0-9]+\.[0-9]+\.[0-9]+" defaultValue={websiteVersionOverride} placeholder="0.1.3" /></div>
+        <button type="submit" className="govbtn">Save Website Version</button>
+      </form>
 
       <h2>Notifications</h2>
       <p className="note-inline">

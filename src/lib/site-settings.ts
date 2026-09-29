@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { reinterpretLegacyUtcWallTime } from "@/lib/time-zone";
 
 const SETTINGS_ID = 1;
 
@@ -6,6 +7,7 @@ export interface SiteSettingsData {
   maintenanceMode: boolean;
   maintenanceMessage: string | null;
   maintenanceEstimatedAt: Date | null;
+  maintenanceTimeZone: string;
   notificationsDisabled: boolean;
   deadlineReminderDays: string;
   overdueRemindersEnabled: boolean;
@@ -16,6 +18,7 @@ const DEFAULTS: SiteSettingsData = {
   maintenanceMode: false,
   maintenanceMessage: null,
   maintenanceEstimatedAt: null,
+  maintenanceTimeZone: "America/New_York",
   notificationsDisabled: false,
   deadlineReminderDays: "7,3,1",
   overdueRemindersEnabled: true,
@@ -29,7 +32,10 @@ export async function getSiteSettings(): Promise<SiteSettingsData> {
     return {
       maintenanceMode: row.maintenanceMode,
       maintenanceMessage: row.maintenanceMessage,
-      maintenanceEstimatedAt: row.maintenanceEstimatedAt,
+      maintenanceEstimatedAt: row.maintenanceEstimatedAt && row.maintenanceTimeZone !== "America/New_York"
+        ? reinterpretLegacyUtcWallTime(row.maintenanceEstimatedAt, "America/New_York")
+        : row.maintenanceEstimatedAt,
+      maintenanceTimeZone: row.maintenanceTimeZone,
       notificationsDisabled: row.notificationsDisabled,
       deadlineReminderDays: row.deadlineReminderDays,
       overdueRemindersEnabled: row.overdueRemindersEnabled,
@@ -49,6 +55,7 @@ export async function updateSiteSettings(data: Partial<Omit<SiteSettingsData, "u
       maintenanceMode: data.maintenanceMode ?? DEFAULTS.maintenanceMode,
       maintenanceMessage: data.maintenanceMessage ?? DEFAULTS.maintenanceMessage,
       maintenanceEstimatedAt: data.maintenanceEstimatedAt ?? DEFAULTS.maintenanceEstimatedAt,
+      maintenanceTimeZone: data.maintenanceTimeZone ?? DEFAULTS.maintenanceTimeZone,
       notificationsDisabled: data.notificationsDisabled ?? DEFAULTS.notificationsDisabled,
       deadlineReminderDays: data.deadlineReminderDays ?? DEFAULTS.deadlineReminderDays,
       overdueRemindersEnabled: data.overdueRemindersEnabled ?? DEFAULTS.overdueRemindersEnabled,

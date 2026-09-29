@@ -1,9 +1,11 @@
 import { siteConfig } from "@/config/site";
 import { getSiteSettings } from "@/lib/site-settings";
 import { Seal } from "@/components/seal";
+import { getWebsiteVersion } from "@/lib/site-version";
 
 export default async function MaintenancePage() {
   const settings = await getSiteSettings();
+  const version = await getWebsiteVersion();
 
   return (
     <div className="wrap">
@@ -26,6 +28,7 @@ export default async function MaintenancePage() {
             Last updated: {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" }).format(settings.updatedAt)} ET
           </p>
         )}
+        <p className="maintenance-meta">Website version: {version}</p>
       </main>
     </div>
   );

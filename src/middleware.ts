@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { authConfig } from "@/lib/auth.config";
 import { findRouteRule } from "@/config/route-permissions";
 import { hasAnyCapability } from "@/lib/permissions/resolve";
+import { env } from "@/lib/env";
+import { shouldRedirectToMaintenance } from "@/lib/maintenance-access";
 
 const { auth } = NextAuth(authConfig);
 
@@ -22,29 +24,32 @@ function buildCsp(nonce: string): string {
   ].join("; ");
 }
 
-const MAINTENANCE_EXEMPT_PREFIXES = ["/98981", "/login", "/maintenance"];
-const PUBLIC_ASSET_PATTERN = /\.(?:avif|gif|ico|jpe?g|png|svg|webp|woff2?)$/i;
 const MAINTENANCE_CACHE_TTL_MS = 5000;
 
-let maintenanceCache: { enabled: boolean; expiresAt: number } | null = null;
+let maintenanceCache: { enabled: boolean; exemptTiers: string[]; exemptUserIds: string[]; expiresAt: number } | null = null;
 
-function isMaintenanceExempt(pathname: string): boolean {
-  return PUBLIC_ASSET_PATTERN.test(pathname) || MAINTENANCE_EXEMPT_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
-
-async function isMaintenanceModeEnabled(origin: string): Promise<boolean> {
+async function getMaintenanceConfiguration(origin: string): Promise<{ enabled: boolean; exemptTiers: string[]; exemptUserIds: string[] }> {
   const now = Date.now();
   if (maintenanceCache && maintenanceCache.expiresAt > now) {
-    return maintenanceCache.enabled;
+    return maintenanceCache;
   }
   try {
-    const res = await fetch(new URL("/api/site-settings/status", origin), { cache: "no-store" });
-    const enabled = res.ok ? Boolean((await res.json()).maintenanceMode) : false;
-    maintenanceCache = { enabled, expiresAt: now + MAINTENANCE_CACHE_TTL_MS };
-    return enabled;
+    const res = await fetch(new URL("/api/site-settings/status", origin), {
+      cache: "no-store",
+      headers: { "x-maintenance-check": env.AUTH_SECRET },
+    });
+    if (!res.ok) throw new Error(`Maintenance status returned ${res.status}`);
+    const data = await res.json();
+    maintenanceCache = {
+      enabled: Boolean(data.maintenanceMode),
+      exemptTiers: Array.isArray(data.exemptTiers) ? data.exemptTiers : [],
+      exemptUserIds: Array.isArray(data.exemptUserIds) ? data.exemptUserIds : [],
+      expiresAt: now + MAINTENANCE_CACHE_TTL_MS,
+    };
+    return maintenanceCache;
   } catch (error) {
     console.error("Failed to check maintenance mode", error);
-    return false;
+    return { enabled: false, exemptTiers: [], exemptUserIds: [] };
   }
 }
 
@@ -54,8 +59,16 @@ export default auth(async (req) => {
 
   const { pathname } = req.nextUrl;
 
-  if (!isMaintenanceExempt(pathname) && (await isMaintenanceModeEnabled(req.nextUrl.origin))) {
-    const response = NextResponse.rewrite(new URL("/maintenance", req.nextUrl.origin));
+  const maintenance = await getMaintenanceConfiguration(req.nextUrl.origin);
+  if (shouldRedirectToMaintenance({
+    pathname,
+    callbackUrl: req.nextUrl.searchParams.get("callbackUrl"),
+    enabled: maintenance.enabled,
+    user: req.auth?.user,
+    exemptTiers: maintenance.exemptTiers,
+    exemptUserIds: maintenance.exemptUserIds,
+  })) {
+    const response = NextResponse.redirect(new URL("/maintenance", req.nextUrl.origin));
     response.headers.set("Content-Security-Policy", csp);
     return response;
   }

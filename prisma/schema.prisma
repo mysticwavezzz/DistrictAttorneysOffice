@@ -259,6 +259,7 @@ model SiteSettings {
   maintenanceMode         Boolean   @default(false)
   maintenanceMessage      String?
   maintenanceEstimatedAt  DateTime?
+  maintenanceTimeZone     String    @default("legacy-utc")
   notificationsDisabled   Boolean   @default(false)
   deadlineReminderDays    String    @default("7,3,1")
   overdueRemindersEnabled Boolean   @default(true)

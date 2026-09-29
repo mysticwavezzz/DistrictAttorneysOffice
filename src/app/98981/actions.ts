@@ -11,12 +11,14 @@ import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
 import { UNITS } from "@/config/units";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
-import { ALL_TIERS } from "@/lib/permissions/tiers";
+import { ALL_TIERS, TIER_DEFINITIONS } from "@/lib/permissions/tiers";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { getSiteConfiguration, updateSiteConfiguration } from "@/lib/site-settings";
 import { createConfigurationBackup, recordSettingsAudit } from "@/lib/settings-audit";
 import { z } from "zod";
 import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
+import { parseDateTimeInTimeZone } from "@/lib/time-zone";
+import { VERSION_SCHEMA } from "@/lib/site-version";
 
 async function requireSettingsManager() {
   const session = await auth();
@@ -31,14 +33,27 @@ export async function updateMaintenanceSettings(formData: FormData) {
   const maintenanceMode = formData.get("maintenanceMode") === "on";
   const maintenanceMessage = String(formData.get("maintenanceMessage") ?? "").trim();
   const estimatedAtRaw = String(formData.get("maintenanceEstimatedAt") ?? "").trim();
-  const maintenanceEstimatedAt = estimatedAtRaw ? new Date(estimatedAtRaw) : null;
-  if (maintenanceEstimatedAt && Number.isNaN(maintenanceEstimatedAt.getTime())) {
-    throw new Error("Invalid estimated return time");
+  const exemptTiers = Array.from(new Set(formData.getAll("maintenanceExemptTiers").map(String)));
+  const exemptUserIds = Array.from(new Set(String(formData.get("maintenanceExemptDiscordUserIds") ?? "").split(/[\s,]+/).map((id) => id.trim()).filter(Boolean)));
+  const maintenanceEstimatedAt = estimatedAtRaw ? parseDateTimeInTimeZone(estimatedAtRaw, "America/New_York") : null;
+  if (estimatedAtRaw && !maintenanceEstimatedAt) {
+    throw new Error("Enter a valid estimated return time in Eastern Time.");
+  }
+  if (exemptTiers.some((tier) => !(ALL_TIERS as readonly string[]).includes(tier))) {
+    throw new Error("Choose valid permission tiers for maintenance exemptions.");
+  }
+  if (exemptUserIds.length > 100 || exemptUserIds.some((id) => !/^\d{5,25}$/.test(id))) {
+    throw new Error("Enter up to 100 numeric Discord user IDs, separated by commas or new lines.");
   }
 
   await createConfigurationBackup(session.user.displayName);
-  await updateSiteSettings({ maintenanceMode, maintenanceMessage: maintenanceMessage || null, maintenanceEstimatedAt });
-  await recordSettingsAudit(session.user.displayName, "Maintenance settings changed", `Mode ${maintenanceMode ? "enabled" : "disabled"}; return-time setting ${maintenanceEstimatedAt ? "updated" : "cleared"}.`);
+  await Promise.all([
+    updateSiteSettings({ maintenanceMode, maintenanceMessage: maintenanceMessage || null, maintenanceEstimatedAt, maintenanceTimeZone: "America/New_York" }),
+    updateSiteConfiguration("maintenanceExemptTiers", exemptTiers),
+    updateSiteConfiguration("maintenanceExemptDiscordUserIds", exemptUserIds),
+  ]);
+  const tierLabels = exemptTiers.map((tier) => Object.values(TIER_DEFINITIONS).find((definition) => definition.id === tier)?.label ?? tier);
+  await recordSettingsAudit(session.user.displayName, "Maintenance settings changed", `Mode ${maintenanceMode ? "enabled" : "disabled"}; return-time setting ${maintenanceEstimatedAt ? "updated" : "cleared"}; exempt tiers: ${tierLabels.join(", ") || "none"}; exempt individual accounts: ${exemptUserIds.length}.`);
 
   await logActivity(
     session.user.displayName,
@@ -48,6 +63,19 @@ export async function updateMaintenanceSettings(formData: FormData) {
   );
 
   revalidatePath("/98981");
+}
+
+export async function updateWebsiteVersion(formData: FormData) {
+  const session = await requireSettingsManager();
+  const version = String(formData.get("websiteVersion") ?? "").trim();
+  if (version && !VERSION_SCHEMA.test(version)) {
+    throw new Error("Version must use three numeric parts, like 0.1.3.");
+  }
+  await createConfigurationBackup(session.user.displayName);
+  await updateSiteConfiguration("websiteVersion", version);
+  await recordSettingsAudit(session.user.displayName, "Website version override changed", version ? `Version manually set to ${version}.` : "Manual version override cleared; package version will be used.");
+  revalidatePath("/98981");
+  revalidatePath("/maintenance");
 }
 
 export async function addCrimeTipBlacklistEntry(formData: FormData) {
@@ -201,6 +229,7 @@ export async function restoreConfigurationBackup(formData: FormData) {
     maintenanceMode: z.boolean(),
     maintenanceMessage: z.string().nullable(),
     maintenanceEstimatedAt: z.string().nullable().or(z.date()).nullable().optional(),
+    maintenanceTimeZone: z.string().optional(),
     notificationsDisabled: z.boolean(),
     deadlineReminderDays: z.string().optional(),
     overdueRemindersEnabled: z.boolean().optional(),
@@ -221,6 +250,7 @@ export async function restoreConfigurationBackup(formData: FormData) {
           maintenanceMode: settings.maintenanceMode,
           maintenanceMessage: settings.maintenanceMessage,
           maintenanceEstimatedAt: settings.maintenanceEstimatedAt ? new Date(settings.maintenanceEstimatedAt) : null,
+          maintenanceTimeZone: settings.maintenanceTimeZone ?? "legacy-utc",
           notificationsDisabled: settings.notificationsDisabled,
           deadlineReminderDays: settings.deadlineReminderDays ?? "7,3,1",
           overdueRemindersEnabled: settings.overdueRemindersEnabled ?? true,
@@ -229,6 +259,7 @@ export async function restoreConfigurationBackup(formData: FormData) {
           maintenanceMode: settings.maintenanceMode,
           maintenanceMessage: settings.maintenanceMessage,
           maintenanceEstimatedAt: settings.maintenanceEstimatedAt ? new Date(settings.maintenanceEstimatedAt) : null,
+          maintenanceTimeZone: settings.maintenanceTimeZone ?? "legacy-utc",
           notificationsDisabled: settings.notificationsDisabled,
           deadlineReminderDays: settings.deadlineReminderDays ?? "7,3,1",
           overdueRemindersEnabled: settings.overdueRemindersEnabled ?? true,

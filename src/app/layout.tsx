@@ -25,10 +25,17 @@ export const viewport: Viewport = {
 const THEME_SCRIPT = `
 (function () {
   try {
-    var stored = localStorage.getItem("da-theme") || "auto";
+    var maintenancePage = window.location.pathname === "/maintenance";
+    var stored = maintenancePage ? "auto" : (localStorage.getItem("da-theme") || "auto");
     var effective = stored;
     if (stored === "auto") {
-      effective = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      var preference = window.matchMedia("(prefers-color-scheme: dark)");
+      effective = preference.matches ? "dark" : "light";
+      if (maintenancePage) {
+        preference.addEventListener("change", function (event) {
+          document.documentElement.setAttribute("data-theme", event.matches ? "dark" : "light");
+        });
+      }
     }
     document.documentElement.setAttribute("data-theme", effective);
   } catch (e) {}
