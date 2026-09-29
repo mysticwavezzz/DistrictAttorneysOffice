@@ -16,6 +16,19 @@ async function getLeadership() {
   }
 }
 
+function formatTenure(startDate: Date | null): string {
+  if (!startDate) return "—";
+  const now = new Date();
+  let months = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+  if (now.getDate() < startDate.getDate()) months -= 1;
+  if (months < 1) return "Less than a month";
+  const years = Math.floor(months / 12);
+  const remMonths = months % 12;
+  if (years === 0) return `${remMonths} mo`;
+  if (remMonths === 0) return `${years} yr`;
+  return `${years} yr, ${remMonths} mo`;
+}
+
 export default async function OfficeInfoPage() {
   const leadership = await getLeadership();
 
@@ -72,21 +85,39 @@ export default async function OfficeInfoPage() {
           {leadership.length === 0 ? (
             <div className="message">Leadership listings will appear here once published.</div>
           ) : (
-            <div className="release-list">
-              {leadership.map((entry) => (
-                <div key={entry.id} className="release-card" style={{ alignItems: "flex-start" }}>
-                  {entry.imageUrl && (
-                    <span className="release-card-thumb">
-                      <img src={entry.imageUrl} alt="" />
-                    </span>
-                  )}
-                  <span className="release-card-body">
-                    <span className="release-card-date">{entry.rank}</span>
-                    <span className="release-card-title">{entry.name}</span>
-                    {entry.about && <span className="release-card-excerpt">{entry.about}</span>}
-                  </span>
-                </div>
-              ))}
+            <div className="tablewrap">
+              <table className="stat leadership-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 64 }} />
+                    <th>Name</th>
+                    <th>Serving Since</th>
+                    <th>About</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leadership.map((entry) => (
+                    <tr key={entry.id}>
+                      <td>
+                        <span className="leadership-photo">
+                          {entry.imageUrl ? (
+                            <img src={entry.imageUrl} alt="" />
+                          ) : (
+                            <span className="leadership-photo-fallback" aria-hidden="true" />
+                          )}
+                        </span>
+                      </td>
+                      <td>
+                        <strong>{entry.name}</strong>
+                        <br />
+                        <span className="note-inline">{entry.rank}</span>
+                      </td>
+                      <td>{formatTenure(entry.startDate)}</td>
+                      <td>{entry.about ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </main>
