@@ -378,6 +378,15 @@ img {
   display: flex;
   align-items: center;
   margin-left: auto;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 2px;
+}
+
+.nav-group a {
+  border-right: 0;
 }
 
 .nav-group-label {
@@ -756,14 +765,14 @@ table.stat tbody th {
   text-align: left;
   font-weight: bold;
   padding: 5px 9px;
-  border-right: 1px solid #e8e4d9;
-  border-bottom: 1px solid #e8e4d9;
+  border-right: 1px solid var(--bd-lt);
+  border-bottom: 1px solid var(--bd-lt);
 }
 
 table.stat td {
   padding: 5px 9px;
-  border-right: 1px solid #e8e4d9;
-  border-bottom: 1px solid #e8e4d9;
+  border-right: 1px solid var(--bd-lt);
+  border-bottom: 1px solid var(--bd-lt);
 }
 
 table.stat td:last-child,
@@ -776,7 +785,7 @@ table.stat tbody tr:nth-child(odd) {
 }
 
 table.stat tbody tr:hover {
-  background: #eef1f8;
+  background: var(--box-alt);
 }
 
 .formbox {
@@ -899,6 +908,16 @@ table.stat tbody tr:hover {
   border-color: #a9c3a6;
   background: #edf3ec;
   color: var(--up);
+}
+
+:root[data-theme="dark"] .message-error {
+  border-color: #6b3d30;
+  background: #3a1f1a;
+}
+
+:root[data-theme="dark"] .message-success {
+  border-color: #3f5f3f;
+  background: #1f3320;
 }
 
 
