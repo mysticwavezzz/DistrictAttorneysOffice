@@ -5,6 +5,8 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { RANKS } from "@/config/ranks";
 import { UNITS } from "@/config/units";
 import { updateRosterEntry, removeRosterEntry } from "../actions";
+import { RemoveButton } from "@/components/remove-button";
+import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 
 function toDateInputValue(date: Date | null): string {
   if (!date) return "";
@@ -24,7 +26,12 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
     <div>
       <h1>Edit Roster Entry</h1>
 
-      <form action={updateRosterEntry} className="formbox">
+      <FormWithPendingSubmit
+        action={updateRosterEntry}
+        submitLabel="Save Changes"
+        pendingLabel="Saving…"
+        className="formbox"
+      >
         <input type="hidden" name="id" value={entry.id} />
         <div className="field-row">
           <div className="field">
@@ -120,17 +127,17 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
           </label>
           <textarea id="about" name="about" rows={3} maxLength={2000} defaultValue={entry.about ?? ""} />
         </div>
-        <button type="submit" className="govbtn">
-          Save Changes
-        </button>
-      </form>
+      </FormWithPendingSubmit>
 
-      <form action={removeRosterEntry} style={{ marginTop: 16 }}>
-        <input type="hidden" name="id" value={entry.id} />
-        <button type="submit" className="govbtn" style={{ background: "var(--down)", borderColor: "#6b2018" }}>
-          Remove from Roster
-        </button>
-      </form>
+      <RemoveButton
+        id={entry.id}
+        action={removeRosterEntry}
+        label="Remove from Roster"
+        pendingLabel="Removing…"
+        className="govbtn"
+        style={{ background: "var(--down)", borderColor: "#6b2018" }}
+        formStyle={{ marginTop: 16 }}
+      />
     </div>
   );
 }

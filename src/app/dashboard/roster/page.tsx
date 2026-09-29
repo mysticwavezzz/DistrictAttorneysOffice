@@ -6,6 +6,8 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { RANKS, isLeadershipRank } from "@/config/ranks";
 import { UNITS } from "@/config/units";
 import { addRosterEntry, removeRosterEntry } from "./actions";
+import { RemoveButton } from "@/components/remove-button";
+import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
@@ -85,12 +87,7 @@ export default async function RosterPage() {
                     {canManage && (
                       <td style={{ display: "flex", gap: 10 }}>
                         <Link href={`/dashboard/roster/${entry.id}`}>Edit</Link>
-                        <form action={removeRosterEntry}>
-                          <input type="hidden" name="id" value={entry.id} />
-                          <button type="submit" className="linklike">
-                            Remove
-                          </button>
-                        </form>
+                        <RemoveButton id={entry.id} action={removeRosterEntry} />
                       </td>
                     )}
                   </tr>
@@ -116,7 +113,12 @@ export default async function RosterPage() {
       {canManage && (
         <>
           <h2>Add Employee</h2>
-          <form action={addRosterEntry} className="formbox">
+          <FormWithPendingSubmit
+            action={addRosterEntry}
+            submitLabel="Add Employee"
+            pendingLabel="Adding…"
+            className="formbox"
+          >
             <div className="field-row">
               <div className="field">
                 <label htmlFor="name">Name</label>
@@ -185,10 +187,7 @@ export default async function RosterPage() {
               </label>
               <textarea id="about" name="about" rows={3} maxLength={2000} />
             </div>
-            <button type="submit" className="govbtn">
-              Add Employee
-            </button>
-          </form>
+          </FormWithPendingSubmit>
         </>
       )}
     </div>

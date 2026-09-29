@@ -806,12 +806,14 @@ table.stat tbody th {
   text-align: left;
   font-weight: bold;
   padding: 5px 9px;
+  vertical-align: top;
   border-right: 1px solid var(--bd-lt);
   border-bottom: 1px solid var(--bd-lt);
 }
 
 table.stat td {
   padding: 5px 9px;
+  vertical-align: top;
   border-right: 1px solid var(--bd-lt);
   border-bottom: 1px solid var(--bd-lt);
 }
