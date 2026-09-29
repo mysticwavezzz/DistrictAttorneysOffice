@@ -1,15 +1,28 @@
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { auth, signOut } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { Seal } from "./seal";
 import { TextSizeToggle } from "./text-size-toggle";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 
-export async function SiteHeader() {
+export interface NavItem {
+  label: string;
+  href: string;
+}
+
+interface SiteHeaderProps {
+  staffNav?: NavItem[];
+  activeHref?: string;
+}
+
+export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {}) {
   const session = await auth();
   const isStaff = Boolean(session?.user?.discordUserId);
   const canViewDashboard =
     isStaff && hasCapability(session!.user.tiers, CAPABILITIES.DASHBOARD_VIEW);
+
+  const navItems = staffNav ?? siteConfig.nav;
+  const active = activeHref ?? navItems[0]?.href;
 
   return (
     <>
@@ -20,7 +33,21 @@ export async function SiteHeader() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <TextSizeToggle />
-            {canViewDashboard ? (
+            {staffNav ? (
+              <>
+                <span>{session!.user.displayName}</span>
+                <form
+                  action={async () => {
+                    "use server";
+                    await signOut({ redirectTo: "/" });
+                  }}
+                >
+                  <button type="submit" className="linklike">
+                    Sign Out
+                  </button>
+                </form>
+              </>
+            ) : canViewDashboard ? (
               <Link href="/dashboard">Staff Dashboard</Link>
             ) : (
               <Link href="/login">Staff Login</Link>
@@ -35,7 +62,9 @@ export async function SiteHeader() {
         </div>
         <div className="lockup">
           <span className="lockup-top">{siteConfig.county}</span>
-          <span className="lockup-mid">Office of the District Attorney</span>
+          <span className="lockup-mid">
+            {staffNav ? "Staff Portal" : "Office of the District Attorney"}
+          </span>
           <span className="lockup-main">{siteConfig.name}</span>
         </div>
         <div className="mast-est">
@@ -48,17 +77,23 @@ export async function SiteHeader() {
       <div className="flagrule" />
 
       <nav className="nav" aria-label="Primary">
-        {siteConfig.nav.map((item, index) => (
-          <Link key={item.href} href={item.href} className={index === 0 ? "on" : undefined}>
+        {navItems.map((item) => (
+          <Link key={item.href} href={item.href} className={item.href === active ? "on" : undefined}>
             {item.label}
           </Link>
         ))}
         <div className="nav-group">
-          <span className="nav-group-label">Staff</span>
-          {canViewDashboard ? (
-            <Link href="/dashboard">Dashboard</Link>
+          {staffNav ? (
+            <Link href="/">Public Site</Link>
           ) : (
-            <Link href="/login">Sign In</Link>
+            <>
+              <span className="nav-group-label">Staff</span>
+              {canViewDashboard ? (
+                <Link href="/dashboard">Dashboard</Link>
+              ) : (
+                <Link href="/login">Sign In</Link>
+              )}
+            </>
           )}
         </div>
       </nav>

@@ -5,7 +5,10 @@ export const CAPABILITIES = {
   CASES_EDIT: "cases:edit",
   CASES_DELETE: "cases:delete",
   CASES_MANAGE_STAFF: "cases:manage_staff",
-  STAFF_DIRECTORY_VIEW: "staff_directory:view",
+  ROSTER_VIEW: "roster:view",
+  ROSTER_MANAGE: "roster:manage",
+  BULLETIN_VIEW: "bulletin:view",
+  ANNOUNCEMENTS_MANAGE: "announcements:manage",
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];

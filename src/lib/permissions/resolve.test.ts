@@ -142,12 +142,32 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(hasCapability(tiers, CAPABILITIES.CASES_DELETE)).toBe(false);
   });
 
-  it("law enforcement and government tiers cannot view the dashboard", async () => {
+  it("law enforcement and government tiers reach the staff portal but not case data", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     expect(hasCapability([PERMISSION_TIERS.LAW_ENFORCEMENT], CAPABILITIES.DASHBOARD_VIEW)).toBe(
+      true
+    );
+    expect(hasCapability([PERMISSION_TIERS.LAW_ENFORCEMENT], CAPABILITIES.CASES_VIEW)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.GOVERNMENT], CAPABILITIES.CASES_VIEW)).toBe(false);
+  });
+
+  it("only law enforcement (not government) can read the bulletin", async () => {
+    const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
+    expect(hasCapability([PERMISSION_TIERS.LAW_ENFORCEMENT], CAPABILITIES.BULLETIN_VIEW)).toBe(
+      true
+    );
+    expect(hasCapability([PERMISSION_TIERS.GOVERNMENT], CAPABILITIES.BULLETIN_VIEW)).toBe(false);
+  });
+
+  it("only the district attorney tier can manage the roster", async () => {
+    const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
+    expect(
+      hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)
+    ).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.DA_PARALEGAL], CAPABILITIES.ROSTER_MANAGE)).toBe(
       false
     );
-    expect(hasCapability([PERMISSION_TIERS.GOVERNMENT], CAPABILITIES.DASHBOARD_VIEW)).toBe(false);
   });
 
   it("hasAnyCapability is true if any tier grants any listed capability", async () => {

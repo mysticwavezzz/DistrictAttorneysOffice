@@ -9,7 +9,7 @@ import { TipsSection } from "@/components/tips-section";
 async function getPublishedAnnouncements(): Promise<AnnouncementListItem[]> {
   try {
     return await prisma.announcement.findMany({
-      where: { isPublished: true },
+      where: { isPublished: true, audience: "PUBLIC" },
       orderBy: { publishedAt: "desc" },
       take: 6,
     });

@@ -1,17 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Source_Sans_3 } from "next/font/google";
 import { auth, signIn, signOut } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
-import "./login-theme.css";
-
-const loginFont = Source_Sans_3({
-  subsets: ["latin"],
-  weight: ["300", "400", "600"],
-  style: ["normal", "italic"],
-  variable: "--font-login-sans",
-  display: "swap",
-});
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 
 const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "Your Discord account doesn't hold a staff role that grants access to that page.",
@@ -43,82 +35,88 @@ export default async function LoginPage({
   const isSignedInButForbidden = Boolean(session?.user?.discordUserId) && Boolean(searchParams.error);
 
   return (
-    <div className={`login-scope login-shell ${loginFont.variable}`} style={{ fontFamily: "var(--font-login-sans), Arial, sans-serif" }}>
-      <div className="login-window">
-        <div className="login-header">
-          <div className="login-bluemain">
-            <div className="login-pat" aria-hidden="true" />
-            <div>
-              <div className="login-t1">{siteConfig.county.toUpperCase()}</div>
-              <div className="login-t2">STAFF PORTAL</div>
+    <div className="wrap">
+      <a href="#main" className="skiplink">
+        Skip to main content
+      </a>
+
+      <SiteHeader />
+
+      <div className="body">
+        <aside className="side">
+          <div className="sbox">
+            <h3>This Section</h3>
+            <ul>
+              <li>
+                <Link href="/">Return to Public Site</Link>
+              </li>
+            </ul>
+          </div>
+          <div className="sbox">
+            <h3>Notice</h3>
+            <div className="notice">
+              {siteConfig.county} is a Roblox roleplay community. Staff access is granted
+              through the {siteConfig.county} Discord server and is not affiliated with any
+              real government, county, or agency.
             </div>
           </div>
-          <div className="login-band" />
-          <div className="login-ribbon">
-            <span className="login-tab login-active">SIGN IN</span>
-            <Link href="/" className="login-tab login-right">
-              PUBLIC SITE
-            </Link>
-          </div>
-        </div>
+        </aside>
 
-        <div className="login-page">
-          <p className="login-ptitle">{siteConfig.name}</p>
-
-          {errorMessage && (
-            <p className="login-err" role="alert">
-              {errorMessage}
-            </p>
-          )}
-
-          <p className="login-body">
+        <main className="paper" id="main">
+          <p className="eyebrow">{siteConfig.county}</p>
+          <h1>Staff Sign In</h1>
+          <p className="lede">
             Authorized personnel only. Sign in with the Discord account linked to your Law
             Enforcement, Government, or District Attorney&apos;s Office role. Your server roles
             are checked automatically — no separate staff account is needed.
           </p>
 
-          <hr className="login-rule" />
+          {errorMessage && (
+            <p className="message message-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
 
-          {isSignedInButForbidden ? (
-            <>
-              <p className="login-body">
-                Signed in as <strong>{session!.user.displayName}</strong>. Sign out to try a
-                different Discord account.
-              </p>
+          <div className="formbox" style={{ maxWidth: 420 }}>
+            {isSignedInButForbidden ? (
+              <>
+                <p>
+                  Signed in as <strong>{session!.user.displayName}</strong>. Sign out to try a
+                  different Discord account.
+                </p>
+                <form
+                  action={async () => {
+                    "use server";
+                    await signOut({ redirectTo: "/login" });
+                  }}
+                >
+                  <button type="submit" className="govbtn">
+                    Sign Out
+                  </button>
+                </form>
+              </>
+            ) : (
               <form
                 action={async () => {
                   "use server";
-                  await signOut({ redirectTo: "/login" });
+                  await signIn("discord", { redirectTo: callbackUrl });
                 }}
               >
-                <div className="login-btnrow">
-                  <button type="submit" className="login-btn login-wide">
-                    Sign Out
-                  </button>
-                </div>
-              </form>
-            </>
-          ) : (
-            <form
-              action={async () => {
-                "use server";
-                await signIn("discord", { redirectTo: callbackUrl });
-              }}
-            >
-              <div className="login-btnrow">
-                <button type="submit" className="login-btn login-blurple login-wide">
+                <button type="submit" className="govbtn-discord">
                   Sign in with Discord
                 </button>
-              </div>
-            </form>
-          )}
+              </form>
+            )}
+          </div>
 
-          <p className="login-note">
+          <p className="note-inline" style={{ marginTop: 14 }}>
             Don&apos;t have staff access but think you should? Contact office leadership
             in-game.
           </p>
-        </div>
+        </main>
       </div>
+
+      <SiteFooter />
     </div>
   );
 }

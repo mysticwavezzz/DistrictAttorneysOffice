@@ -26,11 +26,13 @@ export default auth((req) => {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = buildCsp(nonce);
 
+  const { pathname } = req.nextUrl;
+
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("x-pathname", pathname);
   requestHeaders.set("Content-Security-Policy", csp);
 
-  const { pathname } = req.nextUrl;
   const rule = findRouteRule(pathname);
   if (rule) {
     const user = req.auth?.user;

@@ -22,19 +22,19 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
     id: PERMISSION_TIERS.LAW_ENFORCEMENT,
     label: "Law Enforcement",
     description: "Verified member of a recognized law enforcement agency.",
-    capabilities: [CAPABILITIES.STAFF_DIRECTORY_VIEW],
+    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.ROSTER_VIEW, CAPABILITIES.BULLETIN_VIEW],
   },
   [PERMISSION_TIERS.GOVERNMENT]: {
     id: PERMISSION_TIERS.GOVERNMENT,
     label: "Government",
     description: "Verified member of county government.",
-    capabilities: [CAPABILITIES.STAFF_DIRECTORY_VIEW],
+    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.ROSTER_VIEW],
   },
   [PERMISSION_TIERS.DA_PARALEGAL]: {
     id: PERMISSION_TIERS.DA_PARALEGAL,
     label: "Paralegal",
     description: "District Attorney's Office paralegal staff.",
-    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.CASES_VIEW],
+    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.CASES_VIEW, CAPABILITIES.ROSTER_VIEW],
   },
   [PERMISSION_TIERS.DA_ATTORNEY]: {
     id: PERMISSION_TIERS.DA_ATTORNEY,
@@ -45,6 +45,8 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.CASES_VIEW,
       CAPABILITIES.CASES_CREATE,
       CAPABILITIES.CASES_EDIT,
+      CAPABILITIES.ROSTER_VIEW,
+      CAPABILITIES.ANNOUNCEMENTS_MANAGE,
     ],
   },
   [PERMISSION_TIERS.DISTRICT_ATTORNEY]: {
@@ -58,6 +60,9 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.CASES_EDIT,
       CAPABILITIES.CASES_DELETE,
       CAPABILITIES.CASES_MANAGE_STAFF,
+      CAPABILITIES.ROSTER_VIEW,
+      CAPABILITIES.ROSTER_MANAGE,
+      CAPABILITIES.ANNOUNCEMENTS_MANAGE,
     ],
   },
 };

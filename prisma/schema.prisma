@@ -16,10 +16,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  assignedCases Case[]    @relation("AssignedAttorney")
-  createdCases  Case[]    @relation("CreatedBy")
+  accounts            Account[]
+  sessions            Session[]
+  assignedCases       Case[]         @relation("AssignedAttorney")
+  createdCases        Case[]         @relation("CreatedBy")
+  createdAnnouncements Announcement[] @relation("CreatedAnnouncements")
 }
 
 model Account {
@@ -59,28 +60,53 @@ model VerificationToken {
 }
 
 model Case {
-  id                 String   @id @default(cuid())
-  caseNumber         String   @unique
+  id                 String    @id @default(cuid())
+  caseNumber         String    @unique
   title              String
-  status             String   @default("OPEN")
+  type               String?
+  stage              String?
+  disclosures        String?
+  discGiven          DateTime?
+  discDue            DateTime?
+  pretrial           DateTime?
+  otherDates         String?
+  outcome            String?
+  closedOn           DateTime?
+  appealBy           DateTime?
+  archived           Boolean   @default(false)
   summary            String
   assignedAttorneyId String?
   createdById        String
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   assignedAttorney User? @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
   createdBy        User  @relation("CreatedBy", fields: [createdById], references: [id])
 
-  @@index([status])
+  @@index([archived])
 }
 
 model Announcement {
   id          String   @id @default(cuid())
   title       String
   body        String
+  audience    String   @default("PUBLIC")
   publishedAt DateTime @default(now())
   isPublished Boolean  @default(true)
+  createdById String?
 
-  @@index([isPublished, publishedAt])
+  createdBy User? @relation("CreatedAnnouncements", fields: [createdById], references: [id])
+
+  @@index([audience, isPublished, publishedAt])
+}
+
+model RosterEntry {
+  id            String    @id @default(cuid())
+  name          String
+  discordUserId String?
+  position      String
+  badgeNumber   String?
+  startDate     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }

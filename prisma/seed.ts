@@ -3,26 +3,6 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.announcement.createMany({
-    data: [
-      {
-        title: "Office Statement on Recent Court Proceedings",
-        body: "The District Attorney's Office remains committed to pursuing justice fairly and transparently for all residents of the county. Updates on ongoing proceedings will be posted here as they become available.",
-        isPublished: true,
-      },
-      {
-        title: "New Diversion Program Launched for First-Time Offenders",
-        body: "Our office has partnered with county services to launch a diversion program aimed at reducing recidivism among first-time, non-violent offenders. Details on eligibility are available by contacting our office directly.",
-        isPublished: true,
-      },
-      {
-        title: "Office Hours Update",
-        body: "The District Attorney's Office public records desk will observe updated hours starting next week. Please see the General Information section below for current hours.",
-        isPublished: true,
-      },
-    ],
-  });
-
   const attorney = await prisma.user.upsert({
     where: { discordUserId: "1" },
     update: {},
@@ -33,32 +13,78 @@ async function main() {
     },
   });
 
+  await prisma.announcement.createMany({
+    data: [
+      {
+        title: "Office Statement on Recent Court Proceedings",
+        body: "The District Attorney's Office remains committed to pursuing justice fairly and transparently for all residents of the county. Updates on ongoing proceedings will be posted here as they become available.",
+        audience: "PUBLIC",
+        isPublished: true,
+        createdById: attorney.id,
+      },
+      {
+        title: "New Diversion Program Launched for First-Time Offenders",
+        body: "Our office has partnered with county services to launch a diversion program aimed at reducing recidivism among first-time, non-violent offenders. Details on eligibility are available by contacting our office directly.",
+        audience: "PUBLIC",
+        isPublished: true,
+        createdById: attorney.id,
+      },
+      {
+        title: "Office Hours Update",
+        body: "The District Attorney's Office public records desk will observe updated hours starting next week. Please see the General Information section below for current hours.",
+        audience: "PUBLIC",
+        isPublished: true,
+        createdById: attorney.id,
+      },
+      {
+        title: "Evidence Submission Reminder",
+        body: "All evidence packets submitted with a case referral should include chain-of-custody documentation. Referrals missing this documentation will be returned for resubmission.",
+        audience: "LAW_ENFORCEMENT",
+        isPublished: true,
+        createdById: attorney.id,
+      },
+    ],
+  });
+
   await prisma.case.createMany({
     data: [
       {
         caseNumber: "DA-2026-0142",
         title: "State v. Doe",
-        status: "UNDER_REVIEW",
+        type: "Felony",
+        stage: "Discovery",
         summary: "Referred by county sheriff's office; under prosecutorial review.",
         assignedAttorneyId: attorney.id,
         createdById: attorney.id,
+        archived: false,
       },
       {
         caseNumber: "DA-2026-0139",
         title: "State v. Smith",
-        status: "CHARGES_FILED",
+        type: "Misdemeanor",
+        stage: "Pretrial",
         summary: "Charges filed; arraignment scheduled.",
         assignedAttorneyId: attorney.id,
         createdById: attorney.id,
+        archived: false,
       },
       {
         caseNumber: "DA-2026-0121",
         title: "State v. Roe",
-        status: "CLOSED",
+        type: "Felony",
+        stage: "Closed",
+        outcome: "Plea agreement",
         summary: "Resolved via plea agreement.",
         assignedAttorneyId: attorney.id,
         createdById: attorney.id,
+        archived: true,
       },
+    ],
+  });
+
+  await prisma.rosterEntry.createMany({
+    data: [
+      { name: "Demo Attorney", position: "District Attorney", badgeNumber: "DA-001" },
     ],
   });
 }
