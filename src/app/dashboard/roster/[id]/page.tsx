@@ -44,7 +44,7 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
           </div>
           <div className="field">
             <label htmlFor="rank">
-              Rank <span className="hint">(optional — CADA and above appear as office leadership)</span>
+              Rank <span className="hint">(optional — leadership ranks appear on the Office Info page)</span>
             </label>
             <select id="rank" name="rank" defaultValue={entry.rank ?? ""}>
               <option value="">No rank set</option>
@@ -56,26 +56,18 @@ export default async function EditRosterEntryPage({ params }: { params: { id: st
             </select>
           </div>
         </div>
-        <div className="field-row">
-          <div className="field">
-            <label htmlFor="unit">
-              Unit <span className="hint">(optional)</span>
-            </label>
-            <select id="unit" name="unit" defaultValue={entry.unit ?? ""}>
-              <option value="">No unit set</option>
-              {UNITS.map((u) => (
-                <option key={u.value} value={u.value}>
-                  {u.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none", marginTop: 20 }}>
-              <input type="checkbox" name="isUnitLead" defaultChecked={entry.isUnitLead} />
-              This person leads the unit above
-            </label>
-          </div>
+        <div className="field" style={{ maxWidth: 320 }}>
+          <label htmlFor="unit">
+            Unit <span className="hint">(optional)</span>
+          </label>
+          <select id="unit" name="unit" defaultValue={entry.unit ?? ""}>
+            <option value="">No unit set</option>
+            {UNITS.map((u) => (
+              <option key={u.value} value={u.value}>
+                {u.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="field-row">
           <div className="field">

@@ -47,7 +47,7 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
   [PERMISSION_TIERS.DA_ATTORNEY]: {
     id: PERMISSION_TIERS.DA_ATTORNEY,
     label: "Attorney",
-    description: "District Attorney's Office prosecuting attorney (Assistant District Attorney).",
+    description: "District Attorney's Office prosecuting attorney.",
     capabilities: [
       CAPABILITIES.DASHBOARD_VIEW,
       CAPABILITIES.CASES_VIEW,
@@ -61,12 +61,12 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
   [PERMISSION_TIERS.SPECIAL_INVESTIGATIONS]: {
     id: PERMISSION_TIERS.SPECIAL_INVESTIGATIONS,
     label: "Special Investigations Bureau",
-    description: "Writes AOPCs and reviews criminal tips referred to the office.",
+    description: "Writes affidavits of probable cause and reviews criminal tips referred to the office.",
     capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.AOPC_SUBMIT],
   },
   [PERMISSION_TIERS.SUPERVISING_ADA]: {
     id: PERMISSION_TIERS.SUPERVISING_ADA,
-    label: "Supervising ADA",
+    label: "Supervisory Assistant District Attorney",
     description: "Supervises assistant district attorneys; oversees the full case docket.",
     capabilities: [
       CAPABILITIES.DASHBOARD_VIEW,

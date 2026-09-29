@@ -34,7 +34,7 @@ export default async function NewCasePage() {
       <h1>{canCreate ? "New Case" : "Propose New Case"}</h1>
       {!canCreate && (
         <p className="note-inline">
-          This will be submitted for review by a Supervising ADA before it appears on the docket.
+          This will be submitted for review by office leadership before it appears on the docket.
         </p>
       )}
 
@@ -140,7 +140,7 @@ export default async function NewCasePage() {
           <div className="field">
             <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
               <input type="checkbox" name="isDraft" />
-              Save as draft (only visible to you and Supervising ADA+ until published)
+              Save as draft (only visible to you and office leadership until published)
             </label>
           </div>
         )}

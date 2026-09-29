@@ -202,7 +202,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         {canPropose && (
           <div className="formbox">
             <h2 style={{ marginTop: 0 }}>Propose an Edit</h2>
-            <p className="note-inline">Submitted for review by a Supervising ADA before it takes effect.</p>
+            <p className="note-inline">Submitted for review by office leadership before it takes effect.</p>
             <form action={submitCaseRequest} className="formbox" style={{ border: 0, padding: 0 }}>
               <input type="hidden" name="caseId" value={caseRecord.id} />
               <div className="field-row">
@@ -411,7 +411,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           <div className="field">
             <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
               <input type="checkbox" name="isDraft" defaultChecked={caseRecord.isDraft} />
-              Draft (only visible to you and Supervising ADA+)
+              Draft (only visible to you and office leadership)
             </label>
           </div>
         </div>

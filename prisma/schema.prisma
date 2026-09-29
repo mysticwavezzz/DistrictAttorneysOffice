@@ -183,7 +183,6 @@ model RosterEntry {
   position      String
   rank          String?
   unit          String?
-  isUnitLead    Boolean   @default(false)
   imageUrl      String?
   about         String?
   badgeNumber   String?

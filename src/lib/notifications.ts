@@ -11,8 +11,8 @@ export const NOTIFICATION_TYPES: { value: string; label: string }[] = [
   { value: "case_request_reviewed", label: "Your proposed change was reviewed" },
   { value: "release_published", label: "New release published" },
   { value: "records_request", label: "New public records request" },
-  { value: "aopc_submitted", label: "New AOPC awaiting review" },
-  { value: "aopc_reviewed", label: "Your AOPC was reviewed" },
+  { value: "aopc_submitted", label: "New affidavit of probable cause awaiting review" },
+  { value: "aopc_reviewed", label: "Your affidavit of probable cause was reviewed" },
 ];
 
 interface NotifyInput {

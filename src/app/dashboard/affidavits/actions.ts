@@ -34,7 +34,7 @@ export async function submitAopc(formData: FormData) {
   const { session, user } = await requireSubmitter();
 
   const parsed = aopcInputSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) throw new Error("Invalid AOPC");
+  if (!parsed.success) throw new Error("Invalid affidavit submission");
   const data = parsed.data;
 
   const created = await prisma.aopc.create({
@@ -52,16 +52,21 @@ export async function submitAopc(formData: FormData) {
     reviewerIds.filter((id) => id !== user.id),
     {
       type: "aopc_submitted",
-      title: `New AOPC for ${data.targetUnit}: ${data.title}`,
+      title: `New affidavit of probable cause for ${data.targetUnit}: ${data.title}`,
       body: `Submitted by ${session.user.displayName}`,
-      link: "/dashboard/aopcs",
+      link: "/dashboard/affidavits",
     }
   );
 
-  await logActivity(session.user.displayName, "submitted", "AOPC", `${created.title} (${data.targetUnit})`);
+  await logActivity(
+    session.user.displayName,
+    "submitted",
+    "affidavit of probable cause",
+    `${created.title} (${data.targetUnit})`
+  );
 
-  revalidatePath("/dashboard/aopcs");
-  redirect("/dashboard/aopcs");
+  revalidatePath("/dashboard/affidavits");
+  redirect("/dashboard/affidavits");
 }
 
 export async function reviewAopc(formData: FormData) {
@@ -76,7 +81,7 @@ export async function reviewAopc(formData: FormData) {
 
   const aopc = await prisma.aopc.findUnique({ where: { id } });
   if (!aopc || aopc.status !== "PENDING") {
-    throw new Error("AOPC not found or already reviewed");
+    throw new Error("Affidavit not found or already reviewed");
   }
 
   let linkedCaseId: string | null = null;
@@ -86,9 +91,9 @@ export async function reviewAopc(formData: FormData) {
       data: {
         title: aopc.title,
         caseNumber,
-        type: "AOPC Referral",
+        type: "Affidavit Referral",
         stage: "Intake",
-        summary: `Referred from an accepted AOPC (subject: ${aopc.subject}).\n\n${aopc.narrative}`,
+        summary: `Referred from an accepted affidavit of probable cause (subject: ${aopc.subject}).\n\n${aopc.narrative}`,
         createdById: user.id,
       },
     });
@@ -109,12 +114,20 @@ export async function reviewAopc(formData: FormData) {
   await notify({
     userId: aopc.submittedById,
     type: "aopc_reviewed",
-    title: decision === "ACCEPT" ? "Your AOPC was accepted" : "Your AOPC was rejected",
+    title:
+      decision === "ACCEPT"
+        ? "Your affidavit of probable cause was accepted"
+        : "Your affidavit of probable cause was rejected",
     body: note || undefined,
-    link: linkedCaseId ? `/dashboard/cases/${linkedCaseId}` : "/dashboard/aopcs",
+    link: linkedCaseId ? `/dashboard/cases/${linkedCaseId}` : "/dashboard/affidavits",
   });
 
-  await logActivity(session.user.displayName, decision === "ACCEPT" ? "accepted" : "rejected", "AOPC", aopc.title);
+  await logActivity(
+    session.user.displayName,
+    decision === "ACCEPT" ? "accepted" : "rejected",
+    "affidavit of probable cause",
+    aopc.title
+  );
 
-  revalidatePath("/dashboard/aopcs");
+  revalidatePath("/dashboard/affidavits");
 }

@@ -1,6 +1,6 @@
 export const siteConfig = {
   name: "District Attorney's Office",
-  shortName: "DA's Office",
+  shortName: "District Attorney's Office",
   county: "Harrison County",
   tagline: "Pursuing Justice. Protecting the Community.",
   description:

@@ -94,7 +94,7 @@ export default async function DashboardOverviewPage() {
     try {
       pendingAopcs = await prisma.aopc.count({ where: { status: "PENDING" } });
     } catch (error) {
-      console.error("Failed to load pending AOPC count", error);
+      console.error("Failed to load pending affidavit count", error);
     }
   }
 
@@ -155,8 +155,8 @@ export default async function DashboardOverviewPage() {
           </Link>
         )}
         {canReviewAopcs && pendingAopcs > 0 && (
-          <Link href="/dashboard/aopcs" className="card">
-            <span className="card-label">Pending AOPCs</span>
+          <Link href="/dashboard/affidavits" className="card">
+            <span className="card-label">Pending Affidavits</span>
             <span className="card-value">{pendingAopcs}</span>
           </Link>
         )}

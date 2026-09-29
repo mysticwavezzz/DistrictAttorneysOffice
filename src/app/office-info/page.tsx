@@ -4,16 +4,20 @@ import { siteConfig } from "@/config/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
-import { isLeadershipRank } from "@/config/ranks";
-import { unitLabel } from "@/config/units";
+import { LEADERSHIP_RANKS } from "@/config/ranks";
 
-async function getLeadership() {
+type RosterEntry = Awaited<ReturnType<typeof prisma.rosterEntry.findMany>>[number];
+
+async function getLeadershipPositions() {
   try {
     const entries = await prisma.rosterEntry.findMany({ orderBy: { name: "asc" } });
-    return entries.filter((e) => isLeadershipRank(e.rank) || e.isUnitLead);
+    return LEADERSHIP_RANKS.map((rankDef) => ({
+      rankDef,
+      entry: entries.find((e) => e.rank === rankDef.value) ?? null,
+    }));
   } catch (error) {
     console.error("Failed to load leadership", error);
-    return [];
+    return LEADERSHIP_RANKS.map((rankDef) => ({ rankDef, entry: null as RosterEntry | null }));
   }
 }
 
@@ -31,7 +35,7 @@ function formatTenure(startDate: Date | null): string {
 }
 
 export default async function OfficeInfoPage() {
-  const leadership = await getLeadership();
+  const positions = await getLeadershipPositions();
 
   return (
     <div className="wrap">
@@ -83,51 +87,49 @@ export default async function OfficeInfoPage() {
           </p>
 
           <h2>Office Leadership</h2>
-          {leadership.length === 0 ? (
-            <div className="message">Leadership listings will appear here once published.</div>
-          ) : (
-            <div className="infobox-grid">
-              {leadership.map((entry) => (
-                <div key={entry.id} className="infobox">
-                  <div className="infobox-title">{entry.name}</div>
-                  <div className="infobox-photo">
-                    {entry.imageUrl ? (
-                      <img src={entry.imageUrl} alt="" />
-                    ) : (
-                      <span className="infobox-photo-fallback" aria-hidden="true" />
-                    )}
-                  </div>
-                  <table className="infobox-table">
-                    <tbody>
-                      <tr>
-                        <th>Position</th>
-                        <td>{entry.rank}</td>
-                      </tr>
-                      {entry.unit && (
-                        <tr>
-                          <th>Unit</th>
-                          <td>
-                            {unitLabel(entry.unit)}
-                            {entry.isUnitLead && " (Lead)"}
-                          </td>
-                        </tr>
-                      )}
-                      <tr>
-                        <th>Serving Since</th>
-                        <td>{formatTenure(entry.startDate)}</td>
-                      </tr>
-                      {entry.about && (
-                        <tr>
-                          <th>About</th>
-                          <td>{entry.about}</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+          <div className="infobox-grid">
+            {positions.map(({ rankDef, entry }) => (
+              <div key={rankDef.value} className="infobox">
+                <div className="infobox-title">{entry ? entry.name : "Vacant"}</div>
+                <div className="infobox-photo">
+                  {entry?.imageUrl ? (
+                    <img src={entry.imageUrl} alt="" />
+                  ) : (
+                    <span className="infobox-photo-fallback" aria-hidden="true" />
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+                <table className="infobox-table">
+                  <tbody>
+                    <tr>
+                      <th>Position</th>
+                      <td>{rankDef.label}</td>
+                    </tr>
+                    {entry ? (
+                      <>
+                        <tr>
+                          <th>Serving Since</th>
+                          <td>{formatTenure(entry.startDate)}</td>
+                        </tr>
+                        {entry.about && (
+                          <tr>
+                            <th>About</th>
+                            <td>{entry.about}</td>
+                          </tr>
+                        )}
+                      </>
+                    ) : (
+                      <tr>
+                        <th>Status</th>
+                        <td>
+                          <span className="pill pill-muted">Vacant</span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         </main>
       </div>
 
