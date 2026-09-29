@@ -26,6 +26,10 @@
   --prov: #8a6a12;
   --notice-bg: #faf5e4;
   --heading: #2a3d6d;
+  /* Selected-tab/pressed-button highlight on the navy chrome; kept the same in both
+     themes on purpose since the chrome itself already goes lighter in dark mode. */
+  --chip-bg: #e3d9bf;
+  --chip-ink: #2a3d6d;
   --col: 1080px;
   --pad: 18px;
   --serif: Georgia, "Times New Roman", Times, serif;
@@ -176,9 +180,9 @@ img {
 }
 
 .sz button[aria-pressed="true"] {
-  background: var(--parchment);
-  border-color: var(--parchment);
-  color: var(--heading);
+  background: var(--chip-bg);
+  border-color: var(--chip-bg);
+  color: var(--chip-ink);
   font-weight: bold;
 }
 
@@ -366,8 +370,8 @@ img {
 }
 
 .nav a.on {
-  background: var(--parchment);
-  color: var(--heading);
+  background: var(--chip-bg);
+  color: var(--chip-ink);
 }
 
 .nav-group {
@@ -441,7 +445,7 @@ img {
 }
 
 .sbox li {
-  border-bottom: 1px solid #e4e0d5;
+  border-bottom: 1px solid var(--bd-lt);
 }
 
 .sbox li:last-child {
@@ -456,7 +460,7 @@ img {
 }
 
 .sbox li a:hover {
-  background: #eef1f8;
+  background: var(--box-alt);
   text-decoration: underline;
 }
 
@@ -690,6 +694,26 @@ a.card:hover {
   background: var(--box-alt);
 }
 
+:root[data-theme="dark"] .pill-green {
+  border-color: #3f5f3f;
+  background: #1f3320;
+}
+
+:root[data-theme="dark"] .pill-gold {
+  border-color: #6b5827;
+  background: #392f14;
+}
+
+:root[data-theme="dark"] .pill-red {
+  border-color: #6b3d30;
+  background: #3a1f1a;
+}
+
+:root[data-theme="dark"] .pill-navy {
+  border-color: #3a4a70;
+  background: #1f2940;
+}
+
 
 .tablewrap {
   overflow-x: auto;
@@ -832,16 +856,16 @@ table.stat tbody tr:hover {
 .govbtn-outline {
   font: bold 12px var(--sans);
   padding: 6px 14px;
-  border: 1px solid var(--bd-lt);
+  border: 1px solid var(--bd);
   background: transparent;
-  color: #e7ebf5;
+  color: var(--link);
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
 }
 
 .govbtn-outline:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--box-alt);
 }
 
 .govbtn-discord {
@@ -1127,6 +1151,39 @@ table.stat tbody tr:hover {
   border-color: var(--bd-lt);
 }
 
+
+.notif-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  padding: 2px;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.notif-bell:hover {
+  color: #fff;
+}
+
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: #d64545;
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 14px;
+  text-align: center;
+}
 
 .notif-panel {
   position: absolute;

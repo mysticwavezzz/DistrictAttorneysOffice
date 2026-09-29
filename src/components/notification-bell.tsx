@@ -56,12 +56,30 @@ export function NotificationBell() {
     <div ref={boxRef} style={{ position: "relative" }}>
       <button
         type="button"
-        className="linklike"
+        className="notif-bell"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
       >
-        Notifications{unreadCount > 0 ? ` (${unreadCount})` : ""}
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+          <path
+            d="M10 2.5c-2.2 0-4 1.8-4 4v2.3c0 .5-.2 1-.5 1.4l-1.2 1.5c-.5.6 0 1.5.8 1.5h9.8c.8 0 1.3-.9.8-1.5l-1.2-1.5c-.3-.4-.5-.9-.5-1.4V6.5c0-2.2-1.8-4-4-4z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8.2 15.5a1.8 1.8 0 0 0 3.6 0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+        </svg>
+        {unreadCount > 0 && (
+          <span className="notif-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>
+        )}
       </button>
 
       {open && (

@@ -45,7 +45,7 @@ export default async function RecordsRequestsPage() {
                 <option value="FULFILLED">Fulfilled</option>
                 <option value="DENIED">Denied</option>
               </select>
-              <button type="submit" className="govbtn-outline" style={{ color: "var(--link)", border: "1px solid var(--bd)" }}>
+              <button type="submit" className="govbtn-outline">
                 Update Status
               </button>
             </form>

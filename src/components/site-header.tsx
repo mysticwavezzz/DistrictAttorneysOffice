@@ -41,9 +41,9 @@ export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {})
             <ThemeToggle />
             {isStaff ? (
               <>
-                <NotificationBell />
                 {!staffNav && canViewDashboard && <Link href="/dashboard">Staff Dashboard</Link>}
                 <span>{session!.user.displayName}</span>
+                <NotificationBell />
                 <form
                   action={async () => {
                     "use server";

@@ -102,11 +102,7 @@ export default async function CasesPage({
               Propose New Case
             </Link>
           )}
-          <Link
-            href={`/dashboard/cases/export${qs({})}`}
-            className="govbtn-outline"
-            style={{ color: "var(--link)", border: "1px solid var(--bd)" }}
-          >
+          <Link href={`/dashboard/cases/export${qs({})}`} className="govbtn-outline">
             Export CSV
           </Link>
         </div>
@@ -142,7 +138,7 @@ export default async function CasesPage({
             ))}
           </select>
         </div>
-        <button type="submit" className="govbtn-outline" style={{ color: "var(--link)", border: "1px solid var(--bd)" }}>
+        <button type="submit" className="govbtn-outline">
           Filter
         </button>
       </form>

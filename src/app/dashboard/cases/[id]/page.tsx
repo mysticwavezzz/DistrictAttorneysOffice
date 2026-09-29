@@ -131,7 +131,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         <div className="field" style={{ flex: "1 1 220px" }}>
           <input type="text" name="url" placeholder="https://…" maxLength={2000} required />
         </div>
-        <button type="submit" className="govbtn-outline" style={{ color: "var(--link)", border: "1px solid var(--bd)" }}>
+        <button type="submit" className="govbtn-outline">
           Attach
         </button>
       </form>
@@ -158,7 +158,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         <div className="field" style={{ flex: "1 1 100%" }}>
           <textarea name="body" rows={2} maxLength={4000} placeholder="Add a case update…" required />
         </div>
-        <button type="submit" className="govbtn-outline" style={{ color: "var(--link)", border: "1px solid var(--bd)" }}>
+        <button type="submit" className="govbtn-outline">
           Post Update
         </button>
       </form>
