@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { tipFormSchema } from "@/lib/validation/tip";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, releaseRateLimit } from "@/lib/rate-limit";
 import { CRIME_TIP_FORM, type CrimeTipFormConfiguration } from "@/config/crime-tip-form";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { isAllowedRequestOrigin } from "@/lib/http/request-origin";
+import { prisma } from "@/lib/prisma";
 
 const MIN_HUMAN_FILL_TIME_MS = 3_000;
 
@@ -24,18 +25,13 @@ function isSameOriginRequest(req: NextRequest): boolean {
   });
 }
 
+function normalizeTipIdentifier(value: string): string {
+  return value.trim().toLocaleLowerCase("en-US").replace(/\s+/g, " ");
+}
+
 export async function POST(req: NextRequest) {
   if (!isSameOriginRequest(req)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
-  }
-
-  const ip = getClientIp(req);
-  const rate = await checkRateLimit(`tip:${ip}`, { limit: 5, windowMs: 15 * 60 * 1000 });
-  if (!rate.allowed) {
-    return NextResponse.json(
-      { error: "Too many submissions from this connection. Please try again later." },
-      { status: 429 }
-    );
   }
 
   let body: unknown;
@@ -59,13 +55,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Please check the incident type, date, and required details." }, { status: 400 });
   }
 
+  const ip = getClientIp(req);
+  const ipLimit = await checkRateLimit(`tip:${ip}`, { limit: 5, windowMs: 15 * 60 * 1000 });
+  if (!ipLimit.allowed) {
+    return NextResponse.json({ error: "Too many submissions from this connection. Please try again later." }, { status: 429 });
+  }
+
   const submittedTooFast = Date.now() - renderedAt < MIN_HUMAN_FILL_TIME_MS;
   if (website) {
     return NextResponse.json({ success: true });
   }
   if (submittedTooFast) return NextResponse.json({ error: "Please wait a moment and try submitting again." }, { status: 429 });
 
+  const robloxKey = normalizeTipIdentifier(tip.submitterRoblox);
+  const discordKey = normalizeTipIdentifier(tip.submitterDiscord);
+  const blacklist = await prisma.crimeTipBlacklist.findFirst({
+    where: { OR: [{ kind: "roblox", identifierKey: `roblox:${robloxKey}` }, { kind: "discord", identifierKey: `discord:${discordKey}` }] },
+    select: { id: true },
+  });
+  if (blacklist) {
+    return NextResponse.json({ error: "This submission cannot be accepted. Contact the site administrator if you believe this is an error." }, { status: 403 });
+  }
+
+  const hourlyRobloxKey = `tip-hour:roblox:${robloxKey}`;
+  const hourlyDiscordKey = `tip-hour:discord:${discordKey}`;
+  const robloxRate = await checkRateLimit(hourlyRobloxKey, { limit: 1, windowMs: 60 * 60 * 1000 });
+  if (!robloxRate.allowed) {
+    return NextResponse.json({ error: "Only one tip may be submitted per hour for these submitter details." }, { status: 429 });
+  }
+  const discordRate = await checkRateLimit(hourlyDiscordKey, { limit: 1, windowMs: 60 * 60 * 1000 });
+  if (!discordRate.allowed) {
+    await releaseRateLimit(hourlyRobloxKey);
+    return NextResponse.json({ error: "Only one tip may be submitted per hour for these submitter details." }, { status: 429 });
+  }
+  const releaseHourlyLimits = async () => Promise.all([releaseRateLimit(hourlyRobloxKey), releaseRateLimit(hourlyDiscordKey)]);
+
   if (!form.actionUrl || !form.entries || !form.actionUrl.startsWith("https://docs.google.com/forms/")) {
+    await releaseHourlyLimits();
     return NextResponse.json({ error: "The online tip line is temporarily unavailable. Please try again later." }, { status: 503 });
   }
 
@@ -109,6 +135,7 @@ export async function POST(req: NextRequest) {
       throw new Error(`Google Forms responded with status ${res.status}`);
     }
   } catch (error) {
+    await releaseHourlyLimits();
     console.error("Failed to forward tip submission to Google Forms", error);
     return NextResponse.json(
       { error: "We couldn't submit your tip right now. Please try again shortly." },

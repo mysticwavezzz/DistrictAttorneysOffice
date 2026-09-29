@@ -9,6 +9,6 @@ export const siteConfig = {
     { label: "Home", href: "/" },
     { label: "Announcements", href: "/#announcements" },
     { label: "Submit a Tip", href: "/#tips" },
-    { label: "Discord Contacts", href: "/contacts" },
+    { label: "Contact Us", href: "/contacts" },
   ],
 } as const;

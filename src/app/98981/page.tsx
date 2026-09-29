@@ -10,7 +10,7 @@ import { getSiteSettings } from "@/lib/site-settings";
 import { env } from "@/lib/env";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { ClearDataForm } from "./clear-data-form";
-import { updateMaintenanceSettings, updateNotificationSettings, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup } from "./actions";
+import { updateMaintenanceSettings, updateNotificationSettings, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup, addCrimeTipBlacklistEntry, removeCrimeTipBlacklistEntry } from "./actions";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
 import { getSiteConfiguration } from "@/lib/site-settings";
@@ -34,10 +34,11 @@ export default async function SiteSettingsPage() {
     getSiteConfiguration("ranks", RANKS),
     getSiteConfiguration("caseStatuses", CASE_STATUSES),
   ]);
-  const [tipConfiguration, backups, auditLogs] = await Promise.all([
+  const [tipConfiguration, backups, auditLogs, tipBlacklist] = await Promise.all([
     getSiteConfiguration("crimeTipForm", null),
     prisma.configurationBackup.findMany({ orderBy: { createdAt: "desc" }, take: 10 }).catch(() => []),
     prisma.settingsAuditLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }).catch(() => []),
+    prisma.crimeTipBlacklist.findMany({ orderBy: { createdAt: "desc" } }).catch(() => []),
   ]);
 
   return (
@@ -269,6 +270,18 @@ export default async function SiteSettingsPage() {
           </tbody>
         </table>
       </div>
+
+      <h2>Crime Tip Blacklist</h2>
+      <p className="note-inline">Matching Roblox or Discord submitter identifiers are blocked from sending tips. Matching ignores capitalization and extra spaces.</p>
+      <form action={addCrimeTipBlacklistEntry} className="formbox">
+        <div className="field-row">
+          <div className="field"><label htmlFor="blacklistKind">Identifier type</label><select id="blacklistKind" name="kind" required><option value="roblox">Roblox username or ID</option><option value="discord">Discord username or ID</option></select></div>
+          <div className="field"><label htmlFor="blacklistIdentifier">Identifier</label><input id="blacklistIdentifier" name="identifier" required minLength={2} maxLength={160}/></div>
+        </div>
+        <div className="field"><label htmlFor="blacklistReason">Reason (admin record)</label><input id="blacklistReason" name="reason" required minLength={3} maxLength={500}/></div>
+        <button type="submit" className="govbtn">Add to Tip Blacklist</button>
+      </form>
+      {tipBlacklist.length === 0 ? <p className="message">No identifiers are currently blacklisted.</p> : <div className="tablewrap"><table className="stat"><thead><tr><th>Type</th><th>Identifier</th><th>Reason</th><th>Added by</th><th>Added</th><th>Action</th></tr></thead><tbody>{tipBlacklist.map((entry) => <tr key={entry.id}><td>{entry.kind === "roblox" ? "Roblox" : "Discord"}</td><td>{entry.identifier}</td><td>{entry.reason}</td><td>{entry.createdBy}</td><td>{entry.createdAt.toLocaleString()}</td><td><form action={removeCrimeTipBlacklistEntry}><input type="hidden" name="id" value={entry.id}/><button type="submit" className="linklike">Remove</button></form></td></tr>)}</tbody></table></div>}
 
       <h2 style={{ color: "var(--down)" }}>Danger Zone</h2>
       <div className="formbox" style={{ borderColor: "#6b2018" }}>

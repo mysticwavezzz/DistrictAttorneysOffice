@@ -25,7 +25,7 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h4>Discord Contacts</h4>
+            <h4>Contact Us</h4>
             <ul>{officeDiscordContacts.map((contact) => <li key={contact.handle}>{contact.role}: {contact.handle}</li>)}</ul>
           </div>
 

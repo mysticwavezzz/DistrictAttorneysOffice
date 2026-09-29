@@ -105,6 +105,7 @@ export default async function AffidavitsPage() {
         Affidavits of Probable Cause referred to the Criminal Division or the Public Integrity
         Bureau by the Special Investigations Bureau.
       </p>
+      {canSubmit && <p><a className="govbtn" href="#submit-aopc">Submit a new AOPC ↓</a></p>}
 
       <h2>Pending ({pending.length})</h2>
       {pending.length === 0 ? (
@@ -122,7 +123,7 @@ export default async function AffidavitsPage() {
 
       {canSubmit && (
         <>
-          <h2>Submit a New Affidavit of Probable Cause</h2>
+          <h2 id="submit-aopc">Submit a New Affidavit of Probable Cause</h2>
           <form action={submitAopc} className="formbox">
             <div className="field">
               <label htmlFor="title">Title</label>

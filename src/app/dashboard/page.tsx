@@ -15,6 +15,7 @@ export default async function DashboardOverviewPage() {
   const canApproveRequests = hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS);
   const canViewRequests = hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW);
   const canReviewAopcs = hasCapability(tiers, CAPABILITIES.AOPC_REVIEW);
+  const canSubmitAopcs = hasCapability(tiers, CAPABILITIES.AOPC_SUBMIT);
 
   const user = await localUser(session!.user.discordUserId);
 
@@ -182,6 +183,12 @@ export default async function DashboardOverviewPage() {
           <Link href="/dashboard/affidavits" className="card">
             <span className="card-label">Pending Affidavits</span>
             <span className="card-value">{pendingAopcs}</span>
+          </Link>
+        )}
+        {canSubmitAopcs && (
+          <Link href="/dashboard/affidavits#submit-aopc" className="card">
+            <span className="card-label">Submit an Affidavit of Probable Cause</span>
+            <span className="card-value" aria-hidden="true">＋</span>
           </Link>
         )}
       </div>

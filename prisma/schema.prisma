@@ -277,6 +277,18 @@ model RateLimitBucket {
   resetAt DateTime
 }
 
+model CrimeTipBlacklist {
+  id            String   @id @default(cuid())
+  kind          String
+  identifier    String
+  identifierKey String   @unique
+  reason        String
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  @@index([kind, identifierKey])
+}
+
 model SettingsAuditLog {
   id        String   @id @default(cuid())
   actorName String

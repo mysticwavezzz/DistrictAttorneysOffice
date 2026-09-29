@@ -50,6 +50,35 @@ export async function updateMaintenanceSettings(formData: FormData) {
   revalidatePath("/98981");
 }
 
+export async function addCrimeTipBlacklistEntry(formData: FormData) {
+  const session = await requireSettingsManager();
+  const kind = String(formData.get("kind") ?? "");
+  const identifier = String(formData.get("identifier") ?? "").trim().replace(/\s+/g, " ");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!(kind === "roblox" || kind === "discord") || identifier.length < 2 || identifier.length > 160 || reason.length < 3 || reason.length > 500) {
+    throw new Error("Choose Roblox or Discord, enter an identifier, and provide a reason (3–500 characters).");
+  }
+  const identifierKey = `${kind}:${identifier.toLocaleLowerCase("en-US")}`;
+  await prisma.crimeTipBlacklist.upsert({
+    where: { identifierKey },
+    create: { kind, identifier, identifierKey, reason, createdBy: session.user.displayName },
+    update: { identifier, reason, createdBy: session.user.displayName },
+  });
+  await recordSettingsAudit(session.user.displayName, "Crime tip identifier blacklisted", `${kind} identifier ${identifier} was added to the tip-line blacklist.`);
+  revalidatePath("/98981");
+}
+
+export async function removeCrimeTipBlacklistEntry(formData: FormData) {
+  const session = await requireSettingsManager();
+  const id = String(formData.get("id") ?? "");
+  if (!id || id.length > 100) throw new Error("Invalid blacklist entry.");
+  const entry = await prisma.crimeTipBlacklist.findUnique({ where: { id } });
+  if (!entry) throw new Error("Blacklist entry not found.");
+  await prisma.crimeTipBlacklist.delete({ where: { id } });
+  await recordSettingsAudit(session.user.displayName, "Crime tip identifier removed from blacklist", `${entry.kind} identifier ${entry.identifier} was removed from the tip-line blacklist.`);
+  revalidatePath("/98981");
+}
+
 export async function updateNotificationSettings(formData: FormData) {
   const session = await requireSettingsManager();
   const notificationsDisabled = formData.get("notificationsDisabled") === "on";
