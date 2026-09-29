@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/lib/auth";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
@@ -58,19 +57,13 @@ export default async function DashboardLayout({
   ];
   const staffNav = sections.filter((s) => s.show);
 
-  const pathname = headers().get("x-pathname") ?? "/dashboard";
-  const active =
-    staffNav
-      .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-      .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? "/dashboard";
-
   return (
     <div className="wrap">
       <a href="#main" className="skiplink">
         Skip to main content
       </a>
 
-      <SiteHeader staffNav={staffNav} activeHref={active} />
+      <SiteHeader staffNav={staffNav} />
 
       <div className="body">
         <aside className="side">

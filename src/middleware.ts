@@ -30,7 +30,6 @@ export default auth((req) => {
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("x-pathname", pathname);
   requestHeaders.set("Content-Security-Policy", csp);
 
   const rule = findRouteRule(pathname);

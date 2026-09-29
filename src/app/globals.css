@@ -99,7 +99,10 @@ a {
   color: var(--link);
 }
 
-a:visited {
+/* :where() keeps this at zero specificity so any class-styled link
+   (buttons, nav tabs, cards, pills) keeps its own color once visited,
+   instead of :visited's element+pseudo-class specificity overriding it. */
+:where(a:visited) {
   color: var(--link-v);
 }
 
@@ -345,8 +348,24 @@ img {
   border-top: 1px solid #6f86c4;
   border-bottom: 1px solid #1d2c50;
   display: flex;
-  flex-wrap: wrap;
+  align-items: stretch;
   padding: 0 var(--pad);
+}
+
+.nav-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.nav-tabs::-webkit-scrollbar {
+  height: 5px;
+}
+
+.nav-tabs::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .nav a {
@@ -356,10 +375,11 @@ img {
   font-size: 12px;
   font-weight: bold;
   text-decoration: none;
+  white-space: nowrap;
   border-right: 1px solid rgba(255, 255, 255, 0.22);
 }
 
-.nav > a:first-child {
+.nav-tabs > a:first-child {
   border-left: 1px solid rgba(255, 255, 255, 0.22);
 }
 
@@ -377,9 +397,8 @@ img {
 .nav-group {
   display: flex;
   align-items: center;
-  margin-left: auto;
-  margin-top: 4px;
-  margin-bottom: 4px;
+  flex: none;
+  margin: 4px 0 4px 8px;
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 3px;
   padding: 2px;
@@ -1002,10 +1021,6 @@ table.stat tbody tr:hover {
     margin-left: 0;
     text-align: left;
     width: 100%;
-  }
-
-  .nav-group {
-    margin-left: 0;
   }
 
   .cards {

@@ -31,7 +31,7 @@ export default async function BulletinPage() {
         Skip to main content
       </a>
 
-      <SiteHeader activeHref="/bulletin" />
+      <SiteHeader />
 
       <div className="body">
         <Sidebar />

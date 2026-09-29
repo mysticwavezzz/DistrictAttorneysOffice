@@ -5,6 +5,7 @@ import { Seal } from "./seal";
 import { TextSizeToggle } from "./text-size-toggle";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
+import { NavLinks } from "./nav-links";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 
 export interface NavItem {
@@ -14,10 +15,9 @@ export interface NavItem {
 
 interface SiteHeaderProps {
   staffNav?: NavItem[];
-  activeHref?: string;
 }
 
-export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {}) {
+export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
   const session = await auth();
   const isStaff = Boolean(session?.user?.discordUserId);
   const canViewDashboard =
@@ -27,7 +27,6 @@ export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {})
   const navItems =
     staffNav ??
     (canViewBulletin ? [...siteConfig.nav, { label: "LE Bulletin", href: "/bulletin" }] : siteConfig.nav);
-  const active = activeHref ?? navItems[0]?.href;
 
   return (
     <>
@@ -83,11 +82,9 @@ export async function SiteHeader({ staffNav, activeHref }: SiteHeaderProps = {})
       <div className="flagrule" />
 
       <nav className="nav" aria-label="Primary">
-        {navItems.map((item) => (
-          <Link key={item.href} href={item.href} className={item.href === active ? "on" : undefined}>
-            {item.label}
-          </Link>
-        ))}
+        <div className="nav-tabs">
+          <NavLinks items={navItems} />
+        </div>
         {(!isStaff || canViewDashboard || staffNav) && (
           <div className="nav-group">
             {staffNav ? (
