@@ -95,13 +95,15 @@ video {
   height: auto;
 }
 
-a {
+/* Both :where()'d to zero specificity: visited (declared second) still
+   wins over unvisited for a plain link via source order, but neither
+   can ever outrank a class-styled link (buttons, nav tabs, cards,
+   pills), which used to happen because :visited's element+pseudo-class
+   specificity beat a single class like .govbtn. */
+:where(a) {
   color: var(--link);
 }
 
-/* :where() keeps this at zero specificity so any class-styled link
-   (buttons, nav tabs, cards, pills) keeps its own color once visited,
-   instead of :visited's element+pseudo-class specificity overriding it. */
 :where(a:visited) {
   color: var(--link-v);
 }
@@ -352,20 +354,44 @@ img {
   padding: 0 var(--pad);
 }
 
+.nav-tabs-wrap {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .nav-tabs {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
 .nav-tabs::-webkit-scrollbar {
-  height: 5px;
+  display: none;
 }
 
-.nav-tabs::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.35);
+.nav-scroll-btn {
+  flex: none;
+  width: 20px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nav-scroll-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.nav-scroll-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
 }
 
 .nav a {
@@ -398,10 +424,6 @@ img {
   display: flex;
   align-items: center;
   flex: none;
-  margin: 4px 0 4px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-  padding: 2px;
 }
 
 .nav-group a {

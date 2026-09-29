@@ -5,7 +5,7 @@ import { Seal } from "./seal";
 import { TextSizeToggle } from "./text-size-toggle";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
-import { NavLinks } from "./nav-links";
+import { NavTabsScroller } from "./nav-tabs-scroller";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 
 export interface NavItem {
@@ -82,26 +82,24 @@ export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
       <div className="flagrule" />
 
       <nav className="nav" aria-label="Primary">
-        <div className="nav-tabs">
-          <NavLinks items={navItems} />
-        </div>
-        {(!isStaff || canViewDashboard || staffNav) && (
+        <NavTabsScroller items={navItems} />
+        {!staffNav && (!isStaff || canViewDashboard) && (
           <div className="nav-group">
-            {staffNav ? (
-              <Link href="/">Public Site</Link>
+            <span className="nav-group-label">Staff</span>
+            {canViewDashboard ? (
+              <Link href="/dashboard">Dashboard</Link>
             ) : (
-              <>
-                <span className="nav-group-label">Staff</span>
-                {canViewDashboard ? (
-                  <Link href="/dashboard">Dashboard</Link>
-                ) : (
-                  <Link href="/login">Sign In</Link>
-                )}
-              </>
+              <Link href="/login">Sign In</Link>
             )}
           </div>
         )}
       </nav>
+
+      <div className="crumb">
+        <div className="crumb-in">
+          <Link href="/">&larr; Home</Link>
+        </div>
+      </div>
     </>
   );
 }
