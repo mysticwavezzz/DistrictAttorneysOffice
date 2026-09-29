@@ -1189,6 +1189,38 @@ table.stat tbody tr:hover {
   }
 }
 
+.aopc-page { display: grid; gap: 14px; }
+.aopc-page > h1, .aopc-page > .lede { margin-bottom: 0; }
+.aopc-section { border: 1px solid var(--bd); background: var(--box); }
+.aopc-section > summary { cursor: pointer; list-style: none; padding: 13px 16px; font: bold 16px/1.35 var(--serif); color: var(--ink); }
+.aopc-section > summary::-webkit-details-marker { display: none; }
+.aopc-section > summary::before { content: "▸"; display: inline-block; width: 1.2em; color: var(--ink-soft); transition: transform .15s ease; }
+.aopc-section[open] > summary::before { transform: rotate(90deg); }
+.aopc-section[open] > summary { border-bottom: 1px solid var(--bd); }
+.aopc-list { padding: 8px 12px; }
+.aopc-list > .message { margin: 6px 0; }
+.aopc-row { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(130px, 1fr) minmax(180px, 1.5fr) auto auto; gap: 12px; align-items: center; padding: 11px 10px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--bd-lt); }
+.aopc-row:last-child { border-bottom: 0; }
+.aopc-row:hover, .aopc-row:focus-visible { background: var(--stripe); text-decoration: none; }
+.aopc-row:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+.aopc-row-id { font-weight: 700; overflow-wrap: anywhere; }
+.aopc-row-unit, .aopc-row-meta { font-size: 12px; color: var(--ink-soft); }
+.aopc-row-open { color: var(--link); white-space: nowrap; }
+.aopc-submit-form { margin: 10px; }
+.aopc-document-field { border: 1px solid var(--bd-lt); padding: 12px; }
+.aopc-detail-review { margin: 24px 0; padding: 16px; border: 1px solid var(--bd); background: var(--box); }
+.aopc-detail-review h2 { margin-top: 0; }
+.aopc-decision-form { margin: 0 0 12px; }
+.aopc-decision-form textarea { width: 100%; padding: 8px; border: 1px solid var(--bd); background: var(--box); color: var(--ink); font: 13px var(--sans); }
+.aopc-reject-button { background: var(--down); border-color: #6b2018; }
+@media (max-width: 700px) {
+  .aopc-row { grid-template-columns: 1fr auto; gap: 5px 10px; }
+  .aopc-row-unit, .aopc-row-meta { grid-column: 1; }
+  .aopc-row .pill, .aopc-row-open { grid-column: 2; justify-self: end; }
+  .aopc-row .pill { grid-row: 1; }
+  .aopc-row-open { grid-row: 3; }
+}
+
 @media (max-width: 640px) {
   table.stat.mobile-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
   table.stat.mobile-cards, table.stat.mobile-cards tbody { display: block; width: 100%; }

@@ -36,12 +36,15 @@ export async function submitAopc(formData: FormData) {
   const { session, user } = await requireSubmitter();
 
   const parsed = aopcInputSchema.safeParse({
-    title: formData.get("title"),
+    reportId: formData.get("reportId"),
     targetUnit: formData.get("targetUnit"),
     documentUrl: formData.get("documentUrl"),
   });
   if (!parsed.success) throw new Error("Invalid affidavit submission");
   const data = parsed.data;
+  if (await prisma.aopc.findUnique({ where: { reportId: data.reportId }, select: { id: true } })) {
+    redirect("/dashboard/affidavits?error=report-id-in-use");
+  }
   const uploadEntry = formData.get("pdf");
   const file = uploadEntry instanceof File && uploadEntry.size > 0 ? uploadEntry : null;
   if (Boolean(data.documentUrl) === Boolean(file)) {
@@ -65,9 +68,10 @@ export async function submitAopc(formData: FormData) {
 
   const created = await prisma.aopc.create({
     data: {
-      title: data.title,
+      title: `AOPC ${data.reportId}`,
+      reportId: data.reportId,
       targetUnit: data.targetUnit,
-      subject: data.title,
+      subject: `AOPC ${data.reportId}`,
       narrative: data.documentUrl ? `AOPC link: ${data.documentUrl}` : `Uploaded PDF: ${pdfFileName}`,
       documentUrl: data.documentUrl || null,
       pdfData,
@@ -76,23 +80,22 @@ export async function submitAopc(formData: FormData) {
     },
   });
 
-  const reviewerIds = await userIdsWithCapability(CAPABILITIES.AOPC_REVIEW);
-  await notifyMany(
-    reviewerIds.filter((id) => id !== user.id),
-    {
+  try {
+    const reviewerIds = await userIdsWithCapability(CAPABILITIES.AOPC_REVIEW);
+    await notifyMany(reviewerIds.filter((id) => id !== user.id), {
       type: "aopc_submitted",
-      title: `New affidavit of probable cause for ${data.targetUnit}: ${data.title}`,
+      title: `New affidavit of probable cause for ${data.targetUnit}: ${data.reportId}`,
       body: `Submitted by ${session.user.displayName}`,
       link: "/dashboard/affidavits",
-    }
-  );
-
-  await logActivity(
-    session.user.displayName,
-    "submitted",
-    "affidavit of probable cause",
-    `${created.title} (${data.targetUnit})`
-  );
+    });
+  } catch (error) {
+    console.error("AOPC was submitted, but reviewer notification failed", error);
+  }
+  try {
+    await logActivity(session.user.displayName, "submitted", "affidavit of probable cause", `${data.reportId} (${data.targetUnit})`);
+  } catch (error) {
+    console.error("AOPC was submitted, but activity logging failed", error);
+  }
 
   revalidatePath("/dashboard/affidavits");
   redirect("/dashboard/affidavits");
@@ -109,55 +112,57 @@ export async function reviewAopc(formData: FormData) {
   }
   if (decision === "REJECT" && !note.trim()) throw new Error("A review note is required when rejecting an affidavit");
 
-  const aopc = await prisma.aopc.findUnique({ where: { id } });
-  if (!aopc || aopc.status !== "PENDING") {
-    throw new Error("Affidavit not found or already reviewed");
-  }
-
-  let linkedCaseId: string | null = null;
-  if (decision === "ACCEPT") {
-    const caseNumber = await generateCaseNumber();
-    const createdCase = await prisma.case.create({
+  const { aopc, linkedCaseId } = await prisma.$transaction(async (tx) => {
+    const current = await tx.aopc.findUnique({ where: { id } });
+    if (!current || current.status !== "PENDING") {
+      throw new Error("This AOPC was not found or has already been reviewed.");
+    }
+    let caseId: string | null = null;
+    if (decision === "ACCEPT") {
+      const caseNumber = await generateCaseNumber();
+      const createdCase = await tx.case.create({
+        data: {
+          title: current.reportId ? `AOPC ${current.reportId}` : current.title,
+          caseNumber,
+          type: "Affidavit Referral",
+          stage: "Intake",
+          summary: `Referred from an accepted affidavit of probable cause (subject: ${current.subject}).\n\n${current.narrative}`,
+          createdById: user.id,
+        },
+      });
+      caseId = createdCase.id;
+    }
+    const updated = await tx.aopc.update({
+      where: { id },
       data: {
-        title: aopc.title,
-        caseNumber,
-        type: "Affidavit Referral",
-        stage: "Intake",
-        summary: `Referred from an accepted affidavit of probable cause (subject: ${aopc.subject}).\n\n${aopc.narrative}`,
-        createdById: user.id,
+        status: decision === "ACCEPT" ? "ACCEPTED" : "REJECTED",
+        reviewedById: user.id,
+        reviewNote: note || null,
+        reviewedAt: new Date(),
+        linkedCaseId: caseId,
       },
     });
-    linkedCaseId = createdCase.id;
+    return { aopc: updated, linkedCaseId: caseId };
+  });
+
+  try {
+    await notify({
+      userId: aopc.submittedById,
+      type: "aopc_reviewed",
+      title: decision === "ACCEPT" ? "Your affidavit of probable cause was accepted" : "Your affidavit of probable cause was rejected",
+      body: note || undefined,
+      link: linkedCaseId ? `/dashboard/cases/${linkedCaseId}` : "/dashboard/affidavits",
+    });
+  } catch (error) {
+    console.error("AOPC was reviewed, but the submitter notification failed", error);
   }
 
-  await prisma.aopc.update({
-    where: { id },
-    data: {
-      status: decision === "ACCEPT" ? "ACCEPTED" : "REJECTED",
-      reviewedById: user.id,
-      reviewNote: note || null,
-      reviewedAt: new Date(),
-      linkedCaseId,
-    },
-  });
-
-  await notify({
-    userId: aopc.submittedById,
-    type: "aopc_reviewed",
-    title:
-      decision === "ACCEPT"
-        ? "Your affidavit of probable cause was accepted"
-        : "Your affidavit of probable cause was rejected",
-    body: note || undefined,
-    link: linkedCaseId ? `/dashboard/cases/${linkedCaseId}` : "/dashboard/affidavits",
-  });
-
-  await logActivity(
-    session.user.displayName,
-    decision === "ACCEPT" ? "accepted" : "rejected",
-    "affidavit of probable cause",
-    aopc.title
-  );
+  try {
+    await logActivity(session.user.displayName, decision === "ACCEPT" ? "accepted" : "rejected", "affidavit of probable cause", aopc.reportId ?? aopc.title);
+  } catch (error) {
+    console.error("AOPC was reviewed, but activity logging failed", error);
+  }
 
   revalidatePath("/dashboard/affidavits");
+  revalidatePath(`/dashboard/affidavits/${id}`);
 }
