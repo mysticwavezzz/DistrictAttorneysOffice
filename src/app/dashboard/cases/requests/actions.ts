@@ -78,47 +78,74 @@ export async function reviewCaseRequest(formData: FormData) {
     throw new Error("Request not found or already reviewed");
   }
 
+  let createdCaseId: string | null = null;
   if (decision === "APPROVE") {
-    const data = JSON.parse(request.proposedData) as Record<string, string | undefined>;
+    const data = JSON.parse(request.proposedData) as Record<string, unknown>;
 
     if (request.kind === "CREATE") {
-      const caseNumber = emptyToNull(data.caseNumber) ?? (await generateCaseNumber());
-      await prisma.case.create({
-        data: {
-          title: data.title ?? "",
-          caseNumber,
-          type: emptyToNull(data.type),
-          stage: emptyToNull(data.stage),
-          disclosures: emptyToNull(data.disclosures),
-          discGiven: toDate(data.discGiven),
-          discDue: toDate(data.discDue),
-          pretrial: toDate(data.pretrial),
-          otherDates: emptyToNull(data.otherDates),
-          outcome: emptyToNull(data.outcome),
-          closedOn: toDate(data.closedOn),
-          appealBy: toDate(data.appealBy),
-          summary: emptyToNull(data.summary) ?? "",
-          assignedAttorneyId: emptyToNull(data.assignedAttorneyId),
-          createdById: request.requestedById,
-        },
+      const parsed = caseInputSchema.safeParse(data);
+      if (!parsed.success) throw new Error("The submitted case data is invalid and cannot be approved.");
+      const caseData = parsed.data;
+      const parties = typeof data.partyDetails === "string" ? data.partyDetails : "[]";
+      const assignedAttorneyId = typeof data.assignedAttorneyId === "string" ? data.assignedAttorneyId : request.requestedById;
+      const filing = data.initialFiling && typeof data.initialFiling === "object"
+        ? data.initialFiling as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string }
+        : null;
+      const caseNumber = emptyToNull(caseData.caseNumber) ?? (await generateCaseNumber());
+      const created = await prisma.$transaction(async (tx) => {
+        const currentRequest = await tx.caseActionRequest.findUnique({ where: { id }, select: { status: true } });
+        if (currentRequest?.status !== "PENDING") throw new Error("Request has already been reviewed.");
+        const caseRecord = await tx.case.create({
+          data: {
+            title: caseData.title,
+            caseNumber,
+            type: emptyToNull(caseData.type),
+            stage: emptyToNull(caseData.stage),
+            assignedJudge: emptyToNull(caseData.assignedJudge),
+            partyDetails: parties,
+            disclosures: emptyToNull(caseData.disclosures),
+            discGiven: toDate(caseData.discGiven),
+            discDue: toDate(caseData.discDue),
+            pretrial: toDate(caseData.pretrial),
+            otherDates: emptyToNull(caseData.otherDates),
+            outcome: emptyToNull(caseData.outcome),
+            closedOn: toDate(caseData.closedOn),
+            appealBy: toDate(caseData.appealBy),
+            summary: emptyToNull(caseData.summary) ?? "",
+            assignedAttorneyId,
+            createdById: request.requestedById,
+          },
+        });
+        if (filing?.title && (filing.url || filing.pdfData)) {
+          await tx.caseFiling.create({
+            data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById },
+          });
+        }
+        await tx.caseActionRequest.update({
+          where: { id },
+          data: { status: "APPROVED", reviewedById: user.id, reviewNote: note || null, reviewedAt: new Date() },
+        });
+        return caseRecord;
       });
+      createdCaseId = created.id;
     } else if (request.caseId) {
       await prisma.case.update({
         where: { id: request.caseId },
         data: {
-          title: data.title ?? undefined,
-          caseNumber: data.caseNumber ?? undefined,
-          type: emptyToNull(data.type),
-          stage: emptyToNull(data.stage),
-          disclosures: emptyToNull(data.disclosures),
-          discGiven: toDate(data.discGiven),
-          discDue: toDate(data.discDue),
-          pretrial: toDate(data.pretrial),
-          otherDates: emptyToNull(data.otherDates),
-          outcome: emptyToNull(data.outcome),
-          closedOn: toDate(data.closedOn),
-          appealBy: toDate(data.appealBy),
-          summary: emptyToNull(data.summary) ?? "",
+          title: typeof data.title === "string" ? data.title : undefined,
+          caseNumber: typeof data.caseNumber === "string" ? data.caseNumber : undefined,
+          type: emptyToNull(typeof data.type === "string" ? data.type : undefined),
+          stage: emptyToNull(typeof data.stage === "string" ? data.stage : undefined),
+          disclosures: emptyToNull(typeof data.disclosures === "string" ? data.disclosures : undefined),
+          discGiven: toDate(typeof data.discGiven === "string" ? data.discGiven : undefined),
+          discDue: toDate(typeof data.discDue === "string" ? data.discDue : undefined),
+          pretrial: toDate(typeof data.pretrial === "string" ? data.pretrial : undefined),
+          otherDates: emptyToNull(typeof data.otherDates === "string" ? data.otherDates : undefined),
+          outcome: emptyToNull(typeof data.outcome === "string" ? data.outcome : undefined),
+          closedOn: toDate(typeof data.closedOn === "string" ? data.closedOn : undefined),
+          appealBy: toDate(typeof data.appealBy === "string" ? data.appealBy : undefined),
+          summary: emptyToNull(typeof data.summary === "string" ? data.summary : undefined) ?? "",
+          assignedJudge: emptyToNull(typeof data.assignedJudge === "string" ? data.assignedJudge : undefined),
         },
       });
       await prisma.caseComment.create({
@@ -131,15 +158,17 @@ export async function reviewCaseRequest(formData: FormData) {
     }
   }
 
-  await prisma.caseActionRequest.update({
-    where: { id },
-    data: {
-      status: decision === "APPROVE" ? "APPROVED" : "REJECTED",
-      reviewedById: user.id,
-      reviewNote: note || null,
-      reviewedAt: new Date(),
-    },
-  });
+  if (!createdCaseId) {
+    await prisma.caseActionRequest.update({
+      where: { id },
+      data: {
+        status: decision === "APPROVE" ? "APPROVED" : "REJECTED",
+        reviewedById: user.id,
+        reviewNote: note || null,
+        reviewedAt: new Date(),
+      },
+    });
+  }
 
   await notify({
     userId: request.requestedById,
@@ -149,10 +178,14 @@ export async function reviewCaseRequest(formData: FormData) {
         ? "Your proposed case change was approved"
         : "Your proposed case change was rejected",
     body: note || undefined,
-    link: request.caseId ? `/dashboard/cases/${request.caseId}` : "/dashboard/cases",
+    link: decision === "REJECT" && request.kind === "CREATE"
+      ? `/dashboard/cases/new?reviseRequestId=${encodeURIComponent(request.id)}`
+      : createdCaseId ? `/dashboard/cases/${createdCaseId}` : request.caseId ? `/dashboard/cases/${request.caseId}` : "/dashboard/cases",
   });
 
   revalidatePath("/dashboard/cases/requests");
   revalidatePath("/dashboard/cases");
+  revalidatePath("/dashboard/filings");
   if (request.caseId) revalidatePath(`/dashboard/cases/${request.caseId}`);
+  if (createdCaseId) revalidatePath(`/dashboard/cases/${createdCaseId}`);
 }

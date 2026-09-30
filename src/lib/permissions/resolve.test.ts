@@ -180,23 +180,20 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(hasAnyCapability([], [CAPABILITIES.DASHBOARD_VIEW])).toBe(false);
   });
 
-  it("only Special Investigations Bureau can submit AOPCs, and cannot review them", async () => {
+  it("allows SIB to submit case openings without granting review or full-docket access", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    expect(
-      hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.AOPC_SUBMIT)
-    ).toBe(true);
-    expect(
-      hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.AOPC_REVIEW)
-    ).toBe(false);
-    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.AOPC_SUBMIT)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_CREATE)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_VIEW)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
   });
 
-  it("Supervising ADA and District Attorney can review AOPCs", async () => {
+  it("Supervising ADA and District Attorney can review case openings", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.AOPC_REVIEW)).toBe(
+    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(
       true
     );
-    expect(hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.AOPC_REVIEW)).toBe(
+    expect(hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(
       true
     );
   });

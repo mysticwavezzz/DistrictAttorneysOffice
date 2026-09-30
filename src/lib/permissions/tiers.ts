@@ -61,8 +61,8 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
   [PERMISSION_TIERS.SPECIAL_INVESTIGATIONS]: {
     id: PERMISSION_TIERS.SPECIAL_INVESTIGATIONS,
     label: "Special Investigations Bureau",
-    description: "Writes affidavits of probable cause and reviews criminal tips referred to the office.",
-    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.AOPC_SUBMIT],
+    description: "Submits case openings and supporting filings for supervisory review.",
+    capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_CREATE],
   },
   [PERMISSION_TIERS.SUPERVISING_ADA]: {
     id: PERMISSION_TIERS.SUPERVISING_ADA,
@@ -79,7 +79,6 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.ROSTER_VIEW,
       CAPABILITIES.REQUESTS_VIEW,
       CAPABILITIES.ACTIVITY_VIEW,
-      CAPABILITIES.AOPC_REVIEW,
     ],
   },
   [PERMISSION_TIERS.DISTRICT_ATTORNEY]: {
@@ -100,7 +99,6 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.ANNOUNCEMENTS_MANAGE,
       CAPABILITIES.REQUESTS_VIEW,
       CAPABILITIES.ACTIVITY_VIEW,
-      CAPABILITIES.AOPC_REVIEW,
       CAPABILITIES.SETTINGS_MANAGE,
     ],
   },

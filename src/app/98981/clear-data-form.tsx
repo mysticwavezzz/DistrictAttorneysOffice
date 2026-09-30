@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { signOut } from "next-auth/react";
 import { clearAllData } from "./actions";
 import { CLEAR_DATA_CONFIRMATION } from "./constants";
 
@@ -23,8 +24,9 @@ export function ClearDataForm() {
           try {
             const result = await clearAllData(formData);
             setValue("");
-            const total = result.deleted.cases + result.deleted.aopcs + result.deleted.announcements + result.deleted.recordsRequests + result.deleted.notifications;
-            setMessage(`Data cleared successfully. Removed ${total} records and ${result.deleted.related} related case records. Staff accounts and roster were kept.`);
+            const total = Object.values(result.deleted).reduce((sum, count) => sum + count, 0);
+            setMessage(`All site data was cleared (${total} records). Signing you out now.`);
+            await signOut({ redirectTo: "/login?reset=complete" });
           } catch (cause) {
             setError(true);
             setMessage(cause instanceof Error ? cause.message : "The data could not be cleared. No changes were confirmed.");
@@ -53,7 +55,7 @@ export function ClearDataForm() {
         style={{ background: "var(--down)", borderColor: "#6b2018" }}
         disabled={!matches || isPending}
       >
-        {isPending ? "Clearing…" : "Clear All Case & Content Data"}
+        {isPending ? "Clearing everything…" : "Clear Everything and Sign Everyone Out"}
       </button>
       {message && <p role="status" aria-live="polite" style={{ color: error ? "var(--down)" : "var(--up)" }}>{message}</p>}
     </form>

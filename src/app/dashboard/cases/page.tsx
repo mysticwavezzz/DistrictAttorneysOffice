@@ -8,26 +8,11 @@ import { localUser } from "@/lib/case-access";
 import { caseStatusColor } from "@/config/case-statuses";
 import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 
-type CaseWithAttorney = Prisma.CaseGetPayload<{ include: { assignedAttorney: true } }>;
+type CaseWithAttorney = Prisma.CaseGetPayload<{ include: { assignedAttorney: true; filings: { select: { id: true; title: true; url: true; pdfFileName: true; createdAt: true } } } }>;
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "short" });
-const DUE_SOON_DAYS = 3;
-
 function fmt(date: Date | null): string {
   return date ? dateFormatter.format(date) : "Not set";
-}
-
-function text(value: string | null): string {
-  return value && value.trim() !== "" ? value : "Not set";
-}
-
-function deadlinePill(date: Date | null): string | null {
-  if (!date) return null;
-  const now = new Date();
-  const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) return "pill-red";
-  if (diffDays <= DUE_SOON_DAYS) return "pill-gold";
-  return null;
 }
 
 export default async function CasesPage({
@@ -85,7 +70,7 @@ export default async function CasesPage({
   let totalCases = 0;
   try {
     [cases, totalCases] = await Promise.all([
-      prisma.case.findMany({ where, orderBy: { [sort]: direction }, include: { assignedAttorney: true }, skip: (page - 1) * pageSize, take: pageSize }),
+      prisma.case.findMany({ where, orderBy: { [sort]: direction }, include: { assignedAttorney: true, filings: { select: { id: true, title: true, url: true, pdfFileName: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 3 } }, skip: (page - 1) * pageSize, take: pageSize }),
       prisma.case.count({ where }),
     ]);
   } catch (error) {
@@ -104,16 +89,16 @@ export default async function CasesPage({
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-        <h1>Cases</h1>
+        <h1>My Cases</h1>
         <div style={{ display: "flex", gap: 8, position: "sticky", top: 8, zIndex: 2 }}>
           {canCreate && (
             <Link href="/dashboard/cases/new" className="govbtn">
-              New Case
+              Open a Case
             </Link>
           )}
           {!canCreate && canPropose && (
             <Link href="/dashboard/cases/new" className="govbtn">
-              Propose New Case
+              Open a Case
             </Link>
           )}
           <Link href={`/dashboard/cases/export${qs({})}`} className="govbtn-outline">
@@ -153,6 +138,8 @@ export default async function CasesPage({
             ))}
           </select>
         </div>
+        <div className="field"><label htmlFor="case-sort">Sort by</label><select id="case-sort" name="sort" defaultValue={sort}><option value="updatedAt">Recently updated</option><option value="caseNumber">Case number</option><option value="title">Case title</option><option value="stage">Status</option></select></div>
+        <div className="field"><label htmlFor="case-direction">Order</label><select id="case-direction" name="dir" defaultValue={direction}><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
         <button type="submit" className="govbtn-outline">
           Filter
         </button>
@@ -175,73 +162,16 @@ export default async function CasesPage({
 
       {totalCases > 0 && <p className="note-inline" aria-live="polite">Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCases)} of {totalCases} cases</p>}
       <form action={bulkUpdateCases}>
-      <div className="tablewrap">
-        <table className="stat mobile-cards">
-          <thead>
-            <tr>
-              <th scope="col"><span className="sr-only">Select</span></th>
-              <th scope="col"><Link href={`/dashboard/cases${qs({ sort: "title", dir: sort === "title" && direction === "asc" ? "desc" : "asc", page: "1" })}`}>Case {sort === "title" ? (direction === "asc" ? "↑" : "↓") : "↕"}</Link></th>
-              <th>Assigned</th>
-              <th><Link href={`/dashboard/cases${qs({ sort: "caseNumber", dir: sort === "caseNumber" && direction === "asc" ? "desc" : "asc", page: "1" })}`}>Case #</Link></th>
-              <th>Type</th>
-              <th><Link href={`/dashboard/cases${qs({ sort: "stage", dir: sort === "stage" && direction === "asc" ? "desc" : "asc", page: "1" })}`}>Stage</Link></th>
-              <th>Disclosures</th>
-              <th>Disc. Given</th>
-              <th>Disc. Due</th>
-              <th>Pretrial</th>
-              <th>Other Dates</th>
-              <th>Outcome</th>
-              <th>Closed On</th>
-              <th>Appeal By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cases.length === 0 ? (
-              <tr>
-                <td colSpan={14} style={{ textAlign: "center", color: "var(--ink-soft)" }}>
-                  No cases found.
-                </td>
-              </tr>
-            ) : (
-              cases.map((c) => {
-                const color = caseStatusColor(c.stage);
-                return (
-                  <tr key={c.id}>
-                    <td data-label="Select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></td>
-                    <td data-label="Case">
-                      <Link href={`/dashboard/cases/${c.id}`}>{c.title}</Link>{" "}
-                      {c.isDraft && <span className="pill pill-muted">Draft</span>}
-                    </td>
-                    <td data-label="Assigned">{c.assignedAttorney?.displayName ?? "Unassigned"}</td>
-                    <td data-label="Case #" className="mono">{c.caseNumber}</td>
-                    <td data-label="Type">{text(c.type)}</td>
-                    <td data-label="Stage">
-                      {c.stage ? <span className={`pill pill-${color}`}>{c.stage}</span> : "Not set"}
-                    </td>
-                    <td data-label="Disclosures">{text(c.disclosures)}</td>
-                    <td data-label="Disclosure given">{fmt(c.discGiven)}</td>
-                    <td data-label="Disclosure due">
-                      {fmt(c.discDue)}
-                      {deadlinePill(c.discDue) && <span className={`pill ${deadlinePill(c.discDue)}`} style={{ marginLeft: 4 }}>!</span>}
-                    </td>
-                    <td data-label="Pretrial">
-                      {fmt(c.pretrial)}
-                      {deadlinePill(c.pretrial) && <span className={`pill ${deadlinePill(c.pretrial)}`} style={{ marginLeft: 4 }}>!</span>}
-                    </td>
-                    <td data-label="Other dates">{text(c.otherDates)}</td>
-                    <td data-label="Outcome">{text(c.outcome)}</td>
-                    <td data-label="Closed on">{fmt(c.closedOn)}</td>
-                    <td data-label="Appeal by">
-                      {fmt(c.appealBy)}
-                      {deadlinePill(c.appealBy) && <span className={`pill ${deadlinePill(c.appealBy)}`} style={{ marginLeft: 4 }}>!</span>}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {cases.length ? <div className="case-card-list">{cases.map((c) => {
+        const nextDeadline = [c.discDue, c.pretrial, c.appealBy].filter((date): date is Date => Boolean(date)).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+        const color = caseStatusColor(c.stage);
+        return <article className="case-card" key={c.id}>
+          <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Draft</span>}</div></div><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "Open"}</span></header>
+          <div className="case-card-meta"><span><small>Assigned attorney</small><strong>{c.assignedAttorney?.displayName ?? "Unassigned"}</strong></span><span><small>Assigned judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Opened</small><strong>{fmt(c.createdAt)}</strong></span><span><small>Next deadline</small><strong className={nextDeadline && nextDeadline < new Date() ? "deadline-overdue" : undefined}>{fmt(nextDeadline)}</strong></span></div>
+          {c.filings.length > 0 && <div className="case-card-filings"><strong>Recent filings</strong><ul>{c.filings.map((filing) => <li key={filing.id}>{filing.url ? <a href={filing.url} target="_blank" rel="noreferrer noopener">{filing.title}</a> : <a href={`/api/cases/filings/${filing.id}/pdf`}>{filing.title}</a>}<time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></li>)}</ul></div>}
+          <footer className="case-card-actions"><Link href={`/dashboard/cases/${c.id}`}>Open case</Link><Link href={`/dashboard/filings/new?caseId=${c.id}`}>File a document</Link><Link href={`/dashboard/cases/${c.id}#filings`}>All filings</Link></footer>
+        </article>;
+      })}</div> : <div className="empty-state"><h2>No cases found</h2><p>{q || statusFilter || overdueOnly || reviewOnly ? "Adjust or clear the filters to find a case." : "Open a case to start your docket work."}</p>{canCreate && <Link href="/dashboard/cases/new" className="govbtn-outline">Open a Case</Link>}</div>}
       <div className="field-row" style={{ alignItems: "flex-end", marginTop: 10 }}>
         {hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && <div className="field"><label htmlFor="bulkAssignee">Assign selected to</label><select id="bulkAssignee" name="assigneeId" defaultValue=""><option value="">Unassigned</option>{await prisma.user.findMany({ where: { tiers: { not: "" } }, select: { id: true, displayName: true }, orderBy: { displayName: "asc" } }).then((users) => users.map((a) => <option key={a.id} value={a.id}>{a.displayName}</option>))}</select><button className="govbtn-outline" name="operation" value="assign" type="submit">Assign selected</button></div>}
         {hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT) && <button className="govbtn-outline" name="operation" value="archive" type="submit">Archive selected</button>}

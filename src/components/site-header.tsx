@@ -17,9 +17,10 @@ export interface NavItem {
 
 interface SiteHeaderProps {
   staffNav?: NavItem[];
+  staffTools?: NavItem[];
 }
 
-export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
+export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps = {}) {
   const session = await auth();
   const isStaff = Boolean(session?.user?.providerUserId);
   const canViewDashboard =
@@ -75,9 +76,14 @@ export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
 
       <div className="flagrule" />
 
-      {!staffNav && <nav className="nav" aria-label="Primary">
+      <nav className="nav" aria-label={staffNav ? "Staff navigation" : "Primary"}>
         <NavTabsScroller items={navItems} />
-        {(!isStaff || canViewDashboard) && (
+        {staffNav ? (
+          <details className="staff-tools-menu">
+            <summary>More</summary>
+            <div className="staff-tools-panel">{staffTools.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}</div>
+          </details>
+        ) : (!isStaff || canViewDashboard) && (
           <div className="nav-group">
             <span className="nav-group-label">Staff</span>
             {canViewDashboard ? (
@@ -87,7 +93,7 @@ export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
             )}
           </div>
         )}
-      </nav>}
+      </nav>
 
       <div className="crumb">
         <div className="crumb-in">

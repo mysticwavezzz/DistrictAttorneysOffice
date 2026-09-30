@@ -21,7 +21,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; error?: string; reset?: string }>;
 }) {
   const query = await searchParams;
   const session = await auth();
@@ -72,6 +72,12 @@ export default async function LoginPage({
           {errorMessage && (
             <p className="message message-error" role="alert">
               {errorMessage}
+            </p>
+          )}
+
+          {query.reset === "complete" && (
+            <p className="message message-success" role="status">
+              All saved website data was cleared. All staff must sign in again.
             </p>
           )}
 

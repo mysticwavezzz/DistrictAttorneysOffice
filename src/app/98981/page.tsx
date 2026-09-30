@@ -320,10 +320,14 @@ export default async function SiteSettingsPage() {
       <h2 style={{ color: "var(--down)" }}>Danger Zone</h2>
       <div className="formbox" style={{ borderColor: "#6b2018" }}>
         <p className="note-inline">
-          Permanently deletes every case (and its filings, comments, and edit requests),
-          affidavit of probable cause, public release, records request, notification, and
-          activity log entry. This does <strong>not</strong> delete staff accounts or the staff
-          roster. This cannot be undone.
+          Permanently deletes all saved website data: cases and related records, affidavits,
+          releases, requests, notifications, activity logs, staff accounts,
+          roster entries, blacklists, rate-limit records, and saved identity data. Your
+          Google Forms setup, role/permission mappings, divisions, site settings, configuration
+          backups, and configuration audit trail are kept. Everyone will be signed out and must sign in
+          again. Only the internal session-revocation marker needed to invalidate existing
+          sign-ins is retained. This does not delete submissions already stored in Google
+          Forms. This cannot be undone.
         </p>
         <ClearDataForm />
       </div>

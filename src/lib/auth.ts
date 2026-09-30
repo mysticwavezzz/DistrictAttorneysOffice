@@ -30,6 +30,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt(params) {
       const token = await authConfig.callbacks.jwt(params);
 
+      // JWT sessions are otherwise stateless. Bind each new sign-in to the
+      // persisted generation so a full-data wipe can revoke every browser.
+      const tokenWithGeneration = token as typeof token & { authSessionGeneration?: string };
+      try {
+        const generation = await prisma.siteConfiguration.findUnique({
+          where: { key: "authSessionGeneration" },
+          select: { value: true },
+        });
+        if (params.account) {
+          const activeGeneration = generation ?? await prisma.siteConfiguration.upsert({
+            where: { key: "authSessionGeneration" },
+            create: { key: "authSessionGeneration", value: crypto.randomUUID() },
+            update: {},
+            select: { value: true },
+          });
+          tokenWithGeneration.authSessionGeneration = activeGeneration.value;
+        } else if (
+          !tokenWithGeneration.authSessionGeneration ||
+          tokenWithGeneration.authSessionGeneration !== generation?.value
+        ) {
+          return null;
+        }
+      } catch (error) {
+        console.error("Could not verify the active sign-in generation", error);
+        // Fail closed: without this check, a reset could leave old JWTs usable.
+        return null;
+      }
+
       if (token.identityProvider === "discord" && token.discordUserId && (params.account || params.trigger === "update")) {
         try {
           const [member, roleRow, capabilityRow] = await Promise.all([

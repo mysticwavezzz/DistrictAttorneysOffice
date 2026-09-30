@@ -5,11 +5,12 @@ export const caseFilingSchema = z.object({
   url: z
     .string()
     .trim()
-    .min(1, "URL is required")
     .max(2000)
-    .refine((value) => /^https?:\/\//i.test(value), {
+    .refine((value) => !value || /^https?:\/\//i.test(value), {
       message: "URL must start with http:// or https://",
-    }),
+    })
+    .optional()
+    .or(z.literal("")),
 });
 
 export const caseCommentSchema = z.object({

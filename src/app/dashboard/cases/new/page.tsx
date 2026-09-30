@@ -2,155 +2,77 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { CASE_STATUSES } from "@/config/case-statuses";
-import { createCase } from "../actions";
-import { submitCaseRequest } from "../requests/actions";
-import { getSiteConfiguration } from "@/lib/site-settings";
+import { CaseOpeningForm } from "@/components/case-opening-form";
+import type { RevisionDraft } from "@/components/case-opening-form";
+import { localUser } from "@/lib/case-access";
 
-export default async function NewCasePage() {
+export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ reviseRequestId?: string }> }) {
   const session = await auth();
-  const canCreate = session?.user && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
-  const canPropose = session?.user && hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
-  if (!session?.user || (!canCreate && !canPropose)) {
+  if (!session?.user || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT))) {
     redirect("/login?error=forbidden");
   }
 
   const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
-  const caseStatuses = await getSiteConfiguration("caseStatuses", CASE_STATUSES);
-  let attorneys: { id: string; displayName: string }[] = [];
-  if (canAssign) {
+  const reviewersCanAutoApprove = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const attorneys = canAssign ? await prisma.user.findMany({
+    where: { tiers: { not: "" } },
+    select: { id: true, displayName: true },
+    orderBy: { displayName: "asc" },
+  }).catch((error) => {
+    console.error("Failed to load case assignees", error);
+    return [];
+  }) : [];
+
+  let revision: RevisionDraft | undefined;
+  const { reviseRequestId } = await searchParams;
+  if (reviseRequestId) {
+    const user = await localUser(session.user);
+    const request = user ? await prisma.caseActionRequest.findFirst({
+      where: { id: reviseRequestId, requestedById: user.id, kind: "CREATE", status: "REJECTED" },
+    }) : null;
+    if (!request) redirect("/dashboard/cases");
+
+    let data: Record<string, unknown>;
     try {
-      attorneys = await prisma.user.findMany({
-        select: { id: true, displayName: true },
-        orderBy: { displayName: "asc" },
-      });
-    } catch (error) {
-      console.error("Failed to load attorneys", error);
+      data = JSON.parse(request.proposedData) as Record<string, unknown>;
+    } catch {
+      redirect("/dashboard/cases");
     }
+    const filing = data.initialFiling && typeof data.initialFiling === "object"
+      ? data.initialFiling as { title?: string; url?: string | null; pdfFileName?: string }
+      : null;
+    let partyData: unknown = [];
+    try {
+      partyData = typeof data.partyDetails === "string" ? JSON.parse(data.partyDetails) : [];
+    } catch {
+      partyData = [];
+    }
+    const parties = Array.isArray(partyData) ? partyData.flatMap((party) => {
+      if (!party || typeof party !== "object") return [];
+      const row = party as { name?: unknown; role?: unknown };
+      const allowedRoles = ["Defendant", "Co-defendant", "Witness", "Reporting officer", "Other"] as const;
+      if (typeof row.name !== "string" || typeof row.role !== "string" || !allowedRoles.includes(row.role as (typeof allowedRoles)[number])) return [];
+      return [{ name: row.name, role: row.role as (typeof allowedRoles)[number] }];
+    }) : [];
+    const asText = (value: unknown) => typeof value === "string" ? value : "";
+    revision = {
+      requestId: request.id,
+      rejectionNote: request.reviewNote ?? "",
+      title: asText(data.title),
+      caseNumber: asText(data.caseNumber),
+      type: asText(data.type),
+      assignedJudge: asText(data.assignedJudge),
+      assignedAttorneyId: asText(data.assignedAttorneyId),
+      summary: asText(data.summary),
+      discDue: asText(data.discDue),
+      pretrial: asText(data.pretrial),
+      appealBy: asText(data.appealBy),
+      parties,
+      filingTitle: filing?.title ?? "",
+      filingName: filing?.pdfFileName ?? "",
+      filingUrl: filing?.url ?? "",
+    };
   }
 
-  const action = canCreate ? createCase : submitCaseRequest;
-
-  return (
-    <div>
-      <h1>{canCreate ? "New Case" : "Propose New Case"}</h1>
-      {!canCreate && (
-        <p className="note-inline">
-          This will be submitted for review by office leadership before it appears on the docket.
-        </p>
-      )}
-
-      <form action={action} className="formbox">
-        <div className="field-row">
-          <div className="field" style={{ flex: "1 1 260px" }}>
-            <label htmlFor="title">Case Title</label>
-            <input type="text" id="title" name="title" required maxLength={200} />
-          </div>
-          <div className="field" style={{ flex: "1 1 180px" }}>
-            <label htmlFor="caseNumber">
-              Case # <span className="hint">(optional. Auto-generated if left blank)</span>
-            </label>
-            <input type="text" id="caseNumber" name="caseNumber" maxLength={50} placeholder="Auto-generated" />
-          </div>
-        </div>
-
-        <div className="field-row">
-          <div className="field" style={{ flex: "1 1 180px" }}>
-            <label htmlFor="type">Type</label>
-            <input type="text" id="type" name="type" maxLength={100} placeholder="Felony, Misdemeanor, …" />
-          </div>
-          <div className="field" style={{ flex: "1 1 180px" }}>
-            <label htmlFor="stage">Status</label>
-            <select id="stage" name="stage" defaultValue="">
-              <option value="">No status set</option>
-              {caseStatuses.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {canAssign && (
-            <div className="field" style={{ flex: "1 1 220px" }}>
-              <label htmlFor="assignedAttorneyId">Assigned</label>
-              <select id="assignedAttorneyId" name="assignedAttorneyId">
-                <option value="">Unassigned</option>
-                {attorneys.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.displayName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        <div className="field">
-          <label htmlFor="disclosures">Disclosures</label>
-          <input type="text" id="disclosures" name="disclosures" maxLength={2000} />
-        </div>
-
-        <div className="field-row">
-          <div className="field" style={{ flex: "1 1 160px" }}>
-            <label htmlFor="discGiven">Disc. Given</label>
-            <input type="date" id="discGiven" name="discGiven" />
-          </div>
-          <div className="field" style={{ flex: "1 1 160px" }}>
-            <label htmlFor="discDue">Disc. Due</label>
-            <input type="date" id="discDue" name="discDue" />
-          </div>
-          <div className="field" style={{ flex: "1 1 160px" }}>
-            <label htmlFor="pretrial">Pretrial</label>
-            <input type="date" id="pretrial" name="pretrial" />
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="otherDates">Other Dates</label>
-          <input type="text" id="otherDates" name="otherDates" maxLength={500} />
-        </div>
-
-        <div className="field">
-          <label htmlFor="outcome">Outcome</label>
-          <input type="text" id="outcome" name="outcome" maxLength={500} />
-        </div>
-
-        <div className="field-row">
-          <div className="field" style={{ flex: "1 1 160px" }}>
-            <label htmlFor="closedOn">Closed On</label>
-            <input type="date" id="closedOn" name="closedOn" />
-          </div>
-          <div className="field" style={{ flex: "1 1 160px" }}>
-            <label htmlFor="appealBy">Appeal By</label>
-            <input type="date" id="appealBy" name="appealBy" />
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="summary">Summary</label>
-          <textarea id="summary" name="summary" rows={4} maxLength={4000} />
-        </div>
-
-        <div className="field">
-          <label htmlFor="relatedCaseNumbers">
-            Related Case Numbers <span className="hint">(optional. Separate multiple numbers with commas)</span>
-          </label>
-          <input type="text" id="relatedCaseNumbers" name="relatedCaseNumbers" maxLength={500} />
-        </div>
-
-        {canCreate && (
-          <div className="field">
-            <label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}>
-              <input type="checkbox" name="isDraft" />
-              Save as draft (only visible to you and office leadership until published)
-            </label>
-          </div>
-        )}
-
-        <button type="submit" className="govbtn">
-          {canCreate ? "Create Case" : "Submit for Review"}
-        </button>
-      </form>
-    </div>
-  );
+  return <CaseOpeningForm officerName={session.user.displayName} canAssign={canAssign} reviewersCanAutoApprove={reviewersCanAutoApprove} attorneys={attorneys} revision={revision} />;
 }

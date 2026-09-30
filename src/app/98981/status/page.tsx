@@ -75,7 +75,7 @@ export default async function AdminStatusPage() {
     ? resolveTiersFromRobloxRoles(robloxRoles, robloxMappings)
     : resolveTiersFromRoleMappings(ids, mappings);
   const resolvedTiers = [...baseTiers, ...capabilityMarkersForTiers(baseTiers, capabilities)] as PermissionTier[];
-  const routes = ["/dashboard", "/dashboard/cases", "/dashboard/roster", "/dashboard/affidavits", "/98981"];
+  const routes = ["/dashboard", "/dashboard/cases", "/dashboard/filings", "/dashboard/roster", "/98981"];
 
   return <main className="paper" style={{ maxWidth: 1000, margin: "24px auto" }}>
     <p><Link href="/98981">← Site Settings</Link></p><h1>Integration Health &amp; Access Diagnostics</h1>

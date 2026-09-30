@@ -8,7 +8,8 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
 import { caseFilingSchema, caseCommentSchema } from "@/lib/validation/case-extras";
 import { localUser, canAccessCase, generateCaseNumber } from "@/lib/case-access";
-import { notify } from "@/lib/notifications";
+import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
+import { readCasePdf } from "@/lib/filing-upload";
 
 async function requireStaff() {
   const session = await auth();
@@ -35,24 +36,102 @@ async function resolveRelatedCaseIds(raw: FormDataEntryValue | null, selfId?: st
 
 export async function createCase(formData: FormData) {
   const { session, user } = await requireStaff();
-  if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE)) {
+  const canSubmit = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) || hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
+  if (!canSubmit) {
     throw new Error("Forbidden");
   }
 
   const parsed = caseInputSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid case data");
   const data = parsed.data;
-
   const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
-  const caseNumber = emptyToNull(data.caseNumber) ?? (await generateCaseNumber());
+  const canApproveOpening = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const partyRows = formData.getAll("partyName").map((value, index) => ({ name: String(value).trim(), role: String(formData.getAll("partyRole")[index] ?? "") })).filter((party) => party.name);
+  if (!partyRows.length || partyRows.length > 20) throw new Error("Add at least one party and no more than 20.");
+  const allowedPartyRoles = new Set(["Defendant", "Co-defendant", "Witness", "Reporting officer", "Other"]);
+  const parties = partyRows.map(({ name, role }) => {
+    if (name.length > 100 || !allowedPartyRoles.has(role)) throw new Error("Check the party names and roles.");
+    return { name, role };
+  });
+  const documentUrl = String(formData.get("documentUrl") ?? "").trim();
+  const pdf = await readCasePdf(formData.get("initialPdf"));
+  if (documentUrl && pdf) throw new Error("Use either a PDF upload or a document link, not both.");
+  if (documentUrl && !/^https:\/\//i.test(documentUrl)) throw new Error("Document links must use HTTPS.");
+  const filingTitle = String(formData.get("initialFilingTitle") ?? "").trim().slice(0, 200);
+  const reviseRequestId = emptyToNull(String(formData.get("reviseRequestId") ?? ""));
+  type PreviousFiling = { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string };
+  let previousRequest: Awaited<ReturnType<typeof prisma.caseActionRequest.findUnique>> = null;
+  let previousFiling: PreviousFiling | null = null;
+  if (reviseRequestId) {
+    previousRequest = await prisma.caseActionRequest.findUnique({ where: { id: reviseRequestId } });
+    if (!previousRequest || previousRequest.kind !== "CREATE" || previousRequest.status !== "REJECTED" || previousRequest.requestedById !== user.id) {
+      throw new Error("This rejected case opening cannot be revised by this account.");
+    }
+    try {
+      const priorData = JSON.parse(previousRequest.proposedData) as Record<string, unknown>;
+      const candidate = priorData.initialFiling;
+      if (candidate && typeof candidate === "object") previousFiling = candidate as PreviousFiling;
+    } catch {
+      throw new Error("The rejected submission could not be loaded. Contact a reviewer.");
+    }
+  }
+  const initialFiling = pdf || documentUrl
+    ? { title: filingTitle || (pdf ? pdf.pdfFileName : "Initial Filing"), url: documentUrl || null, ...pdf }
+    : previousFiling
+      ? { ...previousFiling, title: filingTitle || previousFiling.title || "Initial Filing" }
+      : null;
   const relatedIds = await resolveRelatedCaseIds(formData.get("relatedCaseNumbers"));
 
-  const created = await prisma.case.create({
-    data: {
+  const proposedData = {
+    ...data,
+    assignedJudge: data.assignedJudge ?? "",
+    assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id,
+    partyDetails: JSON.stringify(parties),
+    initialFiling,
+    relatedCaseNumbers: String(formData.get("relatedCaseNumbers") ?? ""),
+  };
+
+  if (!canApproveOpening || reviseRequestId) {
+    if (reviseRequestId) {
+      const updated = await prisma.caseActionRequest.updateMany({
+        where: { id: reviseRequestId, kind: "CREATE", status: "REJECTED", requestedById: user.id },
+        data: { proposedData: JSON.stringify(proposedData), status: "PENDING", reviewedById: null, reviewNote: null, reviewedAt: null, createdAt: new Date() },
+      });
+      if (updated.count !== 1) throw new Error("This submission was already revised or is no longer available.");
+    } else {
+      await prisma.caseActionRequest.create({
+        data: { kind: "CREATE", proposedData: JSON.stringify(proposedData), requestedById: user.id },
+      });
+    }
+    const reviewerIds = await userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS);
+    await notifyMany(reviewerIds.filter((id) => id !== user.id), {
+      type: "case_request",
+      title: "New case opening needs review",
+      body: `${data.title}${initialFiling ? ` · document: ${initialFiling.title}` : ""}`,
+      link: "/dashboard/cases/requests?status=pending",
+    });
+    await notify({
+      userId: user.id,
+      type: "case_request",
+      title: reviseRequestId ? "Revised case opening submitted for review" : "Case opening submitted for review",
+      body: data.title,
+      link: "/dashboard/cases/requests",
+    });
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/cases/requests");
+    redirect("/dashboard?caseSubmitted=review");
+  }
+
+  const caseNumber = emptyToNull(data.caseNumber) ?? (await generateCaseNumber());
+  const created = await prisma.$transaction(async (tx) => {
+    const caseRecord = await tx.case.create({
+      data: {
       title: data.title,
       caseNumber,
       type: emptyToNull(data.type),
       stage: emptyToNull(data.stage),
+      assignedJudge: emptyToNull(data.assignedJudge),
+      partyDetails: JSON.stringify(parties),
       disclosures: emptyToNull(data.disclosures),
       discGiven: toDate(data.discGiven),
       discDue: toDate(data.discDue),
@@ -62,11 +141,17 @@ export async function createCase(formData: FormData) {
       closedOn: toDate(data.closedOn),
       appealBy: toDate(data.appealBy),
       summary: emptyToNull(data.summary) ?? "",
-      assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) : user.id,
+      assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id,
       createdById: user.id,
-      isDraft: formData.get("isDraft") === "on",
       relatedTo: relatedIds.length > 0 ? { connect: relatedIds.map((id) => ({ id })) } : undefined,
-    },
+      },
+    });
+    if (initialFiling) {
+      await tx.caseFiling.create({
+        data: { caseId: caseRecord.id, title: initialFiling.title, url: initialFiling.url, pdfData: initialFiling.pdfData, pdfFileName: initialFiling.pdfFileName, addedById: user.id },
+      });
+    }
+    return caseRecord;
   });
 
   if (created.assignedAttorneyId && created.assignedAttorneyId !== user.id) {
@@ -80,6 +165,7 @@ export async function createCase(formData: FormData) {
   }
 
   revalidatePath("/dashboard/cases");
+  revalidatePath("/dashboard/filings");
   redirect(`/dashboard/cases/${created.id}`);
 }
 
@@ -115,6 +201,7 @@ export async function updateCase(formData: FormData) {
       caseNumber,
       type: emptyToNull(data.type),
       stage: emptyToNull(data.stage),
+      assignedJudge: emptyToNull(data.assignedJudge),
       disclosures: emptyToNull(data.disclosures),
       discGiven: toDate(data.discGiven),
       discDue: toDate(data.discDue),
@@ -277,8 +364,14 @@ export async function addFiling(formData: FormData) {
   const parsed = caseFilingSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid filing");
 
+  const pdf = await readCasePdf(formData.get("pdf"));
+  const url = parsed.data.url?.trim() ?? "";
+  if (!url && !pdf) throw new Error("Provide a secure document link or upload a PDF.");
+  if (url && pdf) throw new Error("Use either a PDF upload or a document link, not both.");
+  if (url && !/^https:\/\//i.test(url)) throw new Error("Document links must use HTTPS.");
+
   await prisma.caseFiling.create({
-    data: { caseId, title: parsed.data.title, url: parsed.data.url, addedById: user.id },
+    data: { caseId, title: parsed.data.title, url: url || null, pdfData: pdf?.pdfData, pdfFileName: pdf?.pdfFileName, addedById: user.id },
   });
 
   if (existing.assignedAttorneyId && existing.assignedAttorneyId !== user.id) {
@@ -292,10 +385,14 @@ export async function addFiling(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/cases/${caseId}`);
+  revalidatePath("/dashboard/filings");
+  if (String(formData.get("returnTo") ?? "") === "filings") redirect("/dashboard/filings");
+  redirect(`/dashboard/cases/${caseId}#filings`);
 }
 
 export async function deleteFiling(formData: FormData) {
   const { session, user } = await requireStaff();
+  if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT)) throw new Error("Forbidden");
   const id = String(formData.get("id") ?? "");
   const filing = await prisma.caseFiling.findUnique({ where: { id }, include: { case: true } });
   if (!filing) throw new Error("Filing not found");

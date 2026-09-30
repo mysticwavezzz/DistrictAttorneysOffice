@@ -78,6 +78,8 @@ model Case {
   type               String?
   stage              String?
   disclosures        String?
+  partyDetails       String    @default("[]")
+  assignedJudge      String?
   discGiven          DateTime?
   discDue            DateTime?
   pretrial           DateTime?
@@ -110,7 +112,9 @@ model CaseFiling {
   id        String   @id @default(cuid())
   caseId    String
   title     String
-  url       String
+  url       String?
+  pdfData   String?
+  pdfFileName String?
   addedById String
   createdAt DateTime @default(now())
 

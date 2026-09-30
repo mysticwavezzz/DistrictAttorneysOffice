@@ -26,7 +26,15 @@ export default async function CaseRequestsPage({ searchParams }: { searchParams:
   const decided = visibleRequests.filter((r) => r.status !== "PENDING");
 
   function renderRequest(r: (typeof requests)[number]) {
-    const data = JSON.parse(r.proposedData) as Record<string, string | undefined>;
+    const data = JSON.parse(r.proposedData) as Record<string, unknown>;
+    const title = typeof data.title === "string" ? data.title : "Untitled case";
+    const caseNumber = typeof data.caseNumber === "string" && data.caseNumber ? data.caseNumber : "Auto-assigned on approval";
+    const initialFiling = data.initialFiling && typeof data.initialFiling === "object" ? data.initialFiling as { title?: string; url?: string | null; pdfFileName?: string } : null;
+    let parties: { name: string; role: string }[] = [];
+    if (typeof data.partyDetails === "string") try {
+      const parsed = JSON.parse(data.partyDetails) as unknown;
+      if (Array.isArray(parsed)) parties = parsed.filter((item): item is { name: string; role: string } => Boolean(item) && typeof item.name === "string" && typeof item.role === "string");
+    } catch { parties = []; }
     const requesterTiers = r.requestedBy.tiers.split(",").filter((tier) => tier in TIER_DEFINITIONS);
     const comparedFields = [
       ["Case title", "title"], ["Case number", "caseNumber"], ["Type", "type"],
@@ -40,12 +48,12 @@ export default async function CaseRequestsPage({ searchParams }: { searchParams:
           {dateFormatter.format(r.createdAt)}
         </p>
         <h3 style={{ marginTop: 0 }}>
-          {data.title} <span className="mono">({data.caseNumber})</span>
+          {title} <span className="mono">({caseNumber})</span>
         </h3>
-        <p style={{ fontSize: 12 }}>
-          Type: {data.type || "Not set"} &middot; Stage: {data.stage || "Not set"}
-        </p>
-        {data.summary && <p style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{data.summary}</p>}
+        <p style={{ fontSize: 12 }}>Type: {typeof data.type === "string" ? data.type || "Not set" : "Not set"} · Assigned judge: {typeof data.assignedJudge === "string" ? data.assignedJudge || "Not assigned" : "Not assigned"}</p>
+        {typeof data.summary === "string" && data.summary && <p style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{data.summary}</p>}
+        {parties.length > 0 && <p style={{ fontSize: 12 }}><strong>People / parties:</strong> {parties.map((party) => `${party.name} (${party.role})`).join(" · ")}</p>}
+        {initialFiling && <p style={{ fontSize: 12 }}><strong>Initial filing:</strong> {initialFiling.url ? <a href={initialFiling.url} target="_blank" rel="noreferrer noopener">{initialFiling.title}</a> : <a href={`/api/case-requests/${r.id}/pdf`}>{initialFiling.title ?? initialFiling.pdfFileName ?? "View uploaded PDF"}</a>}</p>}
 
         {r.kind === "EDIT" && r.case && (
           <div className="tablewrap">
@@ -53,7 +61,7 @@ export default async function CaseRequestsPage({ searchParams }: { searchParams:
               <thead><tr><th scope="col">Field</th><th scope="col">Current</th><th scope="col">Proposed</th></tr></thead>
               <tbody>{comparedFields.map(([label, key]) => {
                 const current = key === "title" ? r.case!.title : key === "caseNumber" ? r.case!.caseNumber : key === "type" ? r.case!.type : key === "stage" ? r.case!.stage : r.case!.summary;
-                const proposed = data[key] ?? "";
+                const proposed = typeof data[key] === "string" ? data[key] as string : "";
                 const changed = (current ?? "") !== proposed;
                 return <tr key={key} className={changed ? "change-highlight" : undefined}><th scope="row">{label}{changed && <span className="pill pill-gold">Changed</span>}</th><td data-label="Current">{current || "Not set"}</td><td data-label="Proposed">{proposed || "Not set"}</td></tr>;
               })}</tbody>
@@ -99,8 +107,8 @@ export default async function CaseRequestsPage({ searchParams }: { searchParams:
 
   return (
     <div>
-      <h1>Case Requests</h1>
-      <p className="lede">Case creations and edits proposed by paralegal staff, awaiting review.</p>
+      <h1>Case Review Queue</h1>
+      <p className="lede">Review case openings and proposed case updates. Opening submissions from ADA or lower remain off the docket until approved.</p>
       <nav className="filter-tabs" aria-label="Filter requests by status">
         {[ ["all", "All"], ["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"] ].map(([value, label]) => <Link key={value} href={`/dashboard/cases/requests${value === "all" ? "" : `?status=${value}`}`} aria-current={selectedStatus === value ? "page" : undefined}>{label}</Link>)}
       </nav>

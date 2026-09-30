@@ -345,35 +345,35 @@ export async function clearAllData(formData: FormData) {
   }
 
   const deleted = await prisma.$transaction(async (tx) => {
-    // Delete dependent case rows explicitly before their parent records. This
-    // avoids relying on database-specific cascade behavior during a bulk wipe.
-    const deadlineReminders = await tx.deadlineReminder.deleteMany({});
-    const filings = await tx.caseFiling.deleteMany({});
-    const comments = await tx.caseComment.deleteMany({});
-    const caseActionRequests = await tx.caseActionRequest.deleteMany({});
-    const aopcs = await tx.aopc.deleteMany({});
-    const cases = await tx.case.deleteMany({});
-    const announcements = await tx.announcement.deleteMany({});
-    const recordsRequests = await tx.recordsRequest.deleteMany({});
-    const notifications = await tx.notification.deleteMany({});
-    await tx.activityLog.deleteMany({});
-    // Keep a record of the destructive action itself.
-    await tx.activityLog.create({
-      data: {
-        actorName: session.user.displayName,
-        action: "cleared",
-        targetType: "all case & content data",
-        targetLabel: "via settings page",
-      },
+    // Keep one internal revocation generation so JWT sessions issued before
+    // this wipe cannot become valid again after all user data is removed.
+    await tx.siteConfiguration.upsert({
+      where: { key: "authSessionGeneration" },
+      create: { key: "authSessionGeneration", value: crypto.randomUUID() },
+      update: { value: crypto.randomUUID() },
     });
-    return {
-      cases: cases.count,
-      aopcs: aopcs.count,
-      announcements: announcements.count,
-      recordsRequests: recordsRequests.count,
-      notifications: notifications.count,
-      related: deadlineReminders.count + filings.count + comments.count + caseActionRequests.count,
+
+    // Remove every persisted application model, in foreign-key dependency order.
+    const counts = {
+      deadlineReminders: (await tx.deadlineReminder.deleteMany({})).count,
+      filings: (await tx.caseFiling.deleteMany({})).count,
+      comments: (await tx.caseComment.deleteMany({})).count,
+      caseActionRequests: (await tx.caseActionRequest.deleteMany({})).count,
+      aopcs: (await tx.aopc.deleteMany({})).count,
+      notifications: (await tx.notification.deleteMany({})).count,
+      cases: (await tx.case.deleteMany({})).count,
+      announcements: (await tx.announcement.deleteMany({})).count,
+      recordsRequests: (await tx.recordsRequest.deleteMany({})).count,
+      activityLogs: (await tx.activityLog.deleteMany({})).count,
+      rosterEntries: (await tx.rosterEntry.deleteMany({})).count,
+      rateLimitBuckets: (await tx.rateLimitBucket.deleteMany({})).count,
+      crimeTipBlacklistEntries: (await tx.crimeTipBlacklist.deleteMany({})).count,
+      verificationTokens: (await tx.verificationToken.deleteMany({})).count,
+      accounts: (await tx.account.deleteMany({})).count,
+      sessions: (await tx.session.deleteMany({})).count,
+      users: (await tx.user.deleteMany({})).count,
     };
+    return counts;
   }, { maxWait: 10_000, timeout: 60_000 });
 
   revalidatePath("/dashboard");

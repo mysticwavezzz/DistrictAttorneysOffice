@@ -6,6 +6,7 @@ export const caseInputSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   caseNumber: z.string().trim().max(50).optional().or(z.literal("")),
   type: optionalText,
+  assignedJudge: z.string().trim().max(120).optional().or(z.literal("")),
   stage: optionalText,
   disclosures: z.string().trim().max(2000).optional().or(z.literal("")),
   discGiven: optionalText,

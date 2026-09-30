@@ -14,8 +14,6 @@ export const CAPABILITIES = {
   ANNOUNCEMENTS_MANAGE: "announcements:manage",
   REQUESTS_VIEW: "requests:view",
   ACTIVITY_VIEW: "activity:view",
-  AOPC_SUBMIT: "aopc:submit",
-  AOPC_REVIEW: "aopc:review",
   SETTINGS_MANAGE: "settings:manage",
 } as const;
 

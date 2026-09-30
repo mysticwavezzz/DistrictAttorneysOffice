@@ -24,7 +24,7 @@ export const UNITS: UnitOption[] = [
     value: "Special Investigations Bureau",
     label: "Special Investigations Bureau",
     description:
-      "Writes affidavits of probable cause and reviews criminal tips referred to the office. Led by a Chief Assistant District Attorney.",
+      "Submits case openings and supporting filings for supervisory review. Led by a Chief Assistant District Attorney.",
     leaderRank: "Chief Assistant District Attorney",
   },
   {

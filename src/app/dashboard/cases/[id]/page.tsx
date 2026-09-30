@@ -15,7 +15,7 @@ type CaseWithRelations = Prisma.CaseGetPayload<{
   include: {
     assignedAttorney: true;
     createdBy: true;
-    filings: { include: { addedBy: true } };
+    filings: { select: { id: true; title: true; url: true; pdfFileName: true; createdAt: true; addedBy: { select: { displayName: true } } } };
     comments: { include: { author: true } };
     relatedTo: true;
     relatedFrom: true;
@@ -47,7 +47,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       include: {
         assignedAttorney: true,
         createdBy: true,
-        filings: { include: { addedBy: true }, orderBy: { createdAt: "desc" } },
+        filings: { select: { id: true, title: true, url: true, pdfFileName: true, createdAt: true, addedBy: { select: { displayName: true } } }, orderBy: { createdAt: "desc" } },
         comments: { include: { author: true }, orderBy: { createdAt: "asc" } },
         relatedTo: true,
         relatedFrom: true,
@@ -95,6 +95,13 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     ["Appeal deadline", caseRecord.appealBy],
   ] as const;
   const activeDeadlines = deadlines.filter(([, date]) => date);
+  let parties: { name: string; role: string }[] = [];
+  try {
+    const parsedParties = JSON.parse(caseRecord.partyDetails) as unknown;
+    if (Array.isArray(parsedParties)) parties = parsedParties.filter((item): item is { name: string; role: string } => Boolean(item) && typeof item.name === "string" && typeof item.role === "string");
+  } catch {
+    parties = [];
+  }
 
   const relatedCasesSection = (
     <section className="formbox" id="related">
@@ -120,25 +127,25 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         <ul style={{ paddingLeft: 18, marginBottom: 10 }}>
           {caseRecord.filings.map((f) => (
             <li key={f.id} style={{ marginBottom: 4, fontSize: 12.5 }}>
-              <a href={f.url} target="_blank" rel="noreferrer noopener">
-                {f.title}
-              </a>{" "}
+              {f.url ? <a href={f.url} target="_blank" rel="noreferrer noopener">{f.title}</a> : <a href={`/api/cases/filings/${f.id}/pdf`}>{f.title}{f.pdfFileName ? ` · ${f.pdfFileName}` : ""}</a>}{" "}
               <span className="note-inline">
                 &mdash; added by {f.addedBy.displayName}, {dateTimeFormatter.format(f.createdAt)}
               </span>{" "}
-              <RemoveButton id={f.id} action={deleteFiling} label="Remove" confirmMessage={`Remove the filing “${f.title}”?`} className="linklike" style={{ fontSize: 11 }} formStyle={{ display: "inline" }} />
+              {canEdit && <RemoveButton id={f.id} action={deleteFiling} label="Remove" confirmMessage={`Remove the filing “${f.title}”?`} className="linklike" style={{ fontSize: 11 }} formStyle={{ display: "inline" }} />}
             </li>
           ))}
         </ul>
       )}
-      <form action={addFiling} className="field-row" style={{ marginBottom: 20 }}>
+      <form action={addFiling} className="field-row case-inline-filing" style={{ marginBottom: 20 }} noValidate>
         <input type="hidden" name="caseId" value={caseRecord.id} />
+        <input type="hidden" name="returnTo" value="case" />
         <div className="field" style={{ flex: "1 1 180px" }}>
-          <input type="text" name="title" placeholder="Filing title" maxLength={200} required />
+          <label htmlFor="inline-filing-title">Document name</label><input id="inline-filing-title" type="text" name="title" placeholder="Filing title" maxLength={200} required />
         </div>
         <div className="field" style={{ flex: "1 1 220px" }}>
-          <input type="text" name="url" placeholder="https://…" maxLength={2000} required />
+          <label htmlFor="inline-filing-pdf">PDF (max 5 MB)</label><input id="inline-filing-pdf" type="file" name="pdf" accept="application/pdf,.pdf" />
         </div>
+        <div className="field" style={{ flex: "1 1 220px" }}><label htmlFor="inline-filing-url">Or secure link</label><input id="inline-filing-url" type="url" name="url" placeholder="https://…" maxLength={2000} /></div>
         <button type="submit" className="govbtn-outline">
           Attach
         </button>
@@ -181,8 +188,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           {caseRecord.stage ? <span className={`pill pill-${statusColor}`}>{caseRecord.stage}</span> : "No status set"}
           {caseRecord.isDraft && <span className="pill pill-muted" style={{ marginLeft: 6 }}>Draft</span>}
         </p>
+        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
         <nav className="case-section-nav" aria-label="Case sections">
-          <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a><a href="#related">Related Cases</a>
+          <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a>
         </nav>
 
         <section id="deadlines" className="deadline-summary" aria-label="Case deadlines">
@@ -196,7 +204,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         <div className="formbox">
           <div className="cards" style={{ marginBottom: 16 }}>
             <div className="card">
-              <span className="card-label">Assigned</span>
+              <span className="card-label">Assigned attorney</span>
               <span className="card-value" style={{ fontSize: 15 }}>
                 {caseRecord.assignedAttorney?.displayName ?? "Unassigned"}
               </span>
@@ -208,8 +216,11 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               </span>
             </div>
           </div>
+          <div className="case-detail-summary"><span><small>Assigned judge</small><strong>{caseRecord.assignedJudge ?? "Not assigned"}</strong></span><span><small>Submitting officer</small><strong>{caseRecord.createdBy.displayName}</strong></span><span><small>People / parties</small><strong>{parties.length}</strong></span></div>
           <h3 id="overview">Summary</h3>
-          <p style={{ whiteSpace: "pre-wrap" }}>{caseRecord.summary}</p>
+          <p style={{ whiteSpace: "pre-wrap" }}>{caseRecord.summary || "No summary has been added."}</p>
+          <h3>People and parties</h3>
+          {parties.length ? <ul className="case-parties">{parties.map((party, index) => <li key={`${party.name}-${index}`}><strong>{party.role}</strong><span>{party.name}</span></li>)}</ul> : <p className="note-inline">No people or parties have been listed.</p>}
         </div>
 
         {relatedCasesSection}
@@ -285,17 +296,19 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   }
 
   return (
-    <div>
+      <div>
       <p className="eyebrow">{caseRecord.caseNumber}</p>
       <h1>{caseRecord.title}</h1>
         <p className="subtitle">Assigned to {caseRecord.assignedAttorney?.displayName ?? "Unassigned"} · {accessLabel}</p>
+        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
         <ol className="status-timeline" aria-label="Case status timeline">
           <li><strong>Case opened</strong><time dateTime={caseRecord.createdAt.toISOString()}>{caseRecord.createdAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
           <li><strong>Current status: {caseRecord.stage ?? "Unassigned"}</strong><time dateTime={caseRecord.updatedAt.toISOString()}>Updated {caseRecord.updatedAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
         </ol>
       <nav className="case-section-nav" aria-label="Case sections">
-        <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a><a href="#related">Related Cases</a>
+        <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a>
       </nav>
+      <div className="formbox case-overview-people"><div className="case-detail-summary"><span><small>Assigned judge</small><strong>{caseRecord.assignedJudge ?? "Not assigned"}</strong></span><span><small>Submitting officer</small><strong>{caseRecord.createdBy.displayName}</strong></span><span><small>People / parties</small><strong>{parties.length}</strong></span></div><h2>People and parties</h2>{parties.length ? <ul className="case-parties">{parties.map((party, index) => <li key={`${party.name}-${index}`}><strong>{party.role}</strong><span>{party.name}</span></li>)}</ul> : <p className="note-inline">No people or parties have been listed.</p>}</div>
       <section id="deadlines" className="deadline-summary" aria-label="Case deadlines">
         <h2>Deadlines</h2>
         {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map(([label, date]) => {
@@ -360,6 +373,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               <input type="text" value={caseRecord.assignedAttorney?.displayName ?? "Unassigned"} disabled />
             )}
           </div>
+          <div className="field"><label htmlFor="assignedJudge">Assigned judge</label><input type="text" id="assignedJudge" name="assignedJudge" maxLength={120} defaultValue={caseRecord.assignedJudge ?? ""} /></div>
         </div>
 
         <div className="field">
