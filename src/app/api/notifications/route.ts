@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { localUser } from "@/lib/case-access";
 
 export async function GET() {
   const session = await auth();
-  if (!session?.user?.discordUserId) {
+  if (!session?.user?.providerUserId) {
     return NextResponse.json({ unreadCount: 0, items: [] }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { discordUserId: session.user.discordUserId },
-    select: { id: true },
-  });
+  const user = await localUser(session.user);
   if (!user) {
     return NextResponse.json({ unreadCount: 0, items: [] });
   }

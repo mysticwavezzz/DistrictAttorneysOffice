@@ -80,7 +80,7 @@ export default auth(async (req) => {
   const rule = findRouteRule(pathname);
   if (rule) {
     const user = req.auth?.user;
-    if (!user?.discordUserId) {
+    if (!user?.providerUserId) {
       const loginUrl = new URL("/login", req.nextUrl.origin);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);

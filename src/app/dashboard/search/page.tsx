@@ -30,7 +30,7 @@ export default async function SearchPage({
 
   if (q) {
     if (canViewCases) {
-      const user = await localUser(session.user.discordUserId);
+      const user = await localUser(session.user);
       const where: Prisma.CaseWhereInput = {
         OR: [{ title: { contains: q } }, { caseNumber: { contains: q } }],
       };

@@ -11,20 +11,20 @@ import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 
 async function requireProposer() {
   const session = await auth();
-  if (!session?.user?.discordUserId || !hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT)) {
+  if (!session?.user?.providerUserId || !hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT)) {
     throw new Error("Forbidden");
   }
-  const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
   if (!user) throw new Error("Local staff record not found");
   return { session, user };
 }
 
 async function requireReviewer() {
   const session = await auth();
-  if (!session?.user?.discordUserId || !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS)) {
+  if (!session?.user?.providerUserId || !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS)) {
     throw new Error("Forbidden");
   }
-  const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
   if (!user) throw new Error("Local staff record not found");
   return { session, user };
 }

@@ -11,7 +11,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const session = await auth();
   const canReview = Boolean(session?.user && hasCapability(session.user.tiers, CAPABILITIES.AOPC_REVIEW));
   const canSubmit = Boolean(session?.user && hasCapability(session.user.tiers, CAPABILITIES.AOPC_SUBMIT));
-  if (!session?.user?.discordUserId || (!canReview && !canSubmit)) {
+  if (!session?.user?.providerUserId || (!canReview && !canSubmit)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -20,7 +20,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!affidavit?.pdfData || !affidavit.pdfFileName) return NextResponse.json({ error: "PDF not found" }, { status: 404 });
 
   if (!canReview) {
-    const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
     if (!user || user.id !== affidavit.submittedById) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

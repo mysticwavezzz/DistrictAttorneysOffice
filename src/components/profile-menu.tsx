@@ -9,13 +9,15 @@ import { useRouter } from "next/navigation";
 export function ProfileMenu({
   displayName,
   username,
-  discordUserId,
+  identityProvider,
+  providerUserId,
   avatarUrl,
   initialTiers,
 }: {
   displayName: string;
   username: string;
-  discordUserId: string;
+  identityProvider: "discord" | "roblox";
+  providerUserId: string;
   avatarUrl: string | null;
   initialTiers: string[];
 }) {
@@ -51,11 +53,11 @@ export function ProfileMenu({
         <div className="profile-summary">
           <strong>{displayName}</strong>
           <span>@{username}</span>
-          <span className="mono">Discord ID: {discordUserId}</span>
+          <span className="mono">{identityProvider === "roblox" ? "Roblox ID" : "Discord ID"}: {providerUserId}</span>
           <span>Access: {tiers.length ? tiers.filter((tier) => !tier.startsWith("cap:") && !tier.startsWith("denycap:")).join(", ") || "Custom permissions" : "No active role tiers"}</span>
         </div>
         <Link href="/settings" onClick={() => setOpen(false)}>Settings &amp; notifications</Link>
-        <button type="button" onClick={syncRoles} disabled={syncing}>{syncing ? "Syncing Discord roles…" : "Sync Discord roles now"}</button>
+        <button type="button" onClick={syncRoles} disabled={syncing}>{syncing ? "Syncing roles…" : `Sync ${identityProvider === "roblox" ? "Roblox group" : "Discord server"} roles now`}</button>
         {syncedAt && <span className="profile-sync-note" role="status">Roles synced at {syncedAt}.</span>}
         {syncError && <span className="profile-sync-error" role="alert">Role sync failed. Try again in a moment.</span>}
         <button type="button" onClick={() => signOut({ redirectTo: "/" })}>Sign out</button>

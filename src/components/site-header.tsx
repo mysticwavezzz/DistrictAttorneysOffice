@@ -21,7 +21,7 @@ interface SiteHeaderProps {
 
 export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
   const session = await auth();
-  const isStaff = Boolean(session?.user?.discordUserId);
+  const isStaff = Boolean(session?.user?.providerUserId);
   const canViewDashboard =
     isStaff && hasCapability(session!.user.tiers, CAPABILITIES.DASHBOARD_VIEW);
   const canViewBulletin = isStaff && hasCapability(session!.user.tiers, CAPABILITIES.BULLETIN_VIEW);
@@ -44,7 +44,7 @@ export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
               <>
                 {!staffNav && canViewDashboard && <Link href="/dashboard">Staff Dashboard</Link>}
                 <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}>
-                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} discordUserId={session!.user.discordUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} />
+                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} identityProvider={session!.user.identityProvider} providerUserId={session!.user.providerUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} />
                 </SessionProvider>
                 <NotificationBell />
               </>

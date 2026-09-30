@@ -10,7 +10,7 @@ import { getSiteSettings } from "@/lib/site-settings";
 import { env } from "@/lib/env";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { ClearDataForm } from "./clear-data-form";
-import { updateMaintenanceSettings, updateWebsiteVersion, updateNotificationSettings, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup, addCrimeTipBlacklistEntry, removeCrimeTipBlacklistEntry } from "./actions";
+import { updateMaintenanceSettings, updateWebsiteVersion, updateNotificationSettings, updateAuthProvider, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup, addCrimeTipBlacklistEntry, removeCrimeTipBlacklistEntry } from "./actions";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
 import { getSiteConfiguration } from "@/lib/site-settings";
@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
 import { getWebsiteVersion } from "@/lib/site-version";
 import { formatDateTimeInTimeZone } from "@/lib/time-zone";
+import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
 
 export default async function SiteSettingsPage() {
   const session = await auth();
@@ -45,6 +46,10 @@ export default async function SiteSettingsPage() {
     getSiteConfiguration<string[]>("maintenanceExemptDiscordUserIds", []),
     getSiteConfiguration<string>("websiteVersion", ""),
     getWebsiteVersion(),
+  ]);
+  const [robloxRoleMappings, authProvider] = await Promise.all([
+    getSiteConfiguration("robloxTierRoleMappings", ROBLOX_TIER_ROLE_MAPPINGS),
+    getSiteConfiguration<"discord" | "roblox">("authProvider", env.ROBLOX_CLIENT_ID && env.ROBLOX_CLIENT_SECRET ? "roblox" : "discord"),
   ]);
 
   return (
@@ -122,12 +127,12 @@ export default async function SiteSettingsPage() {
           />
         </div>
         <h3>Maintenance Exemptions</h3>
-        <p className="note-inline">Selected permission tiers (as granted through Discord role mappings) and individual Discord accounts can continue using the site while maintenance mode is on. The admin database sign-in flow remains available. Enter Discord user IDs (not usernames), separated by commas or new lines.</p>
+        <p className="note-inline">Selected permission tiers and individual accounts can continue using the site while maintenance mode is on. Enter IDs from the currently selected sign-in provider, separated by commas or new lines. The admin database sign-in flow remains available.</p>
         <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend>Exempt permission tiers</legend>
           <div className="cards">{Object.values(TIER_DEFINITIONS).map((tier) => <label key={tier.id} style={{ display: "flex", alignItems: "center", gap: 8, textTransform: "none" }}><input type="checkbox" name="maintenanceExemptTiers" value={tier.id} defaultChecked={maintenanceExemptTiers.includes(tier.id)}/>{tier.label}</label>)}</div>
         </fieldset>
-        <div className="field"><label htmlFor="maintenanceExemptDiscordUserIds">Exempt Discord user IDs</label><textarea id="maintenanceExemptDiscordUserIds" name="maintenanceExemptDiscordUserIds" rows={3} maxLength={2600} defaultValue={maintenanceExemptUserIds.join("\n")} placeholder="123456789012345678" /></div>
+        <div className="field"><label htmlFor="maintenanceExemptDiscordUserIds">Exempt account IDs</label><textarea id="maintenanceExemptDiscordUserIds" name="maintenanceExemptDiscordUserIds" rows={3} maxLength={2600} defaultValue={maintenanceExemptUserIds.join("\n")} placeholder="Provider account ID" /></div>
       </FormWithPendingSubmit>
 
       <h2>Website Version</h2>
@@ -135,6 +140,14 @@ export default async function SiteSettingsPage() {
       <form action={updateWebsiteVersion} className="formbox">
         <div className="field"><label htmlFor="websiteVersion">Manual version override <span className="hint">(blank uses the automatic version)</span></label><input id="websiteVersion" name="websiteVersion" inputMode="numeric" pattern="[0-9]+\.[0-9]+\.[0-9]+" defaultValue={websiteVersionOverride} placeholder="0.1.3" /></div>
         <button type="submit" className="govbtn">Save Website Version</button>
+      </form>
+
+      <h2>Staff Sign-In Provider</h2>
+      <p className="note-inline">Current provider for new sign-ins: <strong>{authProvider === "roblox" ? "Roblox" : "Discord"}</strong>. Provider credentials remain in Railway. Existing signed-in sessions are not immediately terminated when this setting changes.</p>
+      <form action={updateAuthProvider} className="formbox">
+        <div className="field"><label htmlFor="authProvider">Provider for new staff sign-ins</label><select id="authProvider" name="authProvider" defaultValue={authProvider}><option value="roblox">Roblox OAuth</option><option value="discord">Discord OAuth</option></select></div>
+        <p className="note-inline">Switch only after testing the selected provider and confirming that its group/role mapping grants at least one administrator access.</p>
+        <button type="submit" className="govbtn">Save Sign-In Provider</button>
       </form>
 
       <h2>Notifications</h2>
@@ -204,6 +217,9 @@ export default async function SiteSettingsPage() {
         <h3>Discord role to permission tier mappings</h3>
         <p className="note-inline">Each Discord role ID must be numeric. Each recognized role grants its tier.</p>
         <div className="field"><label htmlFor="discordRoleMappings">Role mappings (JSON)</label><textarea id="discordRoleMappings" name="discordRoleMappings" rows={10} defaultValue={JSON.stringify(roleMappings, null, 2)} spellCheck={false} /></div>
+        <h3>Roblox community role to permission tier mappings</h3>
+        <p className="note-inline">Group ID {32985413}. Role IDs are matched exactly; general-member and provisional roles intentionally grant no staff access. The defaults below map the current community roles and can be edited here.</p>
+        <div className="field"><label htmlFor="robloxTierRoleMappings">Roblox role mappings (JSON)</label><textarea id="robloxTierRoleMappings" name="robloxTierRoleMappings" rows={14} defaultValue={JSON.stringify(robloxRoleMappings, null, 2)} spellCheck={false} /></div>
         <h3>Capabilities granted by tier</h3>
         <p className="note-inline">Available capabilities: {Object.values(CAPABILITIES).join(", ")}. Retain site settings access on at least one tier.</p>
         <div className="field"><label htmlFor="tierCapabilities">Tier permissions (JSON)</label><textarea id="tierCapabilities" name="tierCapabilities" rows={16} defaultValue={JSON.stringify(configuredCapabilities, null, 2)} spellCheck={false} /></div>

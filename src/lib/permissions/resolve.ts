@@ -1,27 +1,16 @@
 import type { RobloxGroupRole } from "@/lib/roblox/types";
-import { TIER_ROLE_MAPPINGS, type RoleMatcher } from "@/config/role-mappings";
 import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
+import { ROBLOX_TIER_ROLE_MAPPINGS, type RobloxTierRoleMapping } from "@/config/roblox-role-mappings";
 import { TIER_DEFINITIONS, type PermissionTier } from "./tiers";
 import type { Capability } from "./capabilities";
 
-function matcherMatches(matcher: RoleMatcher, roles: RobloxGroupRole[]): boolean {
-  return roles.some((role) => {
-    if (role.groupId !== matcher.groupId) return false;
-    if (matcher.type === "minRank") {
-      return role.rank >= matcher.minRank;
-    }
-    return matcher.roleNames.some(
-      (name) => name.toLowerCase() === role.roleName.toLowerCase()
-    );
-  });
-}
-
 export function resolveTiersFromRobloxRoles(
-  roles: RobloxGroupRole[]
+  roles: RobloxGroupRole[],
+  mappings: RobloxTierRoleMapping[] = ROBLOX_TIER_ROLE_MAPPINGS
 ): PermissionTier[] {
   const tiers = new Set<PermissionTier>();
-  for (const mapping of TIER_ROLE_MAPPINGS) {
-    if (mapping.matchers.some((matcher) => matcherMatches(matcher, roles))) {
+  for (const mapping of mappings) {
+    if (roles.some((role) => role.groupId === mapping.groupId && mapping.roleIds.includes(role.roleId))) {
       tiers.add(mapping.tier);
     }
   }

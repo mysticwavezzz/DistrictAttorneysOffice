@@ -3,14 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { localUser } from "@/lib/case-access";
 
 async function currentUserId(): Promise<string | null> {
   const session = await auth();
-  if (!session?.user?.discordUserId) return null;
-  const user = await prisma.user.findUnique({
-    where: { discordUserId: session.user.discordUserId },
-    select: { id: true },
-  });
+  if (!session?.user?.providerUserId) return null;
+  const user = await localUser(session.user);
   return user?.id ?? null;
 }
 

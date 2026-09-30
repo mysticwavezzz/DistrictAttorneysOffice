@@ -17,7 +17,7 @@ export default async function DashboardOverviewPage() {
   const canViewRequests = hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW);
   const canReviewAopcs = hasCapability(tiers, CAPABILITIES.AOPC_REVIEW);
   const canSubmitAopcs = hasCapability(tiers, CAPABILITIES.AOPC_SUBMIT);
-  const user = await localUser(session!.user.discordUserId);
+  const user = await localUser(session!.user);
   const personalScope = { OR: [{ assignedAttorneyId: user?.id }, { createdById: user?.id }] };
   const caseScope = canViewAllCases ? {} : personalScope;
 

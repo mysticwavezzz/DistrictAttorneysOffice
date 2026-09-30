@@ -23,7 +23,7 @@ export default async function AffidavitPrintPage({ params }: { params: Promise<{
   });
   if (!affidavit) notFound();
   if (!canReviewAopcs) {
-    const user = await localUser(session.user.discordUserId);
+    const user = await localUser(session.user);
     if (!user || affidavit.submittedById !== user.id) redirect("/login?error=forbidden");
   }
 

@@ -14,20 +14,20 @@ import { UNITS } from "@/config/units";
 
 async function requireSubmitter() {
   const session = await auth();
-  if (!session?.user?.discordUserId || !hasCapability(session.user.tiers, CAPABILITIES.AOPC_SUBMIT)) {
+  if (!session?.user?.providerUserId || !hasCapability(session.user.tiers, CAPABILITIES.AOPC_SUBMIT)) {
     throw new Error("Forbidden");
   }
-  const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
   if (!user) throw new Error("Local staff record not found");
   return { session, user };
 }
 
 async function requireReviewer() {
   const session = await auth();
-  if (!session?.user?.discordUserId || !hasCapability(session.user.tiers, CAPABILITIES.AOPC_REVIEW)) {
+  if (!session?.user?.providerUserId || !hasCapability(session.user.tiers, CAPABILITIES.AOPC_REVIEW)) {
     throw new Error("Forbidden");
   }
-  const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
   if (!user) throw new Error("Local staff record not found");
   return { session, user };
 }

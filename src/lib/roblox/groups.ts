@@ -15,10 +15,10 @@ const groupRolesResponseSchema = z.object({
         name: z.string(),
       }),
       role: z.object({
-        id: z.number(),
-        name: z.string(),
-        rank: z.number(),
-      }),
+          id: z.number(),
+          name: z.string(),
+          rank: z.number(),
+        }),
     })
   ),
 });
@@ -57,6 +57,7 @@ export async function fetchRobloxGroupRoles(
   return json.data.map((entry) => ({
     groupId: entry.group.id,
     groupName: entry.group.name,
+    roleId: entry.role.id,
     roleName: entry.role.name,
     rank: entry.role.rank,
   }));

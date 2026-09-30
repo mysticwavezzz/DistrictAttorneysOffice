@@ -36,7 +36,7 @@ async function pushDiscordDm(userId: string, title: string, body?: string) {
   if (!env.DISCORD_DM_NOTIFICATIONS) return;
   try {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { discordUserId: true } });
-    if (!user) return;
+    if (!user?.discordUserId) return;
     const content = body ? `**${title}**\n${body}` : `**${title}**`;
     await sendDirectMessage(user.discordUserId, content);
   } catch (error) {

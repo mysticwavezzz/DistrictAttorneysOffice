@@ -1,6 +1,7 @@
 export interface RobloxGroupRole {
   groupId: number;
   groupName: string;
+  roleId: number;
   roleName: string;
   rank: number;
 }

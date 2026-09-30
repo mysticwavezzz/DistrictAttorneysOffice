@@ -2,14 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { RobloxGroupRole } from "@/lib/roblox/types";
 
 const LE_GROUP = 1001;
-const GOV_GROUP = 2002;
-const DA_GROUP = 3003;
+const DA_GROUP = 32985413;
 
 async function freshResolveModule() {
   vi.resetModules();
-  vi.stubEnv("ROBLOX_LAW_ENFORCEMENT_GROUP_ID", String(LE_GROUP));
-  vi.stubEnv("ROBLOX_GOVERNMENT_GROUP_ID", String(GOV_GROUP));
-  vi.stubEnv("ROBLOX_DA_GROUP_ID", String(DA_GROUP));
   const resolve = await import("./resolve");
   const tiers = await import("./tiers");
   const capabilities = await import("./capabilities");
@@ -21,67 +17,53 @@ describe("resolveTiersFromRobloxRoles", () => {
     vi.unstubAllEnvs();
   });
 
-  it("grants LAW_ENFORCEMENT for any rank >= 1 in the configured LE group", async () => {
+  it("grants Roblox DA tiers only for exact group and role IDs", async () => {
     const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
     const roles: RobloxGroupRole[] = [
-      { groupId: LE_GROUP, groupName: "Sheriff's Office", roleName: "Deputy", rank: 5 },
-    ];
-    expect(resolveTiersFromRobloxRoles(roles)).toEqual([PERMISSION_TIERS.LAW_ENFORCEMENT]);
-  });
-
-  it("does not grant a tier for rank 0 (not actually in the group)", async () => {
-    const { resolveTiersFromRobloxRoles } = await freshResolveModule();
-    const roles: RobloxGroupRole[] = [
-      { groupId: LE_GROUP, groupName: "Sheriff's Office", roleName: "Guest", rank: 0 },
-    ];
-    expect(resolveTiersFromRobloxRoles(roles)).toEqual([]);
-  });
-
-  it("matches DA tiers by exact role name, case-insensitively", async () => {
-    const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
-    const roles: RobloxGroupRole[] = [
-      { groupId: DA_GROUP, groupName: "DA's Office", roleName: "district attorney", rank: 100 },
+      { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 100901327, roleName: "District Attorney", rank: 43 },
     ];
     expect(resolveTiersFromRobloxRoles(roles)).toEqual([PERMISSION_TIERS.DISTRICT_ATTORNEY]);
   });
 
-  it("does not cross-match a DA role name against a different group", async () => {
-    const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
+  it("does not grant staff access to general members or provisional staff", async () => {
+    const { resolveTiersFromRobloxRoles } = await freshResolveModule();
     const roles: RobloxGroupRole[] = [
-      // Same role name as a DA tier, but in the LE group rather than the DA
-      // group. It should still grant LAW_ENFORCEMENT (LE tier matches by
-      // rank, not name), but never a DA tier, since those are matched by
-      // (group, role name) and this role isn't in the DA group.
-      { groupId: LE_GROUP, groupName: "Sheriff's Office", roleName: "Attorney", rank: 50 },
+      { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 12884901889, roleName: "Member", rank: 1 },
+      { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 788467063, roleName: "Provisional Staffer", rank: 7 },
     ];
-    const tiers = resolveTiersFromRobloxRoles(roles);
-    expect(tiers).toEqual([PERMISSION_TIERS.LAW_ENFORCEMENT]);
-    expect(tiers).not.toContain(PERMISSION_TIERS.DA_ATTORNEY);
+    expect(resolveTiersFromRobloxRoles(roles)).toEqual([]);
   });
 
-  it("grants multiple tiers when a user holds multiple qualifying roles", async () => {
+  it("grants the tier mapped to the exact role ID", async () => {
     const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
     const roles: RobloxGroupRole[] = [
-      { groupId: LE_GROUP, groupName: "Sheriff's Office", roleName: "Deputy", rank: 5 },
-      { groupId: DA_GROUP, groupName: "DA's Office", roleName: "Paralegal", rank: 20 },
+      { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 100910644, roleName: "Special Investigator", rank: 19 },
+    ];
+    expect(resolveTiersFromRobloxRoles(roles)).toEqual([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS]);
+  });
+
+  it("does not cross-match a staff role ID from a different group", async () => {
+    const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
+    const roles: RobloxGroupRole[] = [
+      { groupId: LE_GROUP, groupName: "Other group", roleId: 100901327, roleName: "District Attorney", rank: 43 },
     ];
     const tiers = resolveTiersFromRobloxRoles(roles);
-    expect(tiers).toContain(PERMISSION_TIERS.LAW_ENFORCEMENT);
+    expect(tiers).toEqual([]);
+    expect(tiers).not.toContain(PERMISSION_TIERS.DISTRICT_ATTORNEY);
+  });
+
+  it("supports multiple configured mappings", async () => {
+    const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
+    const roles: RobloxGroupRole[] = [
+      { groupId: DA_GROUP, groupName: "DA's Office", roleId: 100910625, roleName: "Assistant District Attorney", rank: 27 },
+      { groupId: DA_GROUP, groupName: "DA's Office", roleId: 100910635, roleName: "Executive Secretary", rank: 23 },
+    ];
+    const tiers = resolveTiersFromRobloxRoles(roles);
+    expect(tiers).toContain(PERMISSION_TIERS.DA_ATTORNEY);
     expect(tiers).toContain(PERMISSION_TIERS.DA_PARALEGAL);
     expect(tiers).toHaveLength(2);
   });
 
-  it("omits a tier entirely when its group id env var isn't configured", async () => {
-    vi.resetModules();
-    vi.stubEnv("ROBLOX_LAW_ENFORCEMENT_GROUP_ID", "");
-    vi.stubEnv("ROBLOX_GOVERNMENT_GROUP_ID", String(GOV_GROUP));
-    vi.stubEnv("ROBLOX_DA_GROUP_ID", "");
-    const { resolveTiersFromRobloxRoles } = await import("./resolve");
-    const roles: RobloxGroupRole[] = [
-      { groupId: LE_GROUP, groupName: "Sheriff's Office", roleName: "Deputy", rank: 5 },
-    ];
-    expect(resolveTiersFromRobloxRoles(roles)).toEqual([]);
-  });
 });
 
 describe("resolveTiersFromDiscordRoles", () => {

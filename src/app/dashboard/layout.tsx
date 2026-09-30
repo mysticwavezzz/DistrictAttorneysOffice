@@ -14,7 +14,7 @@ export default async function DashboardLayout({
 }) {
   const session = await auth();
 
-  if (!session?.user?.discordUserId) {
+  if (!session?.user?.providerUserId) {
     redirect("/login?callbackUrl=/dashboard");
   }
 

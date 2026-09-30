@@ -55,7 +55,7 @@ export default async function CasesPage({
   const direction = filters.dir === "asc" ? "asc" : "desc";
   const pageSize = 25;
 
-  const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
   const mineOnly = filters.mine === "1";
   const overdueOnly = filters.deadline === "overdue";
   const reviewOnly = filters.review === "1";

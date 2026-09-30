@@ -33,7 +33,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
       where: { tiers: { not: "" } },
       select: { discordUserId: true },
     });
-    activeDiscordIds = new Set(activeUsers.map((u) => u.discordUserId));
+    activeDiscordIds = new Set(activeUsers.map((u) => u.discordUserId).filter((id): id is string => Boolean(id)));
   } catch (error) {
     console.error("Failed to load roster", error);
   }

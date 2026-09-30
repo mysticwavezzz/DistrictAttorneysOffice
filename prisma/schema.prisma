@@ -9,7 +9,8 @@ datasource db {
 
 model User {
   id               String   @id @default(cuid())
-  discordUserId    String   @unique
+  discordUserId    String?  @unique
+  robloxUserId     String?  @unique
   username         String
   displayName      String
   avatarUrl        String?

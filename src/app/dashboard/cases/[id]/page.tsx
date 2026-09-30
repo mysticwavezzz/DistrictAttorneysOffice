@@ -36,7 +36,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     redirect("/login?error=forbidden");
   }
 
-  const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
 
   let caseRecord: CaseWithRelations | null = null;

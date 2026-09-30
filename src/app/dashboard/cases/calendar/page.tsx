@@ -17,7 +17,7 @@ function eventKey(caseId: string, type: DeadlineType, date: Date) { return `${ca
 export default async function CaseCalendarPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) redirect("/login?error=forbidden");
-  const viewer = await localUser(session.user.discordUserId);
+  const viewer = await localUser(session.user);
   if (!viewer) redirect("/login?error=forbidden");
   const values = await searchParams;
   const match = values.month?.match(/^(\d{4})-(\d{2})$/);

@@ -17,7 +17,7 @@ export default async function AffidavitsPage({ searchParams }: { searchParams: P
   const canReview = session?.user && hasCapability(session.user.tiers, CAPABILITIES.AOPC_REVIEW);
   if (!session?.user || (!canSubmit && !canReview)) redirect("/login?error=forbidden");
 
-  const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
   const divisions = await getSiteConfiguration("divisions", UNITS);
   const targetUnits = divisions.filter((unit) => unit.acceptsAopc).map((unit) => unit.value);
   const aopcs = await prisma.aopc.findMany({

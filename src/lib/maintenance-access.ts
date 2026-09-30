@@ -5,7 +5,7 @@ export function shouldRedirectToMaintenance(input: {
   pathname: string;
   callbackUrl?: string | null;
   enabled: boolean;
-  user?: { discordUserId?: string; tiers?: string[] };
+  user?: { discordUserId?: string; providerUserId?: string; tiers?: string[] };
   exemptTiers: string[];
   exemptUserIds: string[];
 }): boolean {
@@ -13,7 +13,8 @@ export function shouldRedirectToMaintenance(input: {
     (prefix) => input.pathname === prefix || input.pathname.startsWith(`${prefix}/`)
   ) || (input.pathname === "/login" && Boolean(input.callbackUrl && (input.callbackUrl === "/98981" || input.callbackUrl.startsWith("/98981/"))));
   if (!input.enabled || exemptPath) return false;
-  if (input.user?.discordUserId && input.exemptUserIds.includes(input.user.discordUserId)) return false;
+  const userId = input.user?.providerUserId ?? input.user?.discordUserId;
+  if (userId && input.exemptUserIds.includes(userId)) return false;
   if (input.user?.tiers?.some((tier) => input.exemptTiers.includes(tier))) return false;
   return true;
 }

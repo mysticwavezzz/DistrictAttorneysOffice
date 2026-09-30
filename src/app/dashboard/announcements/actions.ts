@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { localUser } from "@/lib/case-access";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { announcementInputSchema } from "@/lib/validation/announcement";
 import { emptyToNull } from "@/lib/validation/case";
@@ -35,9 +36,7 @@ export async function createAnnouncement(formData: FormData) {
   }
   const data = parsed.data;
 
-  const creator = await prisma.user.findUnique({
-    where: { discordUserId: session.user.discordUserId },
-  });
+  const creator = await localUser(session.user);
 
   const isPublished = formData.get("isPublished") === "on";
   const publishedAt = resolvePublishedAt(data.publishedAt);

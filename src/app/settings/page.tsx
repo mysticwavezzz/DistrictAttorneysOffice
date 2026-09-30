@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { localUser } from "@/lib/case-access";
 import { env } from "@/lib/env";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -15,8 +16,8 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", ti
 
 export default async function SettingsPage() {
   const session = await auth();
-  if (!session?.user?.discordUserId) redirect("/login?callbackUrl=/settings");
-  const user = await prisma.user.findUnique({ where: { discordUserId: session.user.discordUserId } });
+  if (!session?.user?.providerUserId) redirect("/login?callbackUrl=/settings");
+  const user = await localUser(session.user);
   const notifications = user ? await prisma.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
   const muted = new Set((user?.mutedTypes ?? "").split(",").filter(Boolean));
   const grouped = NOTIFICATION_TYPES.map((type) => ({ ...type, items: notifications.filter((item) => item.type === type.value) })).filter((group) => group.items.length);
@@ -30,10 +31,10 @@ export default async function SettingsPage() {
         <section className="formbox" aria-labelledby="profile-heading">
           <h2 id="profile-heading" style={{ marginTop: 0 }}>Profile</h2>
           <p><strong>{session.user.displayName}</strong> (@{session.user.username})</p>
-          <p className="note-inline">Discord ID: <span className="mono">{session.user.discordUserId}</span></p>
+          <p className="note-inline">{session.user.identityProvider === "roblox" ? "Roblox ID" : "Discord ID"}: <span className="mono">{session.user.providerUserId}</span></p>
           <p className="note-inline">Current access tiers: {session.user.tiers.filter((tier) => !tier.startsWith("cap:") && !tier.startsWith("denycap:")).join(", ") || "No active role tiers"}</p>
           <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}><RoleSyncButton /></SessionProvider>
-          <p className="note-inline">Role sync checks your current Discord server roles and refreshes your access.</p>
+          <p className="note-inline">Role sync checks your current {session.user.identityProvider === "roblox" ? "Roblox group roles" : "Discord server roles"} and refreshes your access.</p>
         </section>
         <section id="notifications" aria-labelledby="notifications-heading">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><h2 id="notifications-heading">Notifications</h2>{notifications.some((item) => !item.isRead) && <form action={markAllNotificationsRead}><button className="linklike" type="submit">Mark all as read</button></form>}</div>

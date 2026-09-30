@@ -12,8 +12,8 @@ import { notify } from "@/lib/notifications";
 
 async function requireStaff() {
   const session = await auth();
-  if (!session?.user?.discordUserId) throw new Error("Forbidden");
-  const user = await localUser(session.user.discordUserId);
+  if (!session?.user?.providerUserId) throw new Error("Forbidden");
+  const user = await localUser(session.user);
   if (!user) throw new Error("Local staff record not found");
   return { session, user };
 }

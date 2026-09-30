@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   }
 
   const viewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL);
-  const user = await localUser(session.user.discordUserId);
+  const user = await localUser(session.user);
 
   const { searchParams } = new URL(req.url);
   const tab = searchParams.get("tab") === "archived" ? "archived" : "ongoing";

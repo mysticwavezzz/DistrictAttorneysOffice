@@ -2,8 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import type { PermissionTier } from "@/lib/permissions/tiers";
 
-export async function localUser(discordUserId: string) {
-  return prisma.user.findUnique({ where: { discordUserId } });
+export async function localUser(identity: { identityProvider: "discord" | "roblox"; providerUserId: string }) {
+  if (!identity.providerUserId) return null;
+  return identity.identityProvider === "roblox"
+    ? prisma.user.findUnique({ where: { robloxUserId: identity.providerUserId } })
+    : prisma.user.findUnique({ where: { discordUserId: identity.providerUserId } });
 }
 
 export function canAccessCase(
