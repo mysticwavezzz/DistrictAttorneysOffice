@@ -289,16 +289,37 @@ export async function clearAllData(formData: FormData) {
     throw new Error(`Type "${CLEAR_DATA_CONFIRMATION}" exactly to confirm.`);
   }
 
-  await prisma.$transaction([
-    prisma.aopc.deleteMany({}),
-    prisma.case.deleteMany({}),
-    prisma.announcement.deleteMany({}),
-    prisma.recordsRequest.deleteMany({}),
-    prisma.notification.deleteMany({}),
-    prisma.activityLog.deleteMany({}),
-  ]);
-
-  await logActivity(session.user.displayName, "cleared", "all case & content data", "via settings page");
+  const deleted = await prisma.$transaction(async (tx) => {
+    // Delete dependent case rows explicitly before their parent records. This
+    // avoids relying on database-specific cascade behavior during a bulk wipe.
+    const deadlineReminders = await tx.deadlineReminder.deleteMany({});
+    const filings = await tx.caseFiling.deleteMany({});
+    const comments = await tx.caseComment.deleteMany({});
+    const caseActionRequests = await tx.caseActionRequest.deleteMany({});
+    const aopcs = await tx.aopc.deleteMany({});
+    const cases = await tx.case.deleteMany({});
+    const announcements = await tx.announcement.deleteMany({});
+    const recordsRequests = await tx.recordsRequest.deleteMany({});
+    const notifications = await tx.notification.deleteMany({});
+    await tx.activityLog.deleteMany({});
+    // Keep a record of the destructive action itself.
+    await tx.activityLog.create({
+      data: {
+        actorName: session.user.displayName,
+        action: "cleared",
+        targetType: "all case & content data",
+        targetLabel: "via settings page",
+      },
+    });
+    return {
+      cases: cases.count,
+      aopcs: aopcs.count,
+      announcements: announcements.count,
+      recordsRequests: recordsRequests.count,
+      notifications: notifications.count,
+      related: deadlineReminders.count + filings.count + comments.count + caseActionRequests.count,
+    };
+  }, { maxWait: 10_000, timeout: 60_000 });
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/cases");
@@ -308,4 +329,5 @@ export async function clearAllData(formData: FormData) {
   revalidatePath("/dashboard/affidavits");
   revalidatePath("/");
   revalidatePath("/98981");
+  return { success: true as const, deleted };
 }
