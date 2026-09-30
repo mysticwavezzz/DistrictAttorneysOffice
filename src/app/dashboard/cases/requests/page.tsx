@@ -49,13 +49,13 @@ export default async function CaseRequestsPage({ searchParams }: { searchParams:
 
         {r.kind === "EDIT" && r.case && (
           <div className="tablewrap">
-            <table className="stat">
+            <table className="stat mobile-cards">
               <thead><tr><th scope="col">Field</th><th scope="col">Current</th><th scope="col">Proposed</th></tr></thead>
               <tbody>{comparedFields.map(([label, key]) => {
                 const current = key === "title" ? r.case!.title : key === "caseNumber" ? r.case!.caseNumber : key === "type" ? r.case!.type : key === "stage" ? r.case!.stage : r.case!.summary;
                 const proposed = data[key] ?? "";
                 const changed = (current ?? "") !== proposed;
-                return <tr key={key} className={changed ? "change-highlight" : undefined}><th scope="row">{label}{changed && <span className="pill pill-gold">Changed</span>}</th><td>{current || "Not set"}</td><td>{proposed || "Not set"}</td></tr>;
+                return <tr key={key} className={changed ? "change-highlight" : undefined}><th scope="row">{label}{changed && <span className="pill pill-gold">Changed</span>}</th><td data-label="Current">{current || "Not set"}</td><td data-label="Proposed">{proposed || "Not set"}</td></tr>;
               })}</tbody>
             </table>
           </div>

@@ -31,7 +31,7 @@ export default async function AnnouncementsAdminPage() {
       <h1>Public Releases &amp; LE Bulletin</h1>
 
       <div className="tablewrap">
-        <table className="stat">
+        <table className="stat mobile-cards">
           <thead>
             <tr>
               <th>Title</th>
@@ -52,20 +52,20 @@ export default async function AnnouncementsAdminPage() {
             ) : (
               posts.map((post) => (
                 <tr key={post.id}>
-                  <td>
+                  <td data-label="Title">
                     <Link href={`/dashboard/announcements/${post.id}`}>{post.title}</Link>
                   </td>
-                  <td>
+                  <td data-label="Audience">
                     <span className={`pill ${post.audience === "PUBLIC" ? "pill-navy" : "pill-gold"}`}>
                       {post.audience === "PUBLIC" ? "Public" : "Law Enforcement"}
                     </span>
                   </td>
-                  <td>{statusPill(post)}</td>
-                  <td>{dateFormatter.format(post.publishedAt)}</td>
-                  <td>
+                  <td data-label="Status">{statusPill(post)}</td>
+                  <td data-label="Published">{dateFormatter.format(post.publishedAt)}</td>
+                  <td data-label="Edit">
                     <Link href={`/dashboard/announcements/${post.id}`}>Edit</Link>
                   </td>
-                  <td>
+                  <td data-label="Action">
                     <form action={deleteAnnouncement}>
                       <input type="hidden" name="id" value={post.id} />
                       <button type="submit" className="linklike">

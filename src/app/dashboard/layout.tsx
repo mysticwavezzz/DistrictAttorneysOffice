@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "@/lib/auth";
@@ -6,6 +5,7 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { SiteHeader, type NavItem } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { RoleSyncPoller } from "@/components/role-sync-poller";
+import { StaffNavGroups } from "@/components/staff-nav-groups";
 
 export default async function DashboardLayout({
   children,
@@ -43,9 +43,7 @@ export default async function DashboardLayout({
         <aside className="side">
           <div className="sbox">
             <h3>Staff Portal</h3>
-            <ul>
-              {navGroups.map((group) => <li key={group.label} className="nav-group"><strong>{group.label}</strong><ul>{group.items.map((item) => <li key={item.href}><Link href={item.href}>{item.label}</Link></li>)}</ul></li>)}
-            </ul>
+            <StaffNavGroups groups={navGroups} />
           </div>
         </aside>
 

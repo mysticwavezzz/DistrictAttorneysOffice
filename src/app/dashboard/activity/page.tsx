@@ -25,7 +25,7 @@ export default async function ActivityLogPage() {
         <div className="message">No activity recorded yet.</div>
       ) : (
         <div className="tablewrap">
-          <table className="stat">
+          <table className="stat mobile-cards">
             <thead>
               <tr>
                 <th>When</th>
@@ -37,12 +37,12 @@ export default async function ActivityLogPage() {
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id}>
-                  <td>{dateFormatter.format(e.createdAt)}</td>
-                  <td>{e.actorName}</td>
-                  <td>
+                  <td data-label="When">{dateFormatter.format(e.createdAt)}</td>
+                  <td data-label="Who">{e.actorName}</td>
+                  <td data-label="Action">
                     {e.action} {e.targetType}
                   </td>
-                  <td>{e.targetLabel}</td>
+                  <td data-label="Target">{e.targetLabel}</td>
                 </tr>
               ))}
             </tbody>

@@ -72,9 +72,11 @@ export function TipForm({
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="formbox">
+    <form ref={formRef} onSubmit={handleSubmit} onInvalid={(event) => { if (event.target instanceof HTMLElement) { const section = event.target.closest("details.tip-form-section"); if (section instanceof HTMLDetailsElement) section.open = true; } }} className="formbox tip-form">
       <div className="field" style={{ position: "absolute", left: "-10000px" }} aria-hidden="true"><label htmlFor="tip-website">Leave blank</label><input id="tip-website" name="website" tabIndex={-1} autoComplete="off" /></div>
-      <h2>Submitter Information</h2>
+      <p className="section-lede">Complete each section below. Required fields are marked with an asterisk.</p>
+      <details className="tip-form-section" open>
+      <summary><h2>1. Submitter information</h2></summary>
       <div className="field-row">
         <div className="field"><label htmlFor="tip-roblox">Your Roblox username and ID *</label><input id="tip-roblox" name="submitterRoblox" required maxLength={120} defaultValue={defaultRobloxIdentity} placeholder="Username / numeric ID" /></div>
         <div className="field"><label htmlFor="tip-discord">Your Discord username and ID *</label><input id="tip-discord" name="submitterDiscord" required maxLength={120} defaultValue={defaultDiscordIdentity} placeholder="Username / numeric ID" /></div>
@@ -83,7 +85,9 @@ export function TipForm({
         <label className="checkline"><input type="checkbox" name="legalAcknowledgment" required /> I understand that knowingly false or malicious reports are prohibited, and I wish to proceed.</label>
       </div>
 
-      <h2>Tip Details</h2>
+      </details>
+      <details className="tip-form-section">
+      <summary><h2>2. Incident and evidence</h2></summary>
       <fieldset className="field"><legend className="field-label">Type of crime / incident *</legend><div className="choice-list">{crimeTypes.map((type) => <label className="checkline" key={type}><input type="radio" name="crimeType" value={type} required checked={crimeType === type} onChange={() => setCrimeType(type)} />{type === "Other:" ? "Other" : type}</label>)}</div></fieldset>
       {crimeType === "Other:" && <div className="field"><label htmlFor="tip-other">Describe the other incident type *</label><input id="tip-other" name="crimeTypeOther" required maxLength={120} /></div>}
       <div className="field-row">
@@ -99,10 +103,13 @@ export function TipForm({
       <div className="field"><label htmlFor="tip-evidence">Photo/video evidence links *</label><textarea id="tip-evidence" name="evidence" required maxLength={2000} rows={2} placeholder="Paste links or type N/A." /></div>
       <div className="field"><label htmlFor="tip-witnesses">Witnesses and their involvement *</label><textarea id="tip-witnesses" name="witnesses" required maxLength={2000} rows={2} placeholder="Provide known witnesses or type N/A." /></div>
 
-      <h2>Final Review and Declaration</h2>
+      </details>
+      <details className="tip-form-section">
+      <summary><h2>3. Final review and declaration</h2></summary>
       <div className="field"><label className="checkline"><input type="checkbox" name="identityWaiver" required /> I understand this is not anonymous to the form owner or investigators, and I may be contacted if additional information is needed.</label></div>
       <div className="field"><label className="checkline"><input type="checkbox" name="truthAffirmation" required /> I affirm that this report is accurate and submitted in good faith.</label></div>
       <div className="field"><label htmlFor="tip-signature">Electronic signature: Roblox username in ALL CAPS *</label><input id="tip-signature" name="signature" required maxLength={120} pattern="[A-Z0-9_ ]+" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} /></div>
+      </details>
 
       {typeof state === "object" && "error" in state && <p className="message message-error" role="alert">{state.error} Your entries are still here. Check your connection and retry; do not submit a second copy in Google Forms.</p>}
       <button type="submit" className="govbtn" disabled={state === "submitting"}>{state === "submitting" ? "Submitting report…" : typeof state === "object" && "error" in state ? "Retry submission" : "Submit Official Tip"}</button>

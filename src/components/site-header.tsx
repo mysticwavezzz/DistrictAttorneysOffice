@@ -75,9 +75,9 @@ export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
 
       <div className="flagrule" />
 
-      <nav className="nav" aria-label="Primary">
+      {!staffNav && <nav className="nav" aria-label="Primary">
         <NavTabsScroller items={navItems} />
-        {!staffNav && (!isStaff || canViewDashboard) && (
+        {(!isStaff || canViewDashboard) && (
           <div className="nav-group">
             <span className="nav-group-label">Staff</span>
             {canViewDashboard ? (
@@ -87,7 +87,7 @@ export async function SiteHeader({ staffNav }: SiteHeaderProps = {}) {
             )}
           </div>
         )}
-      </nav>
+      </nav>}
 
       <div className="crumb">
         <div className="crumb-in">
