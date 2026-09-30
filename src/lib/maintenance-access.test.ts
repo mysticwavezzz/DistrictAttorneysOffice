@@ -17,6 +17,11 @@ describe("maintenance route access", () => {
     expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/seal.webp" })).toBe(false);
   });
 
+  it("keeps the public policy pages available during maintenance", () => {
+    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/privacy-policy" })).toBe(false);
+    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/terms-of-service" })).toBe(false);
+  });
+
   it("allows configured permission tiers and individual Discord accounts", () => {
     expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/dashboard", exemptTiers: ["special_investigations"], user: { tiers: ["special_investigations"] } })).toBe(false);
     expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/dashboard", exemptUserIds: ["123456789"], user: { discordUserId: "123456789", tiers: [] } })).toBe(false);

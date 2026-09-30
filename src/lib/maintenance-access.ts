@@ -1,4 +1,4 @@
-const MAINTENANCE_EXEMPT_PREFIXES = ["/98981", "/maintenance"];
+const MAINTENANCE_EXEMPT_PREFIXES = ["/98981", "/maintenance", "/privacy-policy", "/terms-of-service"];
 const PUBLIC_ASSET_PATTERN = /\.(?:avif|gif|ico|jpe?g|png|svg|webp|woff2?)$/i;
 
 export function shouldRedirectToMaintenance(input: {

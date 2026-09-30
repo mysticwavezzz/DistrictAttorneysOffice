@@ -882,6 +882,30 @@ table.stat tbody tr:hover {
   text-decoration-thickness: 2px;
 }
 
+.legal-content {
+  max-width: 78ch;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.legal-content h2 {
+  margin: 22px 0 7px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--bd-lt);
+  font-size: 17px;
+}
+
+.legal-content p,
+.legal-content li {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.legal-content ul {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+
 .case-section-nav {
   position: sticky;
   top: 0;
