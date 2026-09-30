@@ -1635,6 +1635,18 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .case-card-filings time { flex: none; color: var(--ink-soft); font-size: 11px; }
 .case-card-actions { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 13px; }
 .case-card-actions a { font-weight: 700; }
+.case-edit-form { display: grid; gap: 14px; }
+.case-edit-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--bd-lt); }
+.case-edit-heading h2 { margin: 0; }
+.case-edit-heading .eyebrow, .case-edit-heading .lede { margin: 0 0 5px; }
+.case-edit-section { min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--bd-lt); background: var(--box-alt); }
+.case-edit-section legend { padding: 0 6px; color: var(--heading); font: bold 16px var(--serif); }
+.case-edit-actions { display: flex; justify-content: space-between; gap: 10px; padding-top: 12px; border-top: 1px solid var(--bd-lt); }
+.case-filings-list { display: grid; gap: 0; margin: 8px 0 14px; padding: 0; border-top: 1px solid var(--bd-lt); list-style: none; }
+.case-filing-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--bd-lt); }
+.case-filing-info { display: grid; min-width: 0; gap: 4px; }
+.case-filing-info span { color: var(--ink-soft); font-size: 12px; overflow-wrap: anywhere; }
+.case-filing-actions, .filing-row-actions { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 8px; }
 .empty-state { padding: 24px; border: 1px dashed var(--bd); background: var(--box-alt); text-align: center; }
 .empty-state h2 { margin-top: 0; }
 .case-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
@@ -1688,6 +1700,9 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
   .case-card-heading { flex-wrap: wrap; }
   .case-card-heading > .pill { margin-left: auto; }
   .case-card-filings li, .recent-filings-list li { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .case-edit-heading { align-items: flex-start; }
+  .case-filing-row { align-items: flex-start; flex-direction: column; }
+  .case-edit-actions { position: sticky; bottom: 0; background: var(--box); }
   .case-opening-steps button { padding: 0 10px; font-size: 11px; }
 }
 

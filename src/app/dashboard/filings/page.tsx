@@ -48,9 +48,9 @@ export default async function FilingHistoryPage({ searchParams }: { searchParams
       <tbody>{filings.map((filing) => <tr key={filing.id}>
         <td data-label="Date filed"><time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></td>
         <td data-label="Case"><Link href={`/dashboard/cases/${filing.case.id}`}><strong>{filing.case.caseNumber}</strong><br />{filing.case.title}</Link></td>
-        <td data-label="Document">{filing.url ? <a href={filing.url} target="_blank" rel="noreferrer noopener">{filing.title}</a> : <a href={`/api/cases/filings/${filing.id}/pdf`}>{filing.title}</a>}{filing.pdfFileName && <span className="note-inline"> · {filing.pdfFileName}</span>}</td>
+        <td data-label="Document">{filing.url ? <a href={filing.url} target="_blank" rel="noreferrer noopener">{filing.title}</a> : <strong>{filing.title}</strong>}{filing.pdfFileName && <span className="note-inline"> · {filing.pdfFileName}</span>}</td>
         <td data-label="Filed by">{filing.addedBy.displayName}</td>
-        <td data-label="Next action"><Link href={`/dashboard/cases/${filing.case.id}#filings`}>Open case filings</Link></td>
+        <td data-label="Next action"><span className="filing-row-actions">{filing.pdfFileName && <a href={`/api/cases/filings/${filing.id}/pdf`} target="_blank" rel="noreferrer noopener" className="govbtn-outline">View PDF</a>}<Link href={`/dashboard/cases/${filing.case.id}#filings`}>Open case</Link></span></td>
       </tr>)}</tbody>
     </table></div> : <div className="empty-state"><h2>No filings found</h2><p>{query ? "Try a different search." : "Documents filed on your cases will appear here."}</p><Link href="/dashboard/filings/new" className="govbtn-outline">File a document</Link></div>}
   </div>;

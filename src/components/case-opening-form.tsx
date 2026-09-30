@@ -22,7 +22,6 @@ export type RevisionDraft = {
   parties: Party[];
   filingTitle: string;
   filingName: string;
-  filingUrl: string;
 };
 
 export function CaseOpeningForm({
@@ -44,7 +43,6 @@ export function CaseOpeningForm({
   const [caseType, setCaseType] = useState(revision?.type || "Criminal");
   const [judge, setJudge] = useState(revision?.assignedJudge ?? "");
   const [documentName, setDocumentName] = useState(revision?.filingTitle ?? "");
-  const [documentLink, setDocumentLink] = useState(revision?.filingUrl ?? "");
 
   function updateParty(index: number, update: Partial<Party>) {
     setParties((current) => current.map((party, item) => item === index ? { ...party, ...update } : party));
@@ -80,6 +78,7 @@ export function CaseOpeningForm({
       <form action={createCase} className="case-opening-form" noValidate>
         {revision && <input type="hidden" name="reviseRequestId" value={revision.requestId} />}
         {revision?.caseNumber && <input type="hidden" name="caseNumber" value={revision.caseNumber} />}
+        {revision && <input type="hidden" name="summary" value={revision.summary} />}
         <fieldset hidden={step !== 0}>
           <legend>Case information</legend>
           <div className="field-row">
@@ -90,7 +89,6 @@ export function CaseOpeningForm({
             <div className="field"><label htmlFor="case-judge">Assigned judge</label><input id="case-judge" name="assignedJudge" maxLength={120} placeholder="Not assigned yet" value={judge} onChange={(event) => setJudge(event.target.value)} /></div>
             {canAssign && <div className="field"><label htmlFor="case-attorney">Assigned attorney</label><select id="case-attorney" name="assignedAttorneyId" defaultValue={revision?.assignedAttorneyId ?? ""}><option value="">Assign to submitting officer</option>{attorneys.map((attorney) => <option key={attorney.id} value={attorney.id}>{attorney.displayName}</option>)}</select></div>}
           </div>
-          <div className="field"><label htmlFor="case-summary">Incident / case summary</label><textarea id="case-summary" name="summary" rows={5} maxLength={4000} placeholder="Summarize the allegations and current case posture." defaultValue={revision?.summary ?? ""} /></div>
           <h3>Key deadlines (optional)</h3>
           <div className="field-row">
             <div className="field"><label htmlFor="disc-due">Discovery due</label><input id="disc-due" type="date" name="discDue" defaultValue={revision?.discDue ?? ""} /></div>
@@ -116,11 +114,10 @@ export function CaseOpeningForm({
 
         <fieldset hidden={step !== 2}>
           <legend>Initial filing</legend>
-          <p className="note-inline">Attach a PDF or secure link. If this request already has a complaint, leave these fields unchanged to keep it, or attach a replacement.</p>
+          <p className="note-inline">Upload the initial complaint or supporting document as a PDF. If this request already has a PDF, leave the upload empty to keep it or choose a replacement.</p>
           {revision?.filingName && <p className="message">Current attachment: {revision.filingTitle || revision.filingName}</p>}
           <div className="field"><label htmlFor="initial-filing-title">Document name</label><input id="initial-filing-title" name="initialFilingTitle" maxLength={200} placeholder="Example: Charging complaint" value={documentName} onChange={(event) => setDocumentName(event.target.value)} /></div>
           <div className="field"><label htmlFor="initial-pdf">Upload PDF (max 5 MB)</label><input id="initial-pdf" name="initialPdf" type="file" accept="application/pdf,.pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) setDocumentName((current) => current || file.name); }} /></div>
-          <div className="field"><label htmlFor="document-url">Or link to a document</label><input id="document-url" name="documentUrl" type="url" maxLength={2000} placeholder="https://…" value={documentLink} onChange={(event) => setDocumentLink(event.target.value)} /></div>
         </fieldset>
 
         <fieldset hidden={step !== 3}>
@@ -129,7 +126,7 @@ export function CaseOpeningForm({
             <p><strong>Case</strong><span>{caseTitle || "Title not entered"} · {caseType || "Type not set"}</span></p>
             <p><strong>Assigned judge</strong><span>{judge || "Not assigned"}</span></p>
             <p><strong>Parties</strong><span>{parties.filter((party) => party.name.trim()).map((party) => `${party.name.trim()} (${party.role})`).join(", ") || "None listed"}</span></p>
-            <p><strong>Initial filing</strong><span>{documentName || documentLink || "No document attached"}</span></p>
+            <p><strong>Initial filing</strong><span>{documentName || revision?.filingName || "No PDF attached"}</span></p>
             <p><strong>Submitting officer</strong><span>{officerName}</span></p>
             <p><strong>Review path</strong><span>{reviewersCanAutoApprove ? "Immediate docket entry" : "Supervisory review before docket entry"}</span></p>
             <p className="note-inline">{revision ? "Check your changes, then resubmit this request for another review." : "Check the case information and parties before submitting to the docket."}</p>

@@ -124,28 +124,28 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       {caseRecord.filings.length === 0 ? (
         <p className="note-inline">No filings attached.</p>
       ) : (
-        <ul style={{ paddingLeft: 18, marginBottom: 10 }}>
+        <ul className="case-filings-list">
           {caseRecord.filings.map((f) => (
-            <li key={f.id} style={{ marginBottom: 4, fontSize: 12.5 }}>
-              {f.url ? <a href={f.url} target="_blank" rel="noreferrer noopener">{f.title}</a> : <a href={`/api/cases/filings/${f.id}/pdf`}>{f.title}{f.pdfFileName ? ` · ${f.pdfFileName}` : ""}</a>}{" "}
-              <span className="note-inline">
-                &mdash; added by {f.addedBy.displayName}, {dateTimeFormatter.format(f.createdAt)}
-              </span>{" "}
-              {canEdit && <RemoveButton id={f.id} action={deleteFiling} label="Remove" confirmMessage={`Remove the filing “${f.title}”?`} className="linklike" style={{ fontSize: 11 }} formStyle={{ display: "inline" }} />}
+            <li className="case-filing-row" key={f.id}>
+              <div className="case-filing-info"><strong>{f.title}</strong><span>{f.pdfFileName ?? "Document"} · Filed by {f.addedBy.displayName} · {dateTimeFormatter.format(f.createdAt)}</span></div>
+              <div className="case-filing-actions">
+                {f.pdfFileName && <a href={`/api/cases/filings/${f.id}/pdf`} target="_blank" rel="noreferrer noopener" className="govbtn-outline">View PDF</a>}
+                {f.url && <a href={f.url} target="_blank" rel="noreferrer noopener" className="govbtn-outline">Open link</a>}
+                {canEdit && <RemoveButton id={f.id} action={deleteFiling} label="Remove" confirmMessage={`Remove the filing “${f.title}”?`} className="linklike" style={{ fontSize: 11 }} formStyle={{ display: "inline" }} />}
+              </div>
             </li>
           ))}
         </ul>
       )}
-      <form action={addFiling} className="field-row case-inline-filing" style={{ marginBottom: 20 }} noValidate>
+      <form action={addFiling} className="field-row case-inline-filing" style={{ marginBottom: 20 }} encType="multipart/form-data" noValidate>
         <input type="hidden" name="caseId" value={caseRecord.id} />
         <input type="hidden" name="returnTo" value="case" />
         <div className="field" style={{ flex: "1 1 180px" }}>
           <label htmlFor="inline-filing-title">Document name</label><input id="inline-filing-title" type="text" name="title" placeholder="Filing title" maxLength={200} required />
         </div>
         <div className="field" style={{ flex: "1 1 220px" }}>
-          <label htmlFor="inline-filing-pdf">PDF (max 5 MB)</label><input id="inline-filing-pdf" type="file" name="pdf" accept="application/pdf,.pdf" />
+          <label htmlFor="inline-filing-pdf">PDF (max 5 MB)</label><input id="inline-filing-pdf" type="file" name="pdf" accept="application/pdf,.pdf" required />
         </div>
-        <div className="field" style={{ flex: "1 1 220px" }}><label htmlFor="inline-filing-url">Or secure link</label><input id="inline-filing-url" type="url" name="url" placeholder="https://…" maxLength={2000} /></div>
         <button type="submit" className="govbtn-outline">
           Attach
         </button>
@@ -267,16 +267,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
                   </select>
                 </div>
               </div>
-              <div className="field">
-                <label htmlFor="p-summary">Summary</label>
-                <textarea
-                  id="p-summary"
-                  name="summary"
-                  rows={4}
-                  maxLength={4000}
-                  defaultValue={caseRecord.summary}
-                />
-              </div>
+              <input type="hidden" name="summary" value={caseRecord.summary} />
               <input type="hidden" name="disclosures" value={caseRecord.disclosures ?? ""} />
               <input type="hidden" name="discGiven" value={toDateInputValue(caseRecord.discGiven)} />
               <input type="hidden" name="discDue" value={toDateInputValue(caseRecord.discDue)} />
@@ -317,9 +308,12 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         })}</ul>}
       </section>
 
-      <form action={updateCase} className="formbox" id="overview">
+      <form action={updateCase} className="formbox case-edit-form" id="overview">
+        <div className="case-edit-heading"><div><p className="eyebrow">Case management</p><h2>Edit case</h2><p className="lede">Update the case record, assignment, and key dates.</p></div><span className={`pill ${caseRecord.stage ? `pill-${statusColor}` : "pill-muted"}`}>{caseRecord.stage ?? "No status set"}</span></div>
         <input type="hidden" name="id" value={caseRecord.id} />
-
+        <input type="hidden" name="summary" value={caseRecord.summary} />
+        <fieldset className="case-edit-section">
+          <legend>Case information</legend>
         <div className="field-row">
           <div className="field">
             <label htmlFor="title">Case Title</label>
@@ -375,7 +369,10 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           </div>
           <div className="field"><label htmlFor="assignedJudge">Assigned judge</label><input type="text" id="assignedJudge" name="assignedJudge" maxLength={120} defaultValue={caseRecord.assignedJudge ?? ""} /></div>
         </div>
+        </fieldset>
 
+        <fieldset className="case-edit-section">
+          <legend>Key dates and disclosures</legend>
         <div className="field">
           <label htmlFor="disclosures">Disclosures</label>
           <input
@@ -401,7 +398,10 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             <input type="date" id="pretrial" name="pretrial" defaultValue={toDateInputValue(caseRecord.pretrial)} />
           </div>
         </div>
+        </fieldset>
 
+        <fieldset className="case-edit-section">
+          <legend>Outcome and related cases</legend>
         <div className="field">
           <label htmlFor="otherDates">Other Dates</label>
           <input
@@ -427,11 +427,6 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             <label htmlFor="appealBy">Appeal By</label>
             <input type="date" id="appealBy" name="appealBy" defaultValue={toDateInputValue(caseRecord.appealBy)} />
           </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="summary">Summary</label>
-          <textarea id="summary" name="summary" rows={4} maxLength={4000} defaultValue={caseRecord.summary} />
         </div>
 
         <div className="field">
@@ -461,10 +456,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             </label>
           </div>
         </div>
+        </fieldset>
 
-        <button type="submit" className="govbtn">
-          Save Changes
-        </button>
+        <div className="case-edit-actions"><Link href={`/dashboard/cases/${caseRecord.id}`} className="govbtn-outline">Cancel</Link><button type="submit" className="govbtn">Save Changes</button></div>
       </form>
 
       {relatedCasesSection}

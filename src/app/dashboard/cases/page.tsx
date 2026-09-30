@@ -145,13 +145,26 @@ export default async function CasesPage({
             {canBulkArchive && tab !== "archived" && <button className="govbtn-outline" name="operation" value="archive" type="submit">Archive selected</button>}
           </div></div>
           <div className="case-card-list">{cases.map((c) => {
-            const nextDeadline = [c.discDue, c.pretrial, c.appealBy].filter((date): date is Date => Boolean(date)).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+            const deadlineOptions = [
+              { label: "Discovery due", date: c.discDue },
+              { label: "Pretrial", date: c.pretrial },
+              { label: "Appeal by", date: c.appealBy },
+            ].filter((item): item is { label: string; date: Date } => Boolean(item.date)).sort((a, b) => a.date.getTime() - b.date.getTime());
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const nextDeadline = deadlineOptions.find((item) => item.date >= today) ?? deadlineOptions.at(-1) ?? null;
             const color = caseStatusColor(c.stage);
+            let partyRole = "";
+            try {
+              const rows = JSON.parse(c.partyDetails) as { name?: string; role?: string }[];
+              const identities = [session.user.username, session.user.displayName].filter(Boolean).map((name) => name!.trim().toLocaleLowerCase());
+              partyRole = rows.find((party) => party.name && identities.includes(party.name.trim().toLocaleLowerCase()))?.role ?? "";
+            } catch { partyRole = ""; }
+            const yourRole = partyRole || (user && c.assignedAttorneyId === user.id ? "Assigned attorney" : user && c.createdById === user.id ? "Submitting officer" : "Office staff");
             return <article className="case-card" key={c.id}>
               <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Draft</span>}</div></div><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "Open"}</span></header>
-              <div className="case-card-meta"><span><small>Assigned attorney</small><strong>{c.assignedAttorney?.displayName ?? "Unassigned"}</strong></span><span><small>Assigned judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Opened</small><strong>{fmt(c.createdAt)}</strong></span><span><small>Next deadline</small><strong className={nextDeadline && nextDeadline < new Date() ? "deadline-overdue" : undefined}>{fmt(nextDeadline)}</strong></span></div>
-              {c.filings.length > 0 && <div className="case-card-filings"><strong>Recent filings</strong><ul>{c.filings.map((filing) => <li key={filing.id}>{filing.url ? <a href={filing.url} target="_blank" rel="noreferrer noopener">{filing.title}</a> : <a href={`/api/cases/filings/${filing.id}/pdf`}>{filing.title}</a>}<time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></li>)}</ul></div>}
-              <footer className="case-card-actions"><Link href={`/dashboard/cases/${c.id}`}>Open case</Link><Link href={`/dashboard/filings/new?caseId=${c.id}`}>File a document</Link><Link href={`/dashboard/cases/${c.id}#filings`}>All filings</Link></footer>
+              <div className="case-card-meta"><span><small>Filed</small><strong>{fmt(c.createdAt)}</strong></span><span><small>Judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Your role</small><strong>{yourRole}</strong></span><span><small>{nextDeadline?.label ?? "Next deadline"}</small><strong className={nextDeadline && nextDeadline.date < today ? "deadline-overdue" : undefined}>{fmt(nextDeadline?.date ?? null)}</strong></span></div>
+              {c.filings.length > 0 && <div className="case-card-filings"><strong>Recent filings</strong><ul>{c.filings.map((filing) => <li key={filing.id}><span>{filing.title}{filing.pdfFileName && <> <a href={`/api/cases/filings/${filing.id}/pdf`} target="_blank" rel="noreferrer noopener">View PDF</a></>}</span><time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></li>)}</ul></div>}
+              <footer className="case-card-actions"><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}`}>View Case Details</Link><Link className="govbtn-outline" href={`/dashboard/filings/new?caseId=${c.id}`}>File Document</Link><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}#filings`}>View All Filings</Link></footer>
             </article>;
           })}</div>
         </form> : <div className="empty-state case-empty-state"><h2>No cases found</h2><p>{q || statusFilter || overdueOnly || reviewOnly ? "Adjust or clear the filters to find a case." : "Open a case to start your docket work."}</p>{(canCreate || canPropose) && <Link href="/dashboard/cases/new" className="govbtn-outline">Open a Case</Link>}</div>}

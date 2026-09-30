@@ -53,10 +53,7 @@ export async function createCase(formData: FormData) {
     if (name.length > 100 || !allowedPartyRoles.has(role)) throw new Error("Check the party names and roles.");
     return { name, role };
   });
-  const documentUrl = String(formData.get("documentUrl") ?? "").trim();
   const pdf = await readCasePdf(formData.get("initialPdf"));
-  if (documentUrl && pdf) throw new Error("Use either a PDF upload or a document link, not both.");
-  if (documentUrl && !/^https:\/\//i.test(documentUrl)) throw new Error("Document links must use HTTPS.");
   const filingTitle = String(formData.get("initialFilingTitle") ?? "").trim().slice(0, 200);
   const reviseRequestId = emptyToNull(String(formData.get("reviseRequestId") ?? ""));
   type PreviousFiling = { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string };
@@ -70,13 +67,13 @@ export async function createCase(formData: FormData) {
     try {
       const priorData = JSON.parse(previousRequest.proposedData) as Record<string, unknown>;
       const candidate = priorData.initialFiling;
-      if (candidate && typeof candidate === "object") previousFiling = candidate as PreviousFiling;
+      if (candidate && typeof candidate === "object" && "pdfData" in candidate) previousFiling = candidate as PreviousFiling;
     } catch {
       throw new Error("The rejected submission could not be loaded. Contact a reviewer.");
     }
   }
-  const initialFiling = pdf || documentUrl
-    ? { title: filingTitle || (pdf ? pdf.pdfFileName : "Initial Filing"), url: documentUrl || null, ...pdf }
+  const initialFiling = pdf
+    ? { title: filingTitle || pdf.pdfFileName, url: null, ...pdf }
     : previousFiling
       ? { ...previousFiling, title: filingTitle || previousFiling.title || "Initial Filing" }
       : null;
@@ -210,7 +207,7 @@ export async function updateCase(formData: FormData) {
       outcome: emptyToNull(data.outcome),
       closedOn: toDate(data.closedOn),
       appealBy: toDate(data.appealBy),
-      summary: emptyToNull(data.summary) ?? "",
+      summary: existing.summary,
       assignedAttorneyId: nextAssignee,
       archived: formData.get("archived") === "on",
       isDraft: nextIsDraft,
@@ -365,13 +362,10 @@ export async function addFiling(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid filing");
 
   const pdf = await readCasePdf(formData.get("pdf"));
-  const url = parsed.data.url?.trim() ?? "";
-  if (!url && !pdf) throw new Error("Provide a secure document link or upload a PDF.");
-  if (url && pdf) throw new Error("Use either a PDF upload or a document link, not both.");
-  if (url && !/^https:\/\//i.test(url)) throw new Error("Document links must use HTTPS.");
+  if (!pdf) throw new Error("Upload a PDF to file this document.");
 
   await prisma.caseFiling.create({
-    data: { caseId, title: parsed.data.title, url: url || null, pdfData: pdf?.pdfData, pdfFileName: pdf?.pdfFileName, addedById: user.id },
+    data: { caseId, title: parsed.data.title, url: null, pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName, addedById: user.id },
   });
 
   if (existing.assignedAttorneyId && existing.assignedAttorneyId !== user.id) {

@@ -22,13 +22,12 @@ export default async function FileOnCasePage({ searchParams }: { searchParams: P
 
   return <div className="case-file-page">
     <p className="eyebrow">Casework</p><h1>File a Document</h1>
-    <p className="lede">Add a document or filing link to an existing case.</p>
+    <p className="lede">Upload a PDF to add it to an existing case record.</p>
     {!cases.length ? <div className="empty-state"><h2>No cases available</h2><p>You need access to a case before filing a document.</p><Link href="/dashboard/cases/new" className="govbtn-outline">Open a Case</Link></div> : <form action={addFiling} className="formbox case-file-form" encType="multipart/form-data" noValidate>
       <input type="hidden" name="returnTo" value="filings" />
       <div className="field"><label htmlFor="filing-case">Case</label><select id="filing-case" name="caseId" required defaultValue={selectedId}><option value="" disabled>Select a case</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.caseNumber} · {item.title}{item.isDraft ? " (Draft)" : ""}</option>)}</select></div>
       <div className="field"><label htmlFor="filing-title">Document name</label><input id="filing-title" name="title" required maxLength={200} placeholder="Example: Supplemental report" /></div>
-      <div className="field"><label htmlFor="filing-pdf">Upload PDF (max 5 MB)</label><input id="filing-pdf" name="pdf" type="file" accept="application/pdf,.pdf" /></div>
-      <div className="field"><label htmlFor="filing-url">Or secure document link</label><input id="filing-url" name="url" type="url" maxLength={2000} placeholder="https://…" /></div>
+      <div className="field"><label htmlFor="filing-pdf">Upload PDF (max 5 MB)</label><input id="filing-pdf" name="pdf" type="file" accept="application/pdf,.pdf" required /></div>
       <div className="case-opening-controls"><Link href="/dashboard/filings" className="govbtn-outline">Cancel</Link><button type="submit" className="govbtn">Submit Filing</button></div>
     </form>}
   </div>;

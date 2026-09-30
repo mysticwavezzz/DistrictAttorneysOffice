@@ -39,7 +39,7 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
       redirect("/dashboard/cases");
     }
     const filing = data.initialFiling && typeof data.initialFiling === "object"
-      ? data.initialFiling as { title?: string; url?: string | null; pdfFileName?: string }
+      ? data.initialFiling as { title?: string; pdfData?: string; pdfFileName?: string }
       : null;
     let partyData: unknown = [];
     try {
@@ -70,7 +70,6 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
       parties,
       filingTitle: filing?.title ?? "",
       filingName: filing?.pdfFileName ?? "",
-      filingUrl: filing?.url ?? "",
     };
   }
 
