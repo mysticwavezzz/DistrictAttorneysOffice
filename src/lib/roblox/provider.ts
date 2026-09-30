@@ -18,15 +18,13 @@ export default function RobloxProvider(
     ...config,
     id: "roblox",
     name: "Roblox",
-    type: "oauth",
-    authorization: {
-      url: "https://apis.roblox.com/oauth/v1/authorize",
-      params: { scope: "openid profile" },
-    },
-    token: "https://apis.roblox.com/oauth/v1/token",
-    userinfo: "https://apis.roblox.com/oauth/v1/userinfo",
-    checks: ["pkce", "state"],
+    type: "oidc",
+    issuer: "https://apis.roblox.com/oauth/",
+    wellKnown: "https://apis.roblox.com/oauth/.well-known/openid-configuration",
+    authorization: { params: { scope: "openid profile" } },
+    checks: ["pkce", "state", "nonce"],
     client: {
+      id_token_signed_response_alg: "ES256",
       token_endpoint_auth_method: "client_secret_post",
     },
     profile(profile) {
