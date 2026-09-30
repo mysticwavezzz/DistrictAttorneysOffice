@@ -1633,6 +1633,14 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .case-card-filings ul { display: grid; gap: 5px; margin: 6px 0 0; padding: 0; list-style: none; }
 .case-card-filings li { display: flex; justify-content: space-between; gap: 12px; }
 .case-card-filings time { flex: none; color: var(--ink-soft); font-size: 11px; }
+.case-card-expand { margin-top: 10px; }
+.case-card-expand > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; border-top: 1px solid var(--bd-lt); color: var(--link); font-size: 12px; font-weight: 700; cursor: pointer; list-style: none; }
+.case-card-expand > summary::-webkit-details-marker { display: none; }
+.case-card-expand > summary::after { content: "−"; color: var(--ink-soft); font-size: 17px; line-height: 1; }
+.case-card-expand:not([open]) > summary::after { content: "+"; }
+.case-card-expand-closed, .case-card-expand:not([open]) .case-card-expand-open { display: none; }
+.case-card-expand:not([open]) .case-card-expand-closed { display: inline; }
+.case-card-expand > summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .case-card-actions { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 13px; }
 .case-card-actions a { font-weight: 700; }
 .case-edit-form { display: grid; gap: 14px; }
