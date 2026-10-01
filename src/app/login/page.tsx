@@ -4,8 +4,6 @@ import { auth, signIn, signOut } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { env } from "@/lib/env";
-import { getSiteConfiguration } from "@/lib/site-settings";
 
 const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "Your account doesn't hold a staff role that grants access to that page.",
@@ -25,14 +23,10 @@ export default async function LoginPage({
 }) {
   const query = await searchParams;
   const session = await auth();
-  const defaultProvider = env.ROBLOX_CLIENT_ID && env.ROBLOX_CLIENT_SECRET ? "roblox" : "discord";
-  const configuredProvider = await getSiteConfiguration<"discord" | "roblox">("authProvider", defaultProvider);
-  const providerReady = configuredProvider === "roblox"
-    ? Boolean(env.ROBLOX_CLIENT_ID && env.ROBLOX_CLIENT_SECRET)
-    : Boolean(env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET && env.DISCORD_BOT_TOKEN && env.DISCORD_GUILD_ID);
+  const providerReady = Boolean(process.env.ROBLOX_CLIENT_ID && process.env.ROBLOX_CLIENT_SECRET);
   const callbackUrl = query.callbackUrl ?? "/dashboard";
 
-  if (session?.user?.providerUserId && session.user.identityProvider === configuredProvider && !query.error) {
+  if (session?.user?.providerUserId && session.user.identityProvider === "roblox" && !query.error) {
     redirect(callbackUrl);
   }
 
@@ -40,7 +34,7 @@ export default async function LoginPage({
     ? ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.Default
     : null;
 
-  const isSignedInButForbidden = Boolean(session?.user?.providerUserId) && (Boolean(query.error) || session?.user.identityProvider !== configuredProvider);
+  const isSignedInButForbidden = Boolean(session?.user?.providerUserId) && (Boolean(query.error) || session?.user.identityProvider !== "roblox");
 
   return (
     <div className="wrap">
@@ -66,7 +60,7 @@ export default async function LoginPage({
           <p className="eyebrow">{siteConfig.county}</p>
           <h1>Staff Sign In</h1>
           <p className="lede">
-            Authorized personnel only. Sign in with your {configuredProvider === "roblox" ? "Roblox account" : "Discord account"}. Your current group roles determine which staff pages are available.
+            Authorized personnel only. Sign in with your Roblox account. Your current Roblox group roles determine which staff pages are available.
           </p>
 
           {errorMessage && (
@@ -102,13 +96,13 @@ export default async function LoginPage({
               providerReady ? <form
                 action={async () => {
                   "use server";
-                  await signIn(configuredProvider, { redirectTo: callbackUrl });
+                  await signIn("roblox", { redirectTo: callbackUrl });
                 }}
               >
-                <button type="submit" className={configuredProvider === "discord" ? "govbtn-discord" : "govbtn"}>
-                  Sign in with {configuredProvider === "roblox" ? "Roblox" : "Discord"}
+                <button type="submit" className="govbtn">
+                  Sign in with Roblox
                 </button>
-              </form> : <p className="message message-error" role="alert">{configuredProvider === "roblox" ? "Roblox sign-in is not configured yet. Add its client ID and rotated secret in Railway." : "Discord sign-in is not configured."}</p>
+              </form> : <p className="message message-error" role="alert">Roblox sign-in is not configured yet. Add its client ID and rotated secret in Railway.</p>
             )}
           </div>
 

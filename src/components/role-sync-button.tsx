@@ -24,5 +24,5 @@ export function RoleSyncButton() {
     }
   }
 
-  return <div><button className="govbtn-outline" type="button" onClick={sync} disabled={pending}>{pending ? "Syncing…" : "Sync Discord roles now"}</button>{message && <p className="note-inline" role="status">{message}</p>}</div>;
+  return <div><button className="govbtn-outline" type="button" onClick={sync} disabled={pending}>{pending ? "Syncing Roblox roles…" : "Sync Roblox group roles now"}</button>{message && <p className="note-inline" role="status">{message}</p>}</div>;
 }

@@ -7,7 +7,6 @@ import { hasCapability } from "@/lib/permissions";
 import { updateSiteSettings } from "@/lib/site-settings";
 import { logActivity } from "@/lib/activity-log";
 import { CLEAR_DATA_CONFIRMATION } from "./constants";
-import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
 import { UNITS } from "@/config/units";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
@@ -19,9 +18,7 @@ import { z } from "zod";
 import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
 import { parseDateTimeInTimeZone } from "@/lib/time-zone";
 import { VERSION_SCHEMA } from "@/lib/site-version";
-import { env } from "@/lib/env";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
-import { normalizeDiscordTierRoleMappings } from "@/config/role-mapping-migrations";
 import { fetchRobloxGroupRoles } from "@/lib/roblox/groups";
 import { resolveTiersFromRobloxRoles } from "@/lib/permissions/resolve";
 
@@ -31,36 +28,6 @@ async function requireSettingsManager() {
     throw new Error("Forbidden");
   }
   return session;
-}
-
-export async function updateAuthProvider(formData: FormData) {
-  const session = await requireSettingsManager();
-  const provider = String(formData.get("authProvider") ?? "");
-  if (provider !== "discord" && provider !== "roblox") throw new Error("Choose Roblox or Discord sign-in.");
-  const configured = provider === "roblox"
-    ? Boolean(env.ROBLOX_CLIENT_ID && env.ROBLOX_CLIENT_SECRET)
-    : Boolean(env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET && env.DISCORD_BOT_TOKEN && env.DISCORD_GUILD_ID);
-  if (!configured) throw new Error(provider === "roblox"
-    ? "Add the Roblox client ID and rotated client secret in Railway before selecting Roblox sign-in."
-    : "Add the Discord client ID, secret, bot token, and server ID in Railway before selecting Discord sign-in.");
-
-  if (provider === "roblox") {
-    const [mappingRow, capabilityRow] = await Promise.all([
-      prisma.siteConfiguration.findUnique({ where: { key: "robloxTierRoleMappings" } }),
-      prisma.siteConfiguration.findUnique({ where: { key: "tierCapabilities" } }),
-    ]);
-    const mappings = mappingRow ? JSON.parse(mappingRow.value) as typeof ROBLOX_TIER_ROLE_MAPPINGS : ROBLOX_TIER_ROLE_MAPPINGS;
-    const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
-    if (!mappings.some((mapping) => mapping.roleIds.length && (tierCapabilities[mapping.tier] ?? TIER_DEFINITIONS[mapping.tier].capabilities).includes(CAPABILITIES.SETTINGS_MANAGE))) {
-      throw new Error("Roblox sign-in cannot be enabled until a Roblox role is mapped to a tier with Site Settings access.");
-    }
-  }
-
-  await createConfigurationBackup(session.user.displayName);
-  await updateSiteConfiguration("authProvider", provider);
-  await recordSettingsAudit(session.user.displayName, "Staff sign-in provider changed", `New staff sign-ins will use ${provider}. Existing sessions are not terminated.`);
-  revalidatePath("/98981");
-  revalidatePath("/login");
 }
 
 export async function updateMaintenanceSettings(formData: FormData) {
@@ -177,10 +144,6 @@ function parseJsonField(formData: FormData, name: string): unknown {
 export async function saveApplicationConfiguration(formData: FormData) {
   const session = await requireSettingsManager();
   const capabilityValues = Object.values(CAPABILITIES);
-  const roleMappingsSchema = z.array(z.object({
-    tier: z.enum(ALL_TIERS as [typeof ALL_TIERS[number], ...typeof ALL_TIERS[number][]]),
-    roleIds: z.array(z.string().regex(/^\d{5,25}$/)).max(30),
-  })).length(ALL_TIERS.length);
   const tierCapabilitiesSchema = z.record(
     z.enum(ALL_TIERS as [typeof ALL_TIERS[number], ...typeof ALL_TIERS[number][]]),
     z.array(z.enum(capabilityValues as [string, ...string[]]))
@@ -189,7 +152,6 @@ export async function saveApplicationConfiguration(formData: FormData) {
   const ranksSchema = z.array(z.object({ value: z.string().trim().min(1).max(100), label: z.string().trim().min(1).max(100), isLeadership: z.boolean() })).min(1).max(50);
   const statusesSchema = z.array(z.object({ value: z.string().trim().min(1).max(100), label: z.string().trim().min(1).max(100), color: z.enum(["navy", "gold", "green", "red", "muted"]) })).min(1).max(50);
 
-  const roleMappings = roleMappingsSchema.parse(parseJsonField(formData, "discordRoleMappings"));
   const robloxRoleMappingsSchema = z.array(z.object({
     tier: z.enum(ALL_TIERS as [typeof ALL_TIERS[number], ...typeof ALL_TIERS[number][]]),
     groupId: z.number().int().positive(),
@@ -213,18 +175,10 @@ export async function saveApplicationConfiguration(formData: FormData) {
   }
   const isDeveloperProfile = session.user.tiers.includes(DEVELOPER_PROFILE_TIER);
   if (!isDeveloperProfile) {
-    const currentRoleMappings = normalizeDiscordTierRoleMappings(await getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS));
     const currentAdminTiers = session.user.tiers.filter((tier): tier is (typeof ALL_TIERS)[number] => (ALL_TIERS as readonly string[]).includes(tier));
     for (const tier of currentAdminTiers) {
       if (!(tierCapabilities[tier] ?? []).includes(CAPABILITIES.SETTINGS_MANAGE)) {
         throw new Error("Keep site settings access on one of your current permission tiers.");
-      }
-      if (session.user.identityProvider === "discord") {
-        const oldRoleIds = currentRoleMappings.find((mapping) => mapping.tier === tier)?.roleIds ?? [];
-        const newRoleIds = roleMappings.find((mapping) => mapping.tier === tier)?.roleIds ?? [];
-        if (JSON.stringify(oldRoleIds) !== JSON.stringify(newRoleIds)) {
-          throw new Error("Your current tier's Discord role mapping cannot be changed from the active admin session.");
-        }
       }
     }
     if (session.user.identityProvider === "roblox" && session.user.robloxUserId) {
@@ -234,9 +188,6 @@ export async function saveApplicationConfiguration(formData: FormData) {
         throw new Error("These mappings would remove your Site Settings access. Keep one of your current Roblox roles mapped to an administrator tier.");
       }
     }
-  }
-  if (new Set(roleMappings.map((mapping) => mapping.tier)).size !== ALL_TIERS.length) {
-    throw new Error("Provide exactly one Discord role mapping for each permission tier.");
   }
   const mappedRoleKeys = robloxRoleMappings.flatMap((mapping) => mapping.roleIds.map((id) => `${mapping.groupId}:${id}`));
   if (new Set(mappedRoleKeys).size !== mappedRoleKeys.length) throw new Error("Each Roblox group role can map to only one permission tier.");
@@ -249,7 +200,6 @@ export async function saveApplicationConfiguration(formData: FormData) {
 
   await createConfigurationBackup(session.user.displayName);
   await Promise.all([
-    updateSiteConfiguration("discordRoleMappings", roleMappings),
     updateSiteConfiguration("robloxTierRoleMappings", robloxRoleMappings),
     updateSiteConfiguration("tierCapabilities", tierCapabilities),
     updateSiteConfiguration("divisions", divisions),
@@ -257,7 +207,7 @@ export async function saveApplicationConfiguration(formData: FormData) {
     updateSiteConfiguration("caseStatuses", caseStatuses),
     updateSiteConfiguration("crimeTipForm", crimeTipForm),
   ]);
-  await recordSettingsAudit(session.user.displayName, "Application configuration changed", "Discord and Roblox role mappings, tier permissions, divisions, ranks, case statuses, and Google Forms integration saved.");
+  await recordSettingsAudit(session.user.displayName, "Application configuration changed", "Roblox role mappings, tier permissions, divisions, ranks, case statuses, and Google Forms integration saved.");
   await logActivity(session.user.displayName, "updated", "application configuration", "permissions, divisions, ranks, case statuses, and crime tip routing");
   revalidatePath("/98981");
   revalidatePath("/dashboard");

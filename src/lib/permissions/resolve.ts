@@ -1,5 +1,4 @@
 import type { RobloxGroupRole } from "@/lib/roblox/types";
-import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
 import { ROBLOX_TIER_ROLE_MAPPINGS, type RobloxTierRoleMapping } from "@/config/roblox-role-mappings";
 import { DEVELOPER_PROFILE_TIER, TIER_DEFINITIONS, type PermissionTier } from "./tiers";
 import { CAPABILITIES, type Capability } from "./capabilities";
@@ -16,10 +15,6 @@ export function resolveTiersFromRobloxRoles(
     }
   }
   return Array.from(tiers);
-}
-
-export function resolveTiersFromDiscordRoles(roleIds: string[]): PermissionTier[] {
-  return resolveTiersFromRoleMappings(roleIds, DISCORD_TIER_ROLE_MAPPINGS);
 }
 
 export function resolveTiersFromRoleMappings(

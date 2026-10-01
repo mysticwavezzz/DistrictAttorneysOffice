@@ -94,59 +94,6 @@ describe("resolveTiersFromRobloxRoles", () => {
 
 });
 
-describe("resolveTiersFromDiscordRoles", () => {
-  afterEach(() => {
-    vi.doUnmock("@/config/discord-role-mappings");
-    vi.resetModules();
-  });
-
-  it("grants a tier when the member holds one of its mapped role ids", async () => {
-    vi.resetModules();
-    vi.doMock("@/config/discord-role-mappings", () => ({
-      DISCORD_TIER_ROLE_MAPPINGS: [
-        { tier: "district_attorney", roleIds: ["111"] },
-        { tier: "da_attorney", roleIds: ["222", "333"] },
-      ],
-    }));
-    const { resolveTiersFromDiscordRoles } = await import("./resolve");
-    expect(resolveTiersFromDiscordRoles(["999", "222"])).toEqual(["da_attorney"]);
-  });
-
-  it("grants multiple tiers when multiple mapped roles are held", async () => {
-    vi.resetModules();
-    vi.doMock("@/config/discord-role-mappings", () => ({
-      DISCORD_TIER_ROLE_MAPPINGS: [
-        { tier: "law_enforcement", roleIds: ["111"] },
-        { tier: "da_paralegal", roleIds: ["222"] },
-      ],
-    }));
-    const { resolveTiersFromDiscordRoles } = await import("./resolve");
-    const tiers = resolveTiersFromDiscordRoles(["111", "222"]);
-    expect(tiers).toContain("law_enforcement");
-    expect(tiers).toContain("da_paralegal");
-    expect(tiers).toHaveLength(2);
-  });
-
-  it("returns no tiers when none of the held roles are mapped", async () => {
-    vi.resetModules();
-    vi.doMock("@/config/discord-role-mappings", () => ({
-      DISCORD_TIER_ROLE_MAPPINGS: [{ tier: "district_attorney", roleIds: ["111"] }],
-    }));
-    const { resolveTiersFromDiscordRoles } = await import("./resolve");
-    expect(resolveTiersFromDiscordRoles(["999"])).toEqual([]);
-  });
-
-  it("removes the mapped tier immediately when the provider role is revoked", async () => {
-    vi.resetModules();
-    vi.doMock("@/config/discord-role-mappings", () => ({
-      DISCORD_TIER_ROLE_MAPPINGS: [{ tier: "district_attorney", roleIds: ["111"] }],
-    }));
-    const { resolveTiersFromDiscordRoles } = await import("./resolve");
-    expect(resolveTiersFromDiscordRoles(["111"])).toEqual(["district_attorney"]);
-    expect(resolveTiersFromDiscordRoles([])).toEqual([]);
-  });
-});
-
 describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
   it("DA, DDA, ADA, and Senior ADA each independently receive every site capability", async () => {
     const { capabilitiesForTiers, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();

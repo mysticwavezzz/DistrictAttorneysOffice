@@ -82,7 +82,7 @@ export function ProfileMenu({
         </div>
         <Link href="/settings" onClick={() => setOpen(false)}>Settings &amp; notifications</Link>
         {canToggleDeveloperProfile && <><button type="button" onClick={toggleDeveloperProfile} disabled={developerBusy} aria-pressed={developerEnabled}>{developerBusy ? "Updating developer access…" : developerEnabled ? "Disable Developer Profile" : "Enable Developer Profile"}</button>{developerError && <span className="profile-sync-error" role="alert">Developer access could not be updated. Try again.</span>}</>}
-        <button type="button" onClick={syncRoles} disabled={syncing}>{syncing ? "Syncing roles…" : `Sync ${identityProvider === "roblox" ? "Roblox group" : "Discord server"} roles now`}</button>
+        <button type="button" onClick={syncRoles} disabled={syncing}>{syncing ? "Syncing Roblox roles…" : "Sync Roblox group roles now"}</button>
         {syncedAt && <span className="profile-sync-note" role="status">Roles synced at {syncedAt}.</span>}
         {syncError && <span className="profile-sync-error" role="alert">Role sync failed. Try again in a moment.</span>}
         <button type="button" onClick={() => signOut({ redirectTo: "/" })}>Sign out</button>

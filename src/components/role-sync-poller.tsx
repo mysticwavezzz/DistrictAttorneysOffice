@@ -12,7 +12,7 @@ export function RoleSyncPoller() {
   const prevKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Refresh Discord roles immediately when the dashboard mounts (including a hard refresh).
+    // Refresh Roblox group roles immediately when the dashboard mounts.
     update();
     const interval = setInterval(() => {
       update();
