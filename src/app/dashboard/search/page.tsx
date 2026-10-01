@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
+import { caseVisibilityWhere, localUser } from "@/lib/case-access";
 
 export default async function SearchPage({
   searchParams,
@@ -20,7 +20,6 @@ export default async function SearchPage({
   const tiers = session.user.tiers;
 
   const canViewCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW);
-  const canViewAllCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
   const canViewRoster = hasCapability(tiers, CAPABILITIES.ROSTER_VIEW);
   const canManageAnnouncements = hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE);
 
@@ -34,14 +33,15 @@ export default async function SearchPage({
       const where: Prisma.CaseWhereInput = {
         OR: [{ title: { contains: q } }, { caseNumber: { contains: q } }],
       };
-      if (!canViewAllCases && user) {
-        where.AND = [{ OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] }];
+      const visibility = caseVisibilityWhere(tiers, user?.id);
+      if (visibility) {
+        where.AND = [visibility];
+        cases = await prisma.case.findMany({
+          where,
+          select: { id: true, title: true, caseNumber: true },
+          take: 20,
+        });
       }
-      cases = await prisma.case.findMany({
-        where,
-        select: { id: true, title: true, caseNumber: true },
-        take: 20,
-      });
     }
     if (canViewRoster) {
       roster = await prisma.rosterEntry.findMany({

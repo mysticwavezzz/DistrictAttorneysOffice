@@ -79,6 +79,7 @@ export async function reviewCaseRequest(formData: FormData) {
   }
 
   let createdCaseId: string | null = null;
+  let reviewAppliedInTransaction = false;
   if (decision === "APPROVE") {
     const data = JSON.parse(request.proposedData) as Record<string, unknown>;
 
@@ -93,8 +94,11 @@ export async function reviewCaseRequest(formData: FormData) {
         : null;
       const caseNumber = emptyToNull(caseData.caseNumber) ?? (await generateCaseNumber());
       const created = await prisma.$transaction(async (tx) => {
-        const currentRequest = await tx.caseActionRequest.findUnique({ where: { id }, select: { status: true } });
-        if (currentRequest?.status !== "PENDING") throw new Error("Request has already been reviewed.");
+        const claimed = await tx.caseActionRequest.updateMany({
+          where: { id, status: "PENDING" },
+          data: { status: "APPROVED", reviewedById: user.id, reviewNote: note || null, reviewedAt: new Date() },
+        });
+        if (!claimed.count) throw new Error("Request has already been reviewed.");
         const caseRecord = await tx.case.create({
           data: {
             title: caseData.title,
@@ -129,17 +133,19 @@ export async function reviewCaseRequest(formData: FormData) {
             data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById },
           });
         }
-        await tx.caseActionRequest.update({
-          where: { id },
-          data: { status: "APPROVED", reviewedById: user.id, reviewNote: note || null, reviewedAt: new Date() },
-        });
         return caseRecord;
       });
       createdCaseId = created.id;
     } else if (request.caseId) {
-      await prisma.case.update({
-        where: { id: request.caseId },
-        data: {
+      await prisma.$transaction(async (tx) => {
+        const claimed = await tx.caseActionRequest.updateMany({
+          where: { id, status: "PENDING" },
+          data: { status: "APPROVED", reviewedById: user.id, reviewNote: note || null, reviewedAt: new Date() },
+        });
+        if (!claimed.count) throw new Error("Request has already been reviewed.");
+        await tx.case.update({
+          where: { id: request.caseId! },
+          data: {
           title: typeof data.title === "string" ? data.title : undefined,
           caseNumber: typeof data.caseNumber === "string" ? data.caseNumber : undefined,
           type: emptyToNull(typeof data.type === "string" ? data.type : undefined),
@@ -162,21 +168,23 @@ export async function reviewCaseRequest(formData: FormData) {
           finalJudgmentAt: toDate(typeof data.finalJudgmentAt === "string" ? data.finalJudgmentAt : undefined),
           summary: emptyToNull(typeof data.summary === "string" ? data.summary : undefined) ?? "",
           assignedJudge: emptyToNull(typeof data.assignedJudge === "string" ? data.assignedJudge : undefined),
-        },
+          },
+        });
+        await tx.caseComment.create({
+          data: {
+            caseId: request.caseId!,
+            body: `Proposed case edit approved by ${session.user.displayName}.`,
+            isSystem: true,
+          },
+        });
       });
-      await prisma.caseComment.create({
-        data: {
-          caseId: request.caseId,
-          body: `Paralegal-proposed edit approved by ${session.user.displayName}.`,
-          isSystem: true,
-        },
-      });
+      reviewAppliedInTransaction = true;
     }
   }
 
-  if (!createdCaseId) {
-    await prisma.caseActionRequest.update({
-      where: { id },
+  if (!createdCaseId && !reviewAppliedInTransaction) {
+    const result = await prisma.caseActionRequest.updateMany({
+      where: { id, status: "PENDING" },
       data: {
         status: decision === "APPROVE" ? "APPROVED" : "REJECTED",
         reviewedById: user.id,
@@ -184,6 +192,7 @@ export async function reviewCaseRequest(formData: FormData) {
         reviewedAt: new Date(),
       },
     });
+    if (!result.count) throw new Error("Request has already been reviewed. Refresh the queue.");
   }
 
   await notify({

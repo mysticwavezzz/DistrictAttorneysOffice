@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAccessCase } from "./case-access";
+import { canAccessCase, caseVisibilityWhere } from "./case-access";
 
 describe("case record access boundaries", () => {
   const record = { assignedAttorneyId: "assigned-user", createdById: "creator-user" };
@@ -14,5 +14,12 @@ describe("case record access boundaries", () => {
     expect(canAccessCase(["supervising_ada"], "other-user", record)).toBe(true);
     expect(canAccessCase(["special_investigations"], "other-user", { ...record, isDraft: true })).toBe(false);
     expect(canAccessCase(["supervising_ada"], "other-user", { ...record, isDraft: true })).toBe(true);
+  });
+  it("fails closed when a non-view-all staff member has no local user record", () => {
+    expect(caseVisibilityWhere(["special_investigations"], null)).toBeNull();
+  });
+  it("scopes ordinary case access to ownership and keeps full access explicit", () => {
+    expect(caseVisibilityWhere(["special_investigations"], "staff-1")).toEqual({ OR: [{ assignedAttorneyId: "staff-1" }, { createdById: "staff-1" }] });
+    expect(caseVisibilityWhere(["supervising_ada"], null)).toEqual({});
   });
 });

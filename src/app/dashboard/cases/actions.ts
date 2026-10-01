@@ -269,14 +269,16 @@ export async function updateCase(formData: FormData) {
 }
 
 export async function deleteCase(formData: FormData) {
-  const session = await auth();
-  if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_DELETE)) {
+  const { session, user } = await requireStaff();
+  if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_DELETE)) {
     throw new Error("Forbidden");
   }
 
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing case id");
 
+  const existing = await prisma.case.findUnique({ where: { id } });
+  if (!existing || !canAccessCase(session.user.tiers, user.id, existing)) throw new Error("Case not found or not accessible");
   await prisma.case.delete({ where: { id } });
 
   revalidatePath("/dashboard/cases");

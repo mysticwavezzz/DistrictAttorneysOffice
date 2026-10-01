@@ -12,7 +12,7 @@ import { getSiteConfiguration } from "@/lib/site-settings";
 import { RemoveButton } from "@/components/remove-button";
 import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
-import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
+import { getOngoingObligations, getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 type CaseWithRelations = Prisma.CaseGetPayload<{
   include: {
@@ -93,6 +93,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     ? "Full docket access"
     : canEdit ? "Edit access" : canPropose ? "Read and propose edits" : "Read access";
   const activeDeadlines = getProceduralDeadlines(caseRecord);
+  const ongoingObligations = getOngoingObligations(caseRecord);
   let parties: { name: string; role: string }[] = [];
   try {
     const parsedParties = JSON.parse(caseRecord.partyDetails) as unknown;
@@ -191,10 +192,10 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
         <section id="deadlines" className="deadline-summary" aria-label="Case deadlines">
           <h2>Deadlines</h2>
-          {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
+          {activeDeadlines.length === 0 && ongoingObligations.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
             const overdue = deadline.dueDate.getTime() < new Date().setHours(0, 0, 0, 0);
             return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : deadline.authority}</small></li>;
-          })}</ul>}
+          })}{ongoingObligations.map((obligation) => <li key={obligation.key}><span>{obligation.label}</span><small>{obligation.authority} · Ongoing duty</small></li>)}</ul>}
         </section>
 
         <div className="formbox">
@@ -306,10 +307,10 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <div className="formbox case-overview-people"><div className="case-detail-summary"><span><small>Assigned judge</small><strong>{caseRecord.assignedJudge ?? "Not assigned"}</strong></span><span><small>Submitting officer</small><strong>{caseRecord.createdBy.displayName}</strong></span><span><small>People / parties</small><strong>{parties.length}</strong></span></div><h2>People and parties</h2>{parties.length ? <ul className="case-parties">{parties.map((party, index) => <li key={`${party.name}-${index}`}><strong>{party.role}</strong><span>{party.name}</span></li>)}</ul> : <p className="note-inline">No people or parties have been listed.</p>}</div>
       <section id="deadlines" className="deadline-summary" aria-label="Case deadlines">
         <h2>Deadlines</h2>
-        {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
+        {activeDeadlines.length === 0 && ongoingObligations.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
           const overdue = deadline.dueDate.getTime() < new Date().setHours(0, 0, 0, 0);
           return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : deadline.authority}</small></li>;
-        })}</ul>}
+        })}{ongoingObligations.map((obligation) => <li key={obligation.key}><span>{obligation.label}</span><small>{obligation.authority} · Ongoing duty</small></li>)}</ul>}
       </section>
 
       <form action={updateCase} className="formbox case-edit-form" id="overview">

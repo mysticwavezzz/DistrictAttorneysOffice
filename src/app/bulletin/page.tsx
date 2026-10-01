@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { formatReleaseBody } from "@/lib/format-release-body";
+import { SafeImage } from "@/components/safe-image";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "long" });
 
@@ -53,7 +54,7 @@ export default async function BulletinPage() {
                   {dateFormatter.format(post.publishedAt)} &mdash; {post.title}
                 </summary>
                 <div className="letter-body">
-                  {post.imageUrl && <img src={post.imageUrl} alt="" className="release-hero" />}
+                  {post.imageUrl && <SafeImage src={post.imageUrl} alt="" width={1600} height={900} className="release-hero" style={{ width: "100%", height: "auto" }} />}
                   <p dangerouslySetInnerHTML={{ __html: formatReleaseBody(post.body) }} />
                 </div>
               </details>

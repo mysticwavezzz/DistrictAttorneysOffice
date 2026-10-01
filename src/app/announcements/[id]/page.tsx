@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { Seal } from "@/components/seal";
 import { formatReleaseBody } from "@/lib/format-release-body";
+import { SafeImage } from "@/components/safe-image";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "long" });
 
@@ -63,11 +64,7 @@ export default async function AnnouncementDetailPage({
           <h1>{announcement.title}</h1>
 
           {announcement.imageUrl && (
-            <img
-              src={announcement.imageUrl}
-              alt=""
-              className="release-hero"
-            />
+            <SafeImage src={announcement.imageUrl} alt="" width={1600} height={900} className="release-hero" style={{ width: "100%", height: "auto" }} />
           )}
 
           <div className="letter">

@@ -7,6 +7,7 @@ import { capabilityMarkersForTiers, resolveTiersFromRobloxRoles } from "./permis
 import type { PermissionTier } from "./permissions/tiers";
 import { developerProfileSettingKey, isDeveloperProfileIdentity, withDeveloperProfile } from "@/config/developer-profiles";
 import { normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
+import { mayUseCachedRoles } from "./role-refresh-policy";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -70,7 +71,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.tiersFetchedAt = Date.now();
         } catch (error) {
           console.error("Failed to resolve configured Roblox group permissions", error);
-          token.tiers = [];
+          if (!mayUseCachedRoles(token.tiersFetchedAt, Date.now())) token.tiers = [];
         }
       }
 

@@ -49,6 +49,7 @@ async function getMaintenanceConfiguration(origin: string): Promise<{ enabled: b
     return maintenanceCache;
   } catch (error) {
     console.error("Failed to check maintenance mode", error);
+    if (maintenanceCache) return maintenanceCache;
     return { enabled: false, exemptTiers: [], exemptUserIds: [] };
   }
 }

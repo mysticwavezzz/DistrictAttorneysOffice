@@ -295,6 +295,14 @@ model RateLimitBucket {
   resetAt DateTime
 }
 
+// Stores only the public receipt and delivery state, never report contents or identities.
+model TipSubmission {
+  reference String   @id
+  status    String   @default("IN_PROGRESS")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model CrimeTipBlacklist {
   id            String   @id @default(cuid())
   kind          String

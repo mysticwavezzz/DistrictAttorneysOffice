@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SafeImage } from "@/components/safe-image";
 
 export interface AnnouncementListItem {
   id: string;
@@ -46,7 +47,7 @@ export function AnnouncementsSection({
             >
               {announcement.imageUrl && (
                 <span className="release-card-thumb">
-                  <img src={announcement.imageUrl} alt="" />
+                  <SafeImage src={announcement.imageUrl} alt="" width={320} height={320} />
                 </span>
               )}
               <span className="release-card-body">

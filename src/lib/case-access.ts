@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import type { PermissionTier } from "@/lib/permissions/tiers";
+import type { Prisma } from "@prisma/client";
 
 export async function localUser(identity: { identityProvider: "discord" | "roblox"; providerUserId: string }) {
   if (!identity.providerUserId) return null;
@@ -20,6 +21,16 @@ export function canAccessCase(
   }
   if (canViewAll) return true;
   return target.assignedAttorneyId === userId || target.createdById === userId;
+}
+
+/** Build a safe list scope. A missing local identity must never become an unscoped docket query. */
+export function caseVisibilityWhere(
+  tiers: PermissionTier[],
+  userId: string | null | undefined
+): Prisma.CaseWhereInput | null {
+  if (hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL)) return {};
+  if (!userId) return null;
+  return { OR: [{ assignedAttorneyId: userId }, { createdById: userId }] };
 }
 
 export async function generateCaseNumber(): Promise<string> {

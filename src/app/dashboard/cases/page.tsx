@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
+import { caseVisibilityWhere, localUser } from "@/lib/case-access";
 import { caseStatusColor } from "@/config/case-statuses";
 import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
@@ -57,9 +57,11 @@ export default async function CasesPage({
   }) : [];
 
   const where: Prisma.CaseWhereInput = { archived: tab === "archived" };
-  if ((!viewAll || mineOnly) && user) {
-    where.OR = [{ assignedAttorneyId: user.id }, { createdById: user.id }];
-  }
+  const visibility = mineOnly
+    ? (user ? { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] } : null)
+    : caseVisibilityWhere(session.user.tiers, user?.id);
+  if (!visibility) redirect("/login?error=forbidden");
+  Object.assign(where, visibility);
   if (q) {
     where.AND = [
       {

@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 
-type SubmitState = "idle" | "submitting" | { receipt: string } | { error: string };
+type SubmitState = "idle" | "submitting" | { receipt: string } | { error: string } | { uncertain: string; receipt: string };
 
 export function TipForm({
   crimeTypes,
@@ -54,7 +54,11 @@ export function TipForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const result = await response.json().catch(() => null) as { success?: boolean; error?: string; receipt?: string } | null;
+      const result = await response.json().catch(() => null) as { success?: boolean; status?: string; error?: string; receipt?: string } | null;
+      if (result?.status === "unknown" || result?.status === "pending") {
+        setState({ uncertain: result.error ?? "The report status is not confirmed. Keep this reference and contact investigators before retrying.", receipt: result.receipt ?? submissionReferenceRef.current });
+        return;
+      }
       if (!response.ok || !result?.success || !result.receipt) {
         setState({ error: result?.error ?? "We couldn't submit your report. Please try again." });
         return;
@@ -67,8 +71,12 @@ export function TipForm({
     }
   }
 
+  if (typeof state === "object" && "uncertain" in state) {
+    return <div className="message message-error" role="alert"><strong>Submission status not confirmed.</strong> Reference: <span className="mono">{state.receipt}</span>. {state.uncertain} Do not submit this report again through another form.</div>;
+  }
+
   if (typeof state === "object" && "receipt" in state) {
-    return <div className="message message-success" role="status"><strong>Report submitted.</strong> Reference: <span className="mono">{state.receipt}</span>. Keep this number if you contact investigators through Discord. Your reference was included with the report sent to the office&apos;s Google Form and its Discord webhook. This confirmation does not guarantee an investigation or reply. <button type="button" className="linklike" onClick={() => { renderedAtRef.current = Date.now(); submissionReferenceRef.current = null; setState("idle"); }}>Submit another report</button></div>;
+    return <div className="message message-success" role="status"><strong>Report submitted.</strong> Reference: <span className="mono">{state.receipt}</span>. The reference was included with the submission to the office&apos;s configured Google Form. Access and any notifications from that form are controlled by its owner. This confirmation does not guarantee an investigation or reply. <button type="button" className="linklike" onClick={() => { renderedAtRef.current = Date.now(); submissionReferenceRef.current = null; setState("idle"); }}>Submit another report</button></div>;
   }
 
   return (
@@ -79,7 +87,7 @@ export function TipForm({
       <summary><h2>1. Submitter information</h2></summary>
       <div className="field-row">
         <div className="field"><label htmlFor="tip-roblox">Your Roblox username and ID *</label><input id="tip-roblox" name="submitterRoblox" required maxLength={120} defaultValue={defaultRobloxIdentity} placeholder="Username / numeric ID" /></div>
-        <div className="field"><label htmlFor="tip-discord">Your Discord username and ID *</label><input id="tip-discord" name="submitterDiscord" required maxLength={120} defaultValue={defaultDiscordIdentity} placeholder="Username / numeric ID" /></div>
+        <div className="field"><label htmlFor="tip-discord">Your Discord username and ID *</label><input id="tip-discord" name="submitterDiscord" required maxLength={120} defaultValue={defaultDiscordIdentity} placeholder="Username / numeric ID" /><small>This is report information only. Website access and staff permissions come from Roblox group roles.</small></div>
       </div>
       <div className="field">
         <label className="checkline"><input type="checkbox" name="legalAcknowledgment" required /> I understand that knowingly false or malicious reports are prohibited, and I wish to proceed.</label>
@@ -111,7 +119,7 @@ export function TipForm({
       <div className="field"><label htmlFor="tip-signature">Electronic signature: Roblox username in ALL CAPS *</label><input id="tip-signature" name="signature" required maxLength={120} pattern="[A-Z0-9_ ]+" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} /></div>
       </details>
 
-      {typeof state === "object" && "error" in state && <p className="message message-error" role="alert">{state.error} Your entries are still here. Check your connection and retry; do not submit a second copy in Google Forms.</p>}
+      {typeof state === "object" && "error" in state && <p className="message message-error" role="alert">{state.error} Your entries are still here. If the report reference is shown, check its status before trying again.</p>}
       <button type="submit" className="govbtn" disabled={state === "submitting"}>{state === "submitting" ? "Submitting report…" : typeof state === "object" && "error" in state ? "Retry submission" : "Submit Official Tip"}</button>
     </form>
   );

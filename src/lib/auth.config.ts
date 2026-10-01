@@ -6,9 +6,9 @@ import { ROBLOX_TIER_ROLE_MAPPINGS, type RobloxTierRoleMapping } from "@/config/
 import { env } from "./env";
 import { withDeveloperProfile } from "@/config/developer-profiles";
 import { DEVELOPER_PROFILE_TIER } from "./permissions/tiers";
+import { mayUseCachedRoles } from "./role-refresh-policy";
 
-// Roblox group membership is the sole provider of website permission tiers.
-const ROLE_REFRESH_INTERVAL_MS = 0;
+// Refresh on each auth request so Roblox role revocations take effect promptly.
 
 export const authConfig = {
   session: { strategy: "jwt" },
@@ -25,7 +25,7 @@ export const authConfig = {
     })] : []),
   ],
   callbacks: {
-    async jwt({ token, account, profile, trigger }) {
+    async jwt({ token, account, profile }) {
       if (account?.provider === "roblox" && profile) {
         const robloxProfile = profile as RobloxOAuthProfile;
         const robloxUserId = String(robloxProfile.sub);
@@ -38,11 +38,7 @@ export const authConfig = {
       }
 
       const now = Date.now();
-      const isStale =
-        !token.tiersFetchedAt || now - token.tiersFetchedAt > ROLE_REFRESH_INTERVAL_MS;
-      const forced = trigger === "update";
-
-      if (token.identityProvider === "roblox" && token.robloxUserId && (isStale || forced || (account && profile))) {
+      if (token.identityProvider === "roblox" && token.robloxUserId) {
         try {
           const roles = await fetchRobloxGroupRoles(token.robloxUserId);
           const custom = token as typeof token & {
@@ -59,8 +55,7 @@ export const authConfig = {
           token.tiersFetchedAt = now;
         } catch (error) {
           console.error("Failed to resolve Roblox group permissions", error);
-          token.tiers = [];
-          token.tiersFetchedAt = now;
+          if (!mayUseCachedRoles(token.tiersFetchedAt, now)) token.tiers = [];
         }
       }
 

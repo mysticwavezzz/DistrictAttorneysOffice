@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TIER_DEFINITIONS, hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
+import { caseVisibilityWhere, localUser } from "@/lib/case-access";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
@@ -20,11 +20,11 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   const canViewReviewInbox = canApproveRequests || canViewRequests;
   const canCreateCases = hasCapability(tiers, CAPABILITIES.CASES_CREATE);
   const user = await localUser(session!.user);
-  const personalScope = { OR: [{ assignedAttorneyId: user?.id }, { createdById: user?.id }] };
-  const caseScope = canViewAllCases ? {} : personalScope;
+  const personalScope = user ? { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] } : null;
+  const caseScope = caseVisibilityWhere(tiers, user?.id);
 
   const [myActiveCount, pendingRequestCount, newRecordsRequests, pendingAopcCount, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
-    canViewCases ? prisma.case.count({ where: { archived: false, ...personalScope } }).catch(() => 0) : Promise.resolve(0),
+    canViewCases && personalScope ? prisma.case.count({ where: { archived: false, ...personalScope } }).catch(() => 0) : Promise.resolve(0),
     canApproveRequests ? prisma.caseActionRequest.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
     canViewRequests ? prisma.recordsRequest.count({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }).catch(() => 0) : Promise.resolve(0),
     canApproveRequests ? prisma.aopc.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
@@ -33,7 +33,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
     canManageAnnouncements ? prisma.announcement.count({ where: { isPublished: true, publishedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }).catch(() => 0) : Promise.resolve(0),
   ]);
 
-  const deadlineCases = canViewCases ? await prisma.case.findMany({ where: { archived: false, isDraft: false, ...caseScope }, orderBy: { updatedAt: "desc" }, take: 5000 }).catch(() => []) : [];
+  const deadlineCases = canViewCases && caseScope ? await prisma.case.findMany({ where: { archived: false, isDraft: false, ...caseScope }, orderBy: { updatedAt: "desc" }, take: 5000 }).catch(() => []) : [];
   const now = new Date();
   const today = new Date(now); today.setUTCHours(0, 0, 0, 0);
   const deadlineRows = deadlineCases.flatMap((item) => getProceduralDeadlines(item).map((deadline) => ({ item, deadline })))
@@ -41,7 +41,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
     .sort((a, b) => a.deadline.dueDate.getTime() - b.deadline.dueDate.getTime());
   const deadlineCount = deadlineRows.filter(({ deadline }) => deadline.dueDate.getTime() < today.getTime() + 4 * 86400000).length;
   const upcomingDeadlines = deadlineRows.slice(0, 40);
-  const recentFilings = canViewCases ? await prisma.caseFiling.findMany({
+  const recentFilings = canViewCases && caseScope ? await prisma.caseFiling.findMany({
     where: { case: caseScope },
     select: { id: true, title: true, createdAt: true, case: { select: { id: true, caseNumber: true, title: true } } },
     orderBy: { createdAt: "desc" },

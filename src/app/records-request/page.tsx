@@ -37,7 +37,7 @@ export default async function RecordsRequestPage({
             <>
               {query.error && (
                 <div className="message message-error" role="alert" aria-live="assertive">
-                  Please fill in all fields and try again.
+                  {query.error === "rate-limited" ? "Too many requests were sent from this connection. Please wait an hour before submitting another request." : "Please fill in all fields and try again."}
                 </div>
               )}
               <form action={submitRecordsRequest} className="formbox">

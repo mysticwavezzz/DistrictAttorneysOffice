@@ -21,7 +21,8 @@ function resolvePublishedAt(raw: string | undefined): Date {
   const trimmed = emptyToNull(raw);
   if (!trimmed) return new Date();
   const parsed = new Date(trimmed);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  if (Number.isNaN(parsed.getTime())) throw new Error("Enter a valid publication date and time.");
+  return parsed;
 }
 
 export async function createAnnouncement(formData: FormData) {

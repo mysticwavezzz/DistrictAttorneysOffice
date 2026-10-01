@@ -3,14 +3,8 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
-
-function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
+import { caseVisibilityWhere, localUser } from "@/lib/case-access";
+import { escapeCsvCell } from "@/lib/csv";
 
 function fmtDate(date: Date | null): string {
   return date ? date.toISOString().slice(0, 10) : "";
@@ -22,7 +16,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const viewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL);
   const user = await localUser(session.user);
 
   const { searchParams } = new URL(req.url);
@@ -30,10 +23,9 @@ export async function GET(req: NextRequest) {
   const q = (searchParams.get("q") ?? "").trim();
   const status = (searchParams.get("status") ?? "").trim();
 
-  const where: Prisma.CaseWhereInput = { archived: tab === "archived" };
-  if (!viewAll && user) {
-    where.OR = [{ assignedAttorneyId: user.id }, { createdById: user.id }];
-  }
+  const visibility = caseVisibilityWhere(session.user.tiers, user?.id);
+  if (!visibility) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const where: Prisma.CaseWhereInput = { archived: tab === "archived", ...visibility };
   if (q) {
     where.AND = [
       {
@@ -90,7 +82,7 @@ export async function GET(req: NextRequest) {
       c.isDraft ? "Yes" : "No",
     ]
       .map(String)
-      .map(csvEscape)
+      .map(escapeCsvCell)
       .join(",")
   );
 

@@ -15,6 +15,7 @@ export type ProceduralDeadlineCase = {
 };
 
 export type ProceduralDeadline = { key: string; label: string; dueDate: Date; authority: string; automatic: boolean };
+export type OngoingObligation = { key: string; label: string; authority: string };
 
 function addCalendarDays(anchor: Date, days: number): Date {
   return new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate() + days));
@@ -50,4 +51,12 @@ export function getProceduralDeadlines(item: ProceduralDeadlineCase): Procedural
   if (appellate) add("appellate-certiorari", "Certiorari petition", item.finalJudgmentAt ? addCalendarDays(item.finalJudgmentAt, 30) : null, "Ches. Cir. Ct. Rule 13.2");
 
   return deadlines.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+}
+
+export function getOngoingObligations(item: Pick<ProceduralDeadlineCase, "type">): OngoingObligation[] {
+  const type = (item.type ?? "").toLocaleLowerCase("en-US");
+  if (type.includes("criminal")) {
+    return [{ key: "criminal-discovery-duty", label: "Discovery is an immediate, ongoing duty; file and resolve motions before the pretrial hearing concludes.", authority: "Ches. R. Crim. P. Rules 11 and 12(d)(1)" }];
+  }
+  return [];
 }

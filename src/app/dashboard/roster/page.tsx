@@ -9,6 +9,7 @@ import { addRosterEntry, removeRosterEntry, setRosterActive } from "./actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { getSiteConfiguration } from "@/lib/site-settings";
+import { SafeImage } from "@/components/safe-image";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
@@ -26,14 +27,8 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   const filters = await searchParams;
 
   let entries: RosterEntry[] = [];
-  let activeDiscordIds = new Set<string>();
   try {
     entries = await prisma.rosterEntry.findMany({ orderBy: { name: "asc" } });
-    const activeUsers = await prisma.user.findMany({
-      where: { tiers: { not: "" } },
-      select: { discordUserId: true },
-    });
-    activeDiscordIds = new Set(activeUsers.map((u) => u.discordUserId).filter((id): id is string => Boolean(id)));
   } catch (error) {
     console.error("Failed to load roster", error);
   }
@@ -67,10 +62,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
         {group.description && <p className="note-inline">{group.description}</p>}
         <div className="roster-cards">
           {group.entries.map((entry) => <article className="roster-card" key={`card-${entry.id}`}>
-            {entry.imageUrl && <img src={entry.imageUrl} alt="" loading="lazy" />}
+            {entry.imageUrl && <SafeImage src={entry.imageUrl} alt="" width={54} height={54} />}
             <h4>{entry.name}</h4><p>{entry.rank ?? "Rank not set"}</p>
             <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
-            <span className={`pill ${entry.discordUserId ? (activeDiscordIds.has(entry.discordUserId) ? "pill-green" : "pill-red") : "pill-muted"}`}>{entry.discordUserId ? (activeDiscordIds.has(entry.discordUserId) ? "Active" : "Inactive") : "Not linked"}</span>
+            <span className={`pill ${entry.discordUserId ? "pill-green" : "pill-muted"}`}>{entry.discordUserId ? "Discord linked" : "No Discord linked"}</span>
             {canManage && <p><Link href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></p>}
           </article>)}
         </div>
@@ -87,9 +82,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
               </tr>
             </thead>
             <tbody>
-              {group.entries.map((entry) => {
-                const stale = entry.discordUserId ? !activeDiscordIds.has(entry.discordUserId) : false;
-                return (
+              {group.entries.map((entry) => (
                   <tr key={entry.id}>
                     <td data-label="Name">{entry.name}</td>
                     <td data-label="Rank">
@@ -98,11 +91,6 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                     </td>
                     <td data-label="Discord" className="mono">
                       {entry.discordUserId ?? "Not linked"}{" "}
-                      {stale && (
-                        <span className="pill pill-red" title="No active staff tier found for this Discord ID">
-                          Stale
-                        </span>
-                      )}
                     </td>
                     <td data-label="Start date">{entry.startDate ? dateFormatter.format(entry.startDate) : "Not set"}</td>
                     <td data-label="Roster status"><span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Active" : "Inactive"}</span></td>
@@ -114,8 +102,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                       </td>
                     )}
                   </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </div>
