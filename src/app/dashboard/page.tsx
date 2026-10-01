@@ -17,15 +17,17 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   const canManageAnnouncements = hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE);
   const canApproveRequests = hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS);
   const canViewRequests = hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW);
+  const canViewReviewInbox = canApproveRequests || canViewRequests;
   const canCreateCases = hasCapability(tiers, CAPABILITIES.CASES_CREATE);
   const user = await localUser(session!.user);
   const personalScope = { OR: [{ assignedAttorneyId: user?.id }, { createdById: user?.id }] };
   const caseScope = canViewAllCases ? {} : personalScope;
 
-  const [myActiveCount, pendingRequestCount, newRecordsRequests, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
+  const [myActiveCount, pendingRequestCount, newRecordsRequests, pendingAopcCount, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
     canViewCases ? prisma.case.count({ where: { archived: false, ...personalScope } }).catch(() => 0) : Promise.resolve(0),
     canApproveRequests ? prisma.caseActionRequest.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
-    canViewRequests ? prisma.recordsRequest.count({ where: { status: "NEW" } }).catch(() => 0) : Promise.resolve(0),
+    canViewRequests ? prisma.recordsRequest.count({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }).catch(() => 0) : Promise.resolve(0),
+    canApproveRequests ? prisma.aopc.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
     user ? prisma.notification.count({ where: { userId: user.id, isRead: false } }).catch(() => 0) : Promise.resolve(0),
     canViewRoster ? prisma.rosterEntry.count().catch(() => 0) : Promise.resolve(0),
     canManageAnnouncements ? prisma.announcement.count({ where: { isPublished: true, publishedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }).catch(() => 0) : Promise.resolve(0),
@@ -49,8 +51,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
 
   const actionCards = [
     canViewCases && { href: "/dashboard/cases/calendar", label: "Deadlines due soon", value: deadlineCount || "Clear", action: "Open deadline calendar", urgent: deadlineCount > 0 },
-    canApproveRequests && { href: "/dashboard/cases/requests?status=pending", label: "Case openings and changes to review", value: pendingRequestCount, action: "Review submissions", urgent: pendingRequestCount > 0 },
-    canViewRequests && { href: "/dashboard/records-requests?status=NEW", label: "New records requests", value: newRecordsRequests, action: "Open requests", urgent: newRecordsRequests > 0 },
+    canViewReviewInbox && { href: "/dashboard/review", label: "Items awaiting review", value: pendingRequestCount + newRecordsRequests + pendingAopcCount, action: "Open Review Inbox", urgent: pendingRequestCount + newRecordsRequests + pendingAopcCount > 0 },
     { href: "/settings#notifications", label: "Unread notifications", value: unreadCount, action: "View notifications", urgent: unreadCount > 0 },
   ].filter(Boolean) as { href: string; label: string; value: number | string; action: string; urgent: boolean }[];
 

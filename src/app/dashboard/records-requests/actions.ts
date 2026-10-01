@@ -18,5 +18,6 @@ export async function markRecordsRequestStatus(formData: FormData) {
   }
 
   await prisma.recordsRequest.update({ where: { id }, data: { status } });
+  revalidatePath("/dashboard/review");
   revalidatePath("/dashboard/records-requests");
 }

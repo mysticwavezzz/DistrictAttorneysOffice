@@ -4,9 +4,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
 import { markRecordsRequestStatus } from "../records-requests/actions";
+import { reviewCaseRequest } from "../cases/requests/actions";
 import { reviewAopc } from "./actions";
 
-type ReviewItem = { id: string; kind: "case" | "records" | "aopc"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string };
+type ReviewItem = { id: string; kind: "case" | "records" | "aopc"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string; details?: string; contact?: string };
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 export default async function ReviewInboxPage({ searchParams }: { searchParams: Promise<{ type?: string; age?: string; division?: string }> }) {
@@ -24,18 +25,20 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   const items: ReviewItem[] = [];
 
   if (canReviewCases && (selectedType === "all" || selectedType === "case")) {
-    const rows = await prisma.caseActionRequest.findMany({ where: { status: "PENDING" }, include: { requestedBy: { select: { displayName: true } }, case: { select: { caseNumber: true, type: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
+    const rows = await prisma.caseActionRequest.findMany({ where: { status: "PENDING" }, include: { requestedBy: { select: { displayName: true } }, case: { select: { id: true, caseNumber: true, type: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
     for (const row of rows) {
       let data: Record<string, unknown> = {};
       try { const parsed: unknown = JSON.parse(row.proposedData); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) data = parsed as Record<string, unknown>; } catch { /* Preserve malformed requests in the queue so reviewers can investigate. */ }
       const title = typeof data.title === "string" ? data.title : row.case?.caseNumber ?? "Case request";
       const division = typeof data.division === "string" ? data.division : typeof data.targetUnit === "string" ? data.targetUnit : "Unassigned";
-      items.push({ id: row.id, kind: "case", title, summary: row.kind === "CREATE" ? "New case opening" : `Case update${row.case?.caseNumber ? ` · ${row.case.caseNumber}` : ""}`, submittedBy: row.requestedBy.displayName, division, createdAt: row.createdAt, href: "/dashboard/cases/requests?status=pending" });
+      const detailFields = ["type", "stage", "assignedJudge", "assignedAttorneyName", "summary"];
+      const details = detailFields.flatMap((key) => typeof data[key] === "string" && data[key] ? [`${key === "assignedAttorneyName" ? "Assigned attorney" : key === "assignedJudge" ? "Judge" : key}: ${data[key]}`] : []).join(" · ");
+      items.push({ id: row.id, kind: "case", title, summary: row.kind === "CREATE" ? "New case opening" : `Case update${row.case?.caseNumber ? ` · ${row.case.caseNumber}` : ""}`, submittedBy: row.requestedBy.displayName, division, createdAt: row.createdAt, href: row.case ? `/dashboard/cases/${row.case.id}` : "/dashboard/cases", details });
     }
   }
   if (canReviewRecords && (selectedType === "all" || selectedType === "records")) {
     const rows = await prisma.recordsRequest.findMany({ where: { status: { in: ["NEW", "IN_PROGRESS"] } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
-    for (const row of rows) items.push({ id: row.id, kind: "records", title: row.name, summary: row.status === "NEW" ? "New public records request" : "Records request in progress", submittedBy: row.name, division: "Public requests", createdAt: row.createdAt, href: "/dashboard/records-requests" });
+    for (const row of rows) items.push({ id: row.id, kind: "records", title: row.name, summary: row.status === "NEW" ? "New public records request" : "Records request in progress", submittedBy: row.name, division: "Public requests", createdAt: row.createdAt, href: "/dashboard/review?type=records", details: row.details, contact: row.contact });
   }
   if (canReviewCases && (selectedType === "all" || selectedType === "aopc")) {
     const rows = await prisma.aopc.findMany({ where: { status: "PENDING" }, include: { submittedBy: { select: { displayName: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
@@ -67,9 +70,10 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
       return <article className="review-inbox-card" key={`${item.kind}-${item.id}`}>
         <header><div><span className={`pill ${urgency === "Urgent" ? "pill-red" : urgency === "Waiting" ? "pill-gold" : "pill-navy"}`}>{urgency}</span> <span className="pill pill-muted">{item.kind === "case" ? "Case request" : item.kind === "aopc" ? "AOPC" : "Records request"}</span></div><time dateTime={item.createdAt.toISOString()}>{dateFormat.format(item.createdAt)}</time></header>
         <h2>{item.title}</h2><p>{item.summary}</p><dl><div><dt>Submitted by</dt><dd>{item.submittedBy}</dd></div><div><dt>Division / queue</dt><dd>{item.division}</dd></div><div><dt>Waiting</dt><dd>{hours < 24 ? `${Math.max(0, hours)} hours` : `${Math.floor(hours / 24)} days`}</dd></div></dl>
+        {item.details && item.kind !== "records" && <p className="review-item-details">{item.details}</p>}
         {item.kind === "aopc" ? <details className="review-aopc-detail"><summary>Review details and decision</summary><p><strong>Target:</strong> {item.summary}</p><form action={reviewAopc} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><div className="field"><label htmlFor={`aopc-note-${item.id}`}>Review note <span className="hint">Required when returning</span></label><textarea id={`aopc-note-${item.id}`} name="note" rows={2} maxLength={1000}/></div><button type="submit" name="decision" value="ACCEPTED" className="govbtn">Accept</button><button type="submit" name="decision" value="REJECTED" className="govbtn-outline">Return for changes</button></form></details>
-          : item.kind === "records" ? <form action={markRecordsRequestStatus} className="review-record-action"><input type="hidden" name="id" value={item.id}/><label htmlFor={`records-status-${item.id}`}>Update status</label><select id={`records-status-${item.id}`} name="status" defaultValue="IN_PROGRESS"><option value="IN_PROGRESS">In progress</option><option value="FULFILLED">Fulfilled</option><option value="DENIED">Denied</option></select><button type="submit" className="govbtn-outline">Save status</button><Link href={item.href}>Open request</Link></form>
-          : <Link href={item.href} className="govbtn-outline">Open case review queue</Link>}
+          : item.kind === "records" ? <><details className="review-aopc-detail"><summary>Request details and status</summary>{item.contact && <p><strong>Contact:</strong> {item.contact}</p>}<p className="review-item-details">{item.details}</p></details><form action={markRecordsRequestStatus} className="review-record-action"><input type="hidden" name="id" value={item.id}/><label htmlFor={`records-status-${item.id}`}>Update status</label><select id={`records-status-${item.id}`} name="status" defaultValue="IN_PROGRESS"><option value="IN_PROGRESS">In progress</option><option value="FULFILLED">Fulfilled</option><option value="DENIED">Denied</option></select><button type="submit" className="govbtn-outline">Save status</button></form></>
+          : <><details className="review-aopc-detail"><summary>Case submission details</summary>{item.details && <p className="review-item-details">{item.details}</p>}<Link href={item.href}>Open related case</Link></details><form action={reviewCaseRequest} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><div className="field"><label htmlFor={`case-review-note-${item.id}`}>Review note <span className="hint">Required when rejecting</span></label><textarea id={`case-review-note-${item.id}`} name="note" rows={2} maxLength={1000}/></div><button type="submit" name="decision" value="APPROVE" className="govbtn">Approve</button><button type="submit" name="decision" value="REJECT" className="govbtn-outline">Reject</button></form></>}
       </article>;
     })}</div> : <div className="empty-state"><h2>Inbox is clear</h2><p>No items match these filters right now.</p><Link href="/dashboard/review" className="govbtn-outline">Clear filters</Link></div>}
   </div>;
