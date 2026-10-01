@@ -10,7 +10,8 @@ export const PERMISSION_TIERS = {
   DISTRICT_ATTORNEY: "district_attorney",
 } as const;
 
-export type PermissionTier = (typeof PERMISSION_TIERS)[keyof typeof PERMISSION_TIERS];
+export const DEVELOPER_PROFILE_TIER = "developer_profile" as const;
+export type PermissionTier = (typeof PERMISSION_TIERS)[keyof typeof PERMISSION_TIERS] | typeof DEVELOPER_PROFILE_TIER;
 
 export interface TierDefinition {
   id: PermissionTier;
@@ -101,6 +102,12 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
       CAPABILITIES.ACTIVITY_VIEW,
       CAPABILITIES.SETTINGS_MANAGE,
     ],
+  },
+  [DEVELOPER_PROFILE_TIER]: {
+    id: DEVELOPER_PROFILE_TIER,
+    label: "Developer Profile",
+    description: "Site developer access with every defined website capability.",
+    capabilities: Object.values(CAPABILITIES),
   },
 };
 

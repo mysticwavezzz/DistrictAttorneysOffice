@@ -11,6 +11,7 @@ import { Sidebar } from "@/components/sidebar";
 import { RoleSyncButton } from "@/components/role-sync-button";
 import { NOTIFICATION_TYPES } from "@/lib/notifications";
 import { markAllNotificationsRead, markNotificationRead, updateNotificationPreferences } from "@/app/notifications/actions";
+import { TIER_DEFINITIONS } from "@/lib/permissions/tiers";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
@@ -30,9 +31,9 @@ export default async function SettingsPage() {
         <p className="eyebrow">Your account</p><h1>Settings</h1>
         <section className="formbox" aria-labelledby="profile-heading">
           <h2 id="profile-heading" style={{ marginTop: 0 }}>Profile</h2>
-          <p><strong>{session.user.displayName}</strong> (@{session.user.username})</p>
+          <p><strong>{session.user.identityProvider === "roblox" ? session.user.username : session.user.displayName}</strong> (@{session.user.username})</p>
           <p className="note-inline">{session.user.identityProvider === "roblox" ? "Roblox ID" : "Discord ID"}: <span className="mono">{session.user.providerUserId}</span></p>
-          <p className="note-inline">Current access tiers: {session.user.tiers.filter((tier) => !tier.startsWith("cap:") && !tier.startsWith("denycap:")).join(", ") || "No active role tiers"}</p>
+          <p className="note-inline">Current access tiers: {session.user.tiers.filter((tier) => !tier.startsWith("cap:") && !tier.startsWith("denycap:")).map((tier) => TIER_DEFINITIONS[tier as keyof typeof TIER_DEFINITIONS]?.label ?? tier).join(", ") || "No active role tiers"}</p>
           <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}><RoleSyncButton /></SessionProvider>
           <p className="note-inline">Role sync checks your current {session.user.identityProvider === "roblox" ? "Roblox group roles" : "Discord server roles"} and refreshes your access.</p>
         </section>

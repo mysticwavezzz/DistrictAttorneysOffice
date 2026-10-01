@@ -11,7 +11,7 @@ import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
 import { UNITS } from "@/config/units";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
-import { ALL_TIERS, TIER_DEFINITIONS } from "@/lib/permissions/tiers";
+import { ALL_TIERS, DEVELOPER_PROFILE_TIER, TIER_DEFINITIONS } from "@/lib/permissions/tiers";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { getSiteConfiguration, updateSiteConfiguration } from "@/lib/site-settings";
 import { createConfigurationBackup, recordSettingsAudit } from "@/lib/settings-audit";
@@ -210,25 +210,28 @@ export async function saveApplicationConfiguration(formData: FormData) {
   if (!ALL_TIERS.some((tier) => (tierCapabilities[tier] ?? []).includes(CAPABILITIES.SETTINGS_MANAGE))) {
     throw new Error("At least one permission tier must retain site settings access.");
   }
-  const currentRoleMappings = await getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS);
-  const currentAdminTiers = session.user.tiers.filter((tier): tier is (typeof ALL_TIERS)[number] => (ALL_TIERS as readonly string[]).includes(tier));
-  for (const tier of currentAdminTiers) {
-    if (!(tierCapabilities[tier] ?? []).includes(CAPABILITIES.SETTINGS_MANAGE)) {
-      throw new Error("Keep site settings access on one of your current permission tiers.");
-    }
-    if (session.user.identityProvider === "discord") {
-      const oldRoleIds = currentRoleMappings.find((mapping) => mapping.tier === tier)?.roleIds ?? [];
-      const newRoleIds = roleMappings.find((mapping) => mapping.tier === tier)?.roleIds ?? [];
-      if (JSON.stringify(oldRoleIds) !== JSON.stringify(newRoleIds)) {
-        throw new Error("Your current tier's Discord role mapping cannot be changed from the active admin session.");
+  const isDeveloperProfile = session.user.tiers.includes(DEVELOPER_PROFILE_TIER);
+  if (!isDeveloperProfile) {
+    const currentRoleMappings = await getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS);
+    const currentAdminTiers = session.user.tiers.filter((tier): tier is (typeof ALL_TIERS)[number] => (ALL_TIERS as readonly string[]).includes(tier));
+    for (const tier of currentAdminTiers) {
+      if (!(tierCapabilities[tier] ?? []).includes(CAPABILITIES.SETTINGS_MANAGE)) {
+        throw new Error("Keep site settings access on one of your current permission tiers.");
+      }
+      if (session.user.identityProvider === "discord") {
+        const oldRoleIds = currentRoleMappings.find((mapping) => mapping.tier === tier)?.roleIds ?? [];
+        const newRoleIds = roleMappings.find((mapping) => mapping.tier === tier)?.roleIds ?? [];
+        if (JSON.stringify(oldRoleIds) !== JSON.stringify(newRoleIds)) {
+          throw new Error("Your current tier's Discord role mapping cannot be changed from the active admin session.");
+        }
       }
     }
-  }
-  if (session.user.identityProvider === "roblox" && session.user.robloxUserId) {
-    const currentRoles = await fetchRobloxGroupRoles(session.user.robloxUserId);
-    const currentTiers = resolveTiersFromRobloxRoles(currentRoles, robloxRoleMappings);
-    if (!currentTiers.some((tier) => (tierCapabilities[tier] ?? TIER_DEFINITIONS[tier].capabilities).includes(CAPABILITIES.SETTINGS_MANAGE))) {
-      throw new Error("These mappings would remove your Site Settings access. Keep one of your current Roblox roles mapped to an administrator tier.");
+    if (session.user.identityProvider === "roblox" && session.user.robloxUserId) {
+      const currentRoles = await fetchRobloxGroupRoles(session.user.robloxUserId);
+      const currentTiers = resolveTiersFromRobloxRoles(currentRoles, robloxRoleMappings);
+      if (!currentTiers.some((tier) => (tierCapabilities[tier] ?? TIER_DEFINITIONS[tier].capabilities).includes(CAPABILITIES.SETTINGS_MANAGE))) {
+        throw new Error("These mappings would remove your Site Settings access. Keep one of your current Roblox roles mapped to an administrator tier.");
+      }
     }
   }
   if (new Set(roleMappings.map((mapping) => mapping.tier)).size !== ALL_TIERS.length) {

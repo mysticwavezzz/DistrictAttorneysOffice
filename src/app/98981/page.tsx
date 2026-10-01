@@ -44,7 +44,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS),
     getSiteConfiguration<Record<string, string[]>>(
       "tierCapabilities",
-      Object.fromEntries(Object.values(TIER_DEFINITIONS).map((tier) => [tier.id, tier.capabilities]))
+      Object.fromEntries(ALL_TIERS.map((tier) => [tier, TIER_DEFINITIONS[tier].capabilities]))
     ),
     getSiteConfiguration("divisions", UNITS),
     getSiteConfiguration("ranks", RANKS),
@@ -143,7 +143,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
         <p className="note-inline">Selected permission tiers and individual accounts can continue using the site while maintenance mode is on. Enter IDs from the currently selected sign-in provider, separated by commas or new lines. The admin database sign-in flow remains available.</p>
         <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend>Exempt permission tiers</legend>
-          <div className="cards">{Object.values(TIER_DEFINITIONS).map((tier) => <label key={tier.id} style={{ display: "flex", alignItems: "center", gap: 8, textTransform: "none" }}><input type="checkbox" name="maintenanceExemptTiers" value={tier.id} defaultChecked={maintenanceExemptTiers.includes(tier.id)}/>{tier.label}</label>)}</div>
+          <div className="cards">{ALL_TIERS.map((tierId) => { const tier = TIER_DEFINITIONS[tierId]; return <label key={tier.id} style={{ display: "flex", alignItems: "center", gap: 8, textTransform: "none" }}><input type="checkbox" name="maintenanceExemptTiers" value={tier.id} defaultChecked={maintenanceExemptTiers.includes(tier.id)}/>{tier.label}</label>; })}</div>
         </fieldset>
         <div className="field"><label htmlFor="maintenanceExemptDiscordUserIds">Exempt account IDs</label><textarea id="maintenanceExemptDiscordUserIds" name="maintenanceExemptDiscordUserIds" rows={3} maxLength={2600} defaultValue={maintenanceExemptUserIds.join("\n")} placeholder="Provider account ID" /></div>
       </FormWithPendingSubmit>
@@ -256,7 +256,8 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
             </tr>
           </thead>
           <tbody>
-            {Object.values(TIER_DEFINITIONS).map((tier) => {
+            {ALL_TIERS.map((tierId) => {
+              const tier = TIER_DEFINITIONS[tierId];
               const mapping = roleMappings.find((m) => m.tier === tier.id);
               return (
                 <tr key={tier.id}>

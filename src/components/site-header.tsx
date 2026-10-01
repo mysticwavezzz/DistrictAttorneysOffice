@@ -9,6 +9,7 @@ import { NavTabsScroller } from "./nav-tabs-scroller";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { SessionProvider } from "next-auth/react";
 import { ProfileMenu } from "./profile-menu";
+import { isDeveloperProfileIdentity } from "@/config/developer-profiles";
 
 export interface NavItem {
   label: string;
@@ -45,7 +46,7 @@ export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps 
               <>
                 {!staffNav && canViewDashboard && <Link href="/dashboard">Staff Dashboard</Link>}
                 <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}>
-                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} identityProvider={session!.user.identityProvider} providerUserId={session!.user.providerUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} />
+                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} identityProvider={session!.user.identityProvider} providerUserId={session!.user.providerUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} canToggleDeveloperProfile={isDeveloperProfileIdentity(session!.user.identityProvider, session!.user.username)} />
                 </SessionProvider>
                 <NotificationBell />
               </>

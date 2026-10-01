@@ -8,7 +8,7 @@ export const siteConfig = {
   nav: [
     { label: "Home", href: "/" },
     { label: "Announcements", href: "/#announcements" },
-    { label: "Submit a Tip", href: "/#tips" },
+    { label: "Submit a Tip", href: "/report-crime" },
     { label: "Contact Us", href: "/contacts" },
   ],
 } as const;

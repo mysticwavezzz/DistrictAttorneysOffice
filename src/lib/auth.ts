@@ -8,6 +8,7 @@ import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
 import { capabilityMarkersForTiers, resolveTiersFromRoleMappings, resolveTiersFromRobloxRoles } from "./permissions/resolve";
 import type { PermissionTier } from "./permissions/tiers";
+import { developerProfileSettingKey, isDeveloperProfileIdentity, withDeveloperProfile } from "@/config/developer-profiles";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -78,14 +79,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       } else if (token.identityProvider === "roblox" && token.robloxUserId && (params.account || params.trigger === "update")) {
         try {
-          const [roles, mappingRow, capabilityRow] = await Promise.all([
+          const [roles, mappingRow, capabilityRow, developerProfileSetting] = await Promise.all([
             fetchRobloxGroupRoles(token.robloxUserId),
             prisma.siteConfiguration.findUnique({ where: { key: "robloxTierRoleMappings" } }),
             prisma.siteConfiguration.findUnique({ where: { key: "tierCapabilities" } }),
+            isDeveloperProfileIdentity(token.identityProvider, token.username)
+              ? prisma.siteConfiguration.findUnique({ where: { key: developerProfileSettingKey(token.robloxUserId) } })
+              : Promise.resolve(null),
           ]);
           const mappings = mappingRow ? JSON.parse(mappingRow.value) as typeof ROBLOX_TIER_ROLE_MAPPINGS : ROBLOX_TIER_ROLE_MAPPINGS;
           const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
-          const tiers = resolveTiersFromRobloxRoles(roles, mappings);
+          const tiers = withDeveloperProfile(token.identityProvider, token.username, resolveTiersFromRobloxRoles(roles, mappings), developerProfileSetting?.value === "true");
           token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, tierCapabilities)] as PermissionTier[];
           const custom = token as typeof token & { configuredRobloxRoleMappings?: typeof mappings; configuredTierCapabilities?: typeof tierCapabilities };
           custom.configuredRobloxRoleMappings = mappings;
@@ -101,7 +105,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           const userData = {
             username: token.username ?? token.providerUserId ?? "unknown",
-            displayName: token.displayName ?? token.username ?? token.providerUserId ?? "unknown",
+            displayName: token.identityProvider === "roblox" ? token.username ?? token.providerUserId ?? "unknown" : token.displayName ?? token.username ?? token.providerUserId ?? "unknown",
             avatarUrl: token.avatarUrl ?? null,
             tiers: (token.tiers ?? []).join(","),
           };
@@ -125,7 +129,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           await prisma.user.updateMany({
             where: { robloxUserId: token.robloxUserId },
-            data: { displayName: token.displayName ?? token.username ?? token.robloxUserId, username: token.username ?? token.robloxUserId, tiers: (token.tiers ?? []).join(",") },
+            data: { displayName: token.username ?? token.robloxUserId, username: token.username ?? token.robloxUserId, tiers: (token.tiers ?? []).join(",") },
           });
         } catch (error) {
           console.error("Failed to sync local Roblox user record", error);

@@ -1,8 +1,8 @@
 import type { RobloxGroupRole } from "@/lib/roblox/types";
 import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
 import { ROBLOX_TIER_ROLE_MAPPINGS, type RobloxTierRoleMapping } from "@/config/roblox-role-mappings";
-import { TIER_DEFINITIONS, type PermissionTier } from "./tiers";
-import type { Capability } from "./capabilities";
+import { DEVELOPER_PROFILE_TIER, TIER_DEFINITIONS, type PermissionTier } from "./tiers";
+import { CAPABILITIES, type Capability } from "./capabilities";
 
 export function resolveTiersFromRobloxRoles(
   roles: RobloxGroupRole[],
@@ -10,6 +10,7 @@ export function resolveTiersFromRobloxRoles(
 ): PermissionTier[] {
   const tiers = new Set<PermissionTier>();
   for (const mapping of mappings) {
+    if ((mapping.tier as string) === DEVELOPER_PROFILE_TIER) continue;
     if (roles.some((role) => role.groupId === mapping.groupId && mapping.roleIds.includes(role.roleId))) {
       tiers.add(mapping.tier);
     }
@@ -28,6 +29,7 @@ export function resolveTiersFromRoleMappings(
   const held = new Set(roleIds);
   const tiers = new Set<PermissionTier>();
   for (const mapping of mappings) {
+    if (mapping.tier === DEVELOPER_PROFILE_TIER) continue;
     if (mapping.roleIds.some((id) => held.has(id))) {
       tiers.add(mapping.tier);
     }
@@ -36,6 +38,7 @@ export function resolveTiersFromRoleMappings(
 }
 
 export function capabilitiesForTiers(tiers: PermissionTier[]): Set<Capability> {
+  if (tiers.includes(DEVELOPER_PROFILE_TIER)) return new Set(Object.values(CAPABILITIES));
   const capabilities = new Set<Capability>();
   const denied = new Set<Capability>();
   for (const tier of tiers) {
@@ -59,6 +62,7 @@ export function capabilityMarkersForTiers(
   tiers: PermissionTier[],
   configuredCapabilities: Record<string, string[]>
 ): string[] {
+  if (tiers.includes(DEVELOPER_PROFILE_TIER)) return [];
   const defaults = new Set<Capability>();
   const effective = new Set<Capability>();
   for (const tier of tiers) {

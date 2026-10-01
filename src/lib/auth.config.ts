@@ -7,6 +7,8 @@ import { fetchRobloxGroupRoles } from "./roblox/groups";
 import { resolveTiersFromDiscordRoles, resolveTiersFromRobloxRoles, capabilityMarkersForTiers } from "./permissions/resolve";
 import { ROBLOX_TIER_ROLE_MAPPINGS, type RobloxTierRoleMapping } from "@/config/roblox-role-mappings";
 import { env } from "./env";
+import { withDeveloperProfile } from "@/config/developer-profiles";
+import { DEVELOPER_PROFILE_TIER } from "./permissions/tiers";
 
 // Resolve Discord membership on each authenticated request so a page refresh
 // reflects removed roles immediately instead of keeping revoked access cached.
@@ -47,7 +49,7 @@ export const authConfig = {
         token.providerUserId = robloxUserId;
         token.robloxUserId = robloxUserId;
         token.username = robloxProfile.preferred_username ?? robloxProfile.nickname ?? robloxProfile.name ?? robloxUserId;
-        token.displayName = robloxProfile.name ?? robloxProfile.nickname ?? token.username;
+        token.displayName = token.username;
         token.avatarUrl = robloxProfile.picture ?? null;
       }
 
@@ -91,7 +93,12 @@ export const authConfig = {
             configuredRobloxRoleMappings?: RobloxTierRoleMapping[];
             configuredTierCapabilities?: Record<string, string[]>;
           };
-          const resolved = resolveTiersFromRobloxRoles(roles, custom.configuredRobloxRoleMappings ?? ROBLOX_TIER_ROLE_MAPPINGS);
+          const resolved = withDeveloperProfile(
+            token.identityProvider,
+            token.username,
+            resolveTiersFromRobloxRoles(roles, custom.configuredRobloxRoleMappings ?? ROBLOX_TIER_ROLE_MAPPINGS),
+            token.tiers?.includes(DEVELOPER_PROFILE_TIER) ?? false
+          );
           token.tiers = [...resolved, ...capabilityMarkersForTiers(resolved, custom.configuredTierCapabilities ?? {})] as typeof token.tiers;
           token.tiersFetchedAt = now;
         } catch (error) {
@@ -110,7 +117,7 @@ export const authConfig = {
       session.user.discordUserId = token.discordUserId ?? "";
       session.user.robloxUserId = token.robloxUserId ?? "";
       session.user.username = token.username ?? "";
-      session.user.displayName = token.displayName ?? token.username ?? "";
+      session.user.displayName = token.identityProvider === "roblox" ? token.username ?? "" : token.displayName ?? token.username ?? "";
       session.user.avatarUrl = token.avatarUrl ?? null;
       session.user.tiers = token.tiers ?? [];
       return session;

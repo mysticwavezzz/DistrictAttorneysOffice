@@ -220,4 +220,32 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
       hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)
     ).toBe(false);
   });
+
+  it("developer profile grants every capability, including against explicit deny markers", async () => {
+    const { hasCapability, DEVELOPER_PROFILE_TIER, CAPABILITIES } = await freshResolveModule();
+    const developer = [DEVELOPER_PROFILE_TIER, "denycap:settings:manage"] as import("./tiers").PermissionTier[];
+    for (const capability of Object.values(CAPABILITIES)) {
+      expect(hasCapability(developer, capability)).toBe(true);
+    }
+  });
+});
+
+describe("developer profile identity matching", () => {
+  it("matches the authenticated Roblox username without case sensitivity", async () => {
+    const { withDeveloperProfile } = await import("@/config/developer-profiles");
+    const { DEVELOPER_PROFILE_TIER } = await import("./tiers");
+    expect(withDeveloperProfile("roblox", "m_ysticwavezzz", [], true)).toContain(DEVELOPER_PROFILE_TIER);
+    expect(withDeveloperProfile("roblox", "M_ysticWavezzz", [], false)).not.toContain(DEVELOPER_PROFILE_TIER);
+  });
+
+  it("does not grant the profile to Discord identities or other Roblox accounts", async () => {
+    const { withDeveloperProfile } = await import("@/config/developer-profiles");
+    expect(withDeveloperProfile("discord", "M_ysticWavezzz", [], true)).toEqual([]);
+    expect(withDeveloperProfile("roblox", "AnotherUser", [], true)).toEqual([]);
+  });
+
+  it("cannot be assigned through group-role mappings", async () => {
+    const { resolveTiersFromRoleMappings, DEVELOPER_PROFILE_TIER } = await freshResolveModule();
+    expect(resolveTiersFromRoleMappings(["role-id"], [{ tier: DEVELOPER_PROFILE_TIER, roleIds: ["role-id"] }])).toEqual([]);
+  });
 });
