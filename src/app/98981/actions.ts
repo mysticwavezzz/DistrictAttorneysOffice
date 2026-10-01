@@ -21,6 +21,7 @@ import { parseDateTimeInTimeZone } from "@/lib/time-zone";
 import { VERSION_SCHEMA } from "@/lib/site-version";
 import { env } from "@/lib/env";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
+import { normalizeDiscordTierRoleMappings } from "@/config/role-mapping-migrations";
 import { fetchRobloxGroupRoles } from "@/lib/roblox/groups";
 import { resolveTiersFromRobloxRoles } from "@/lib/permissions/resolve";
 
@@ -212,7 +213,7 @@ export async function saveApplicationConfiguration(formData: FormData) {
   }
   const isDeveloperProfile = session.user.tiers.includes(DEVELOPER_PROFILE_TIER);
   if (!isDeveloperProfile) {
-    const currentRoleMappings = await getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS);
+    const currentRoleMappings = normalizeDiscordTierRoleMappings(await getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS));
     const currentAdminTiers = session.user.tiers.filter((tier): tier is (typeof ALL_TIERS)[number] => (ALL_TIERS as readonly string[]).includes(tier));
     for (const tier of currentAdminTiers) {
       if (!(tierCapabilities[tier] ?? []).includes(CAPABILITIES.SETTINGS_MANAGE)) {

@@ -9,6 +9,7 @@ import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
 import { capabilityMarkersForTiers, resolveTiersFromRoleMappings, resolveTiersFromRobloxRoles } from "./permissions/resolve";
 import type { PermissionTier } from "./permissions/tiers";
 import { developerProfileSettingKey, isDeveloperProfileIdentity, withDeveloperProfile } from "@/config/developer-profiles";
+import { normalizeDiscordTierRoleMappings, normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -66,7 +67,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             prisma.siteConfiguration.findUnique({ where: { key: "discordRoleMappings" } }),
             prisma.siteConfiguration.findUnique({ where: { key: "tierCapabilities" } }),
           ]);
-          const roleMappings = roleRow ? JSON.parse(roleRow.value) as typeof DISCORD_TIER_ROLE_MAPPINGS : DISCORD_TIER_ROLE_MAPPINGS;
+          const roleMappings = normalizeDiscordTierRoleMappings(roleRow ? JSON.parse(roleRow.value) as typeof DISCORD_TIER_ROLE_MAPPINGS : DISCORD_TIER_ROLE_MAPPINGS);
           const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
           const tiers = member ? resolveTiersFromRoleMappings(member.roles, roleMappings) : [];
           token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, tierCapabilities)] as PermissionTier[];
@@ -87,7 +88,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               ? prisma.siteConfiguration.findUnique({ where: { key: developerProfileSettingKey(token.robloxUserId) } })
               : Promise.resolve(null),
           ]);
-          const mappings = mappingRow ? JSON.parse(mappingRow.value) as typeof ROBLOX_TIER_ROLE_MAPPINGS : ROBLOX_TIER_ROLE_MAPPINGS;
+          const mappings = normalizeRobloxTierRoleMappings(mappingRow ? JSON.parse(mappingRow.value) as typeof ROBLOX_TIER_ROLE_MAPPINGS : ROBLOX_TIER_ROLE_MAPPINGS);
           const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
           const tiers = withDeveloperProfile(token.identityProvider, token.username, resolveTiersFromRobloxRoles(roles, mappings), developerProfileSetting?.value === "true");
           token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, tierCapabilities)] as PermissionTier[];

@@ -19,6 +19,7 @@ import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
 import { getWebsiteVersion } from "@/lib/site-version";
 import { formatDateTimeInTimeZone } from "@/lib/time-zone";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
+import { normalizeDiscordTierRoleMappings, normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
 
 export default async function SiteSettingsPage({ searchParams }: { searchParams: Promise<{ audit?: string; actor?: string; action?: string; from?: string; to?: string }> }) {
   const session = await auth();
@@ -40,8 +41,8 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     ...(auditQuery ? { OR: [{ actorName: { contains: auditQuery } }, { action: { contains: auditQuery } }, { details: { contains: auditQuery } }] } : {}),
     ...(auditFrom || auditTo ? { createdAt: { ...(auditFrom ? { gte: new Date(`${auditFrom}T00:00:00.000Z`) } : {}), ...(auditTo ? { lt: (() => { const end = new Date(`${auditTo}T00:00:00.000Z`); end.setUTCDate(end.getUTCDate() + 1); return end; })() } : {}) } } : {}),
   };
-  const [roleMappings, configuredCapabilities, divisions, ranks, caseStatuses] = await Promise.all([
-    getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS),
+  const [roleMappings, savedCapabilities, divisions, ranks, caseStatuses] = await Promise.all([
+    getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS).then(normalizeDiscordTierRoleMappings),
     getSiteConfiguration<Record<string, string[]>>(
       "tierCapabilities",
       Object.fromEntries(ALL_TIERS.map((tier) => [tier, TIER_DEFINITIONS[tier].capabilities]))
@@ -50,6 +51,10 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     getSiteConfiguration("ranks", RANKS),
     getSiteConfiguration("caseStatuses", CASE_STATUSES),
   ]);
+  const configuredCapabilities = {
+    ...Object.fromEntries(ALL_TIERS.map((tier) => [tier, TIER_DEFINITIONS[tier].capabilities])),
+    ...savedCapabilities,
+  };
   const [tipConfiguration, backups, auditLogs, tipBlacklist, maintenanceExemptTiers, maintenanceExemptUserIds, websiteVersionOverride, websiteVersion] = await Promise.all([
     getSiteConfiguration("crimeTipForm", null),
     prisma.configurationBackup.findMany({ orderBy: { createdAt: "desc" }, take: 10 }).catch(() => []),
@@ -61,7 +66,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     getWebsiteVersion(),
   ]);
   const [robloxRoleMappings, authProvider] = await Promise.all([
-    getSiteConfiguration("robloxTierRoleMappings", ROBLOX_TIER_ROLE_MAPPINGS),
+    getSiteConfiguration("robloxTierRoleMappings", ROBLOX_TIER_ROLE_MAPPINGS).then(normalizeRobloxTierRoleMappings),
     getSiteConfiguration<"discord" | "roblox">("authProvider", env.ROBLOX_CLIENT_ID && env.ROBLOX_CLIENT_SECRET ? "roblox" : "discord"),
   ]);
 
@@ -234,7 +239,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
         <p className="note-inline">Group ID {32985413}. Role IDs are matched exactly; general-member and provisional roles intentionally grant no staff access. The defaults below map the current community roles and can be edited here.</p>
         <div className="field"><label htmlFor="robloxTierRoleMappings">Roblox role mappings (JSON)</label><textarea id="robloxTierRoleMappings" name="robloxTierRoleMappings" rows={14} defaultValue={JSON.stringify(robloxRoleMappings, null, 2)} spellCheck={false} /></div>
         <h3>Capabilities granted by tier</h3>
-        <p className="note-inline">Available capabilities: {Object.values(CAPABILITIES).join(", ")}. Retain site settings access on at least one tier.</p>
+        <p className="note-inline">Each role tier has its own independently editable permission set, even when two roles have matching defaults. Available capabilities: {Object.values(CAPABILITIES).join(", ")}. Retain site settings access on at least one tier.</p>
         <div className="field"><label htmlFor="tierCapabilities">Tier permissions (JSON)</label><textarea id="tierCapabilities" name="tierCapabilities" rows={16} defaultValue={JSON.stringify(configuredCapabilities, null, 2)} spellCheck={false} /></div>
         <h3>Divisions</h3>
         <div className="field"><label htmlFor="divisions">Divisions (JSON)</label><textarea id="divisions" name="divisions" rows={12} defaultValue={JSON.stringify(divisions, null, 2)} spellCheck={false} /></div>

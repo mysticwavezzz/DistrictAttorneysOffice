@@ -25,13 +25,41 @@ describe("resolveTiersFromRobloxRoles", () => {
     expect(resolveTiersFromRobloxRoles(roles)).toEqual([PERMISSION_TIERS.DISTRICT_ATTORNEY]);
   });
 
-  it("does not grant staff access to general members or provisional staff", async () => {
-    const { resolveTiersFromRobloxRoles } = await freshResolveModule();
+  it("maps CADA and DDA to distinct tiers with the requested permission boundaries", async () => {
+    const { resolveTiersFromRobloxRoles, PERMISSION_TIERS, CAPABILITIES, capabilitiesForTiers } = await freshResolveModule();
+    const cadaRole: RobloxGroupRole = { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 100910606, roleName: "Chief Assistant District Attorney", rank: 35 };
+    const ddaRole: RobloxGroupRole = { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 100910597, roleName: "Deputy District Attorney", rank: 39 };
+    const cadaTiers = resolveTiersFromRobloxRoles([cadaRole]);
+    const ddaTiers = resolveTiersFromRobloxRoles([ddaRole]);
+    const cadaCapabilities = capabilitiesForTiers(cadaTiers);
+    const ddaCapabilities = capabilitiesForTiers(ddaTiers);
+    const daCapabilities = capabilitiesForTiers([PERMISSION_TIERS.DISTRICT_ATTORNEY]);
+
+    expect(cadaTiers).toEqual([PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY]);
+    expect(cadaCapabilities.has(CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
+    for (const capability of Object.values(CAPABILITIES)) {
+      expect(cadaCapabilities.has(capability)).toBe(capability !== CAPABILITIES.SETTINGS_MANAGE);
+    }
+    expect(ddaTiers).toEqual([PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY]);
+    expect(ddaCapabilities).toEqual(daCapabilities);
+  });
+
+  it("assigns each current Roblox group role its own role-specific mapping", async () => {
+    const { ROBLOX_TIER_ROLE_MAPPINGS, ROBLOX_DA_GROUP_ID } = await import("@/config/roblox-role-mappings");
+    const roleIds = ROBLOX_TIER_ROLE_MAPPINGS.flatMap((mapping) => mapping.roleIds);
+    expect(ROBLOX_TIER_ROLE_MAPPINGS).toHaveLength(15);
+    expect(new Set(ROBLOX_TIER_ROLE_MAPPINGS.map((mapping) => mapping.tier)).size).toBe(15);
+    expect(new Set(roleIds).size).toBe(15);
+    expect(ROBLOX_TIER_ROLE_MAPPINGS.every((mapping) => mapping.groupId === ROBLOX_DA_GROUP_ID && mapping.roleIds.length === 1)).toBe(true);
+  });
+
+  it("does not grant capabilities to general members or provisional staff", async () => {
+    const { resolveTiersFromRobloxRoles, capabilitiesForTiers } = await freshResolveModule();
     const roles: RobloxGroupRole[] = [
       { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 12884901889, roleName: "Member", rank: 1 },
       { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 788467063, roleName: "Provisional Staffer", rank: 7 },
     ];
-    expect(resolveTiersFromRobloxRoles(roles)).toEqual([]);
+    expect(capabilitiesForTiers(resolveTiersFromRobloxRoles(roles)).size).toBe(0);
   });
 
   it("grants the tier mapped to the exact role ID", async () => {
@@ -39,7 +67,7 @@ describe("resolveTiersFromRobloxRoles", () => {
     const roles: RobloxGroupRole[] = [
       { groupId: DA_GROUP, groupName: "Harrison County District Attorney's Office", roleId: 100910644, roleName: "Special Investigator", rank: 19 },
     ];
-    expect(resolveTiersFromRobloxRoles(roles)).toEqual([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS]);
+    expect(resolveTiersFromRobloxRoles(roles)).toEqual([PERMISSION_TIERS.SPECIAL_INVESTIGATOR]);
   });
 
   it("does not cross-match a staff role ID from a different group", async () => {
@@ -59,8 +87,8 @@ describe("resolveTiersFromRobloxRoles", () => {
       { groupId: DA_GROUP, groupName: "DA's Office", roleId: 100910635, roleName: "Executive Secretary", rank: 23 },
     ];
     const tiers = resolveTiersFromRobloxRoles(roles);
-    expect(tiers).toContain(PERMISSION_TIERS.DA_ATTORNEY);
-    expect(tiers).toContain(PERMISSION_TIERS.DA_PARALEGAL);
+    expect(tiers).toContain(PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY);
+    expect(tiers).toContain(PERMISSION_TIERS.EXECUTIVE_SECRETARY);
     expect(tiers).toHaveLength(2);
   });
 
@@ -120,11 +148,24 @@ describe("resolveTiersFromDiscordRoles", () => {
 });
 
 describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
-  it("district attorney has every case-management capability", async () => {
+  it("DA, DDA, ADA, and Senior ADA each independently receive every site capability", async () => {
     const { capabilitiesForTiers, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    const caps = capabilitiesForTiers([PERMISSION_TIERS.DISTRICT_ATTORNEY]);
-    expect(caps.has(CAPABILITIES.CASES_DELETE)).toBe(true);
-    expect(caps.has(CAPABILITIES.CASES_ASSIGN)).toBe(true);
+    const tiers = [
+      PERMISSION_TIERS.DISTRICT_ATTORNEY,
+      PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY,
+      PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY,
+      PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY,
+    ];
+    const permissionSets = tiers.map((tier) => capabilitiesForTiers([tier]));
+    for (const permissions of permissionSets) {
+      for (const capability of Object.values(CAPABILITIES)) expect(permissions.has(capability)).toBe(true);
+    }
+    for (let index = 0; index < permissionSets.length; index++) {
+      for (let other = index + 1; other < permissionSets.length; other++) {
+        expect(permissionSets[index]).not.toBe(permissionSets[other]);
+        expect(permissionSets[index]).toEqual(permissionSets[other]);
+      }
+    }
   });
 
   it("paralegal can view all cases and propose edits, but not delete or assign", async () => {
@@ -137,15 +178,14 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(hasCapability(tiers, CAPABILITIES.CASES_ASSIGN)).toBe(false);
   });
 
-  it("ADA cannot view all cases, but supervising ADA and above can", async () => {
+  it("Assistant District Attorneys receive the full-docket permissions requested", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
-    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.CASES_ASSIGN)).toBe(false);
-    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_VIEW_ALL)).toBe(true);
-    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_ASSIGN)).toBe(true);
-    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(
-      true
-    );
+    for (const tier of [PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY, PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY]) {
+      expect(hasCapability([tier], CAPABILITIES.CASES_VIEW_ALL)).toBe(true);
+      expect(hasCapability([tier], CAPABILITIES.CASES_ASSIGN)).toBe(true);
+      expect(hasCapability([tier], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(true);
+    }
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATOR], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
   });
 
   it("law enforcement cannot reach the staff dashboard or case data", async () => {
@@ -165,12 +205,13 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(hasCapability([PERMISSION_TIERS.GOVERNMENT], CAPABILITIES.BULLETIN_VIEW)).toBe(false);
   });
 
-  it("only the district attorney tier can manage the roster", async () => {
+  it("each attorney leadership tier can manage the roster, while paralegals cannot", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     expect(
       hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)
     ).toBe(true);
-    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)).toBe(true);
     expect(hasCapability([PERMISSION_TIERS.DA_PARALEGAL], CAPABILITIES.ROSTER_MANAGE)).toBe(
       false
     );
@@ -208,17 +249,20 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     );
   });
 
-  it("only District Attorney can manage site settings", async () => {
+  it("CADA lacks admin database access while DA, DDA, and ADA roles have it", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     expect(
       hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)
     ).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
     expect(
       hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.SETTINGS_MANAGE)
     ).toBe(false);
     expect(
       hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("developer profile grants every capability, including against explicit deny markers", async () => {

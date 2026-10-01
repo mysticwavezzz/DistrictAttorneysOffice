@@ -10,6 +10,7 @@ import { findRouteRule } from "@/config/route-permissions";
 import { DISCORD_TIER_ROLE_MAPPINGS } from "@/config/discord-role-mappings";
 import { fetchDiscordGuildMember, fetchDiscordGuildRoles } from "@/lib/discord/guild";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
+import { normalizeDiscordTierRoleMappings, normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
 import { fetchRobloxGroupRoles } from "@/lib/roblox/groups";
 import type { RobloxGroupRole } from "@/lib/roblox/types";
 import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
@@ -23,8 +24,8 @@ export default async function AdminStatusPage() {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.SETTINGS_MANAGE)) redirect("/login?error=forbidden");
   const [mappings, robloxMappings, capabilities, form, authProvider] = await Promise.all([
-    getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS),
-    getSiteConfiguration("robloxTierRoleMappings", ROBLOX_TIER_ROLE_MAPPINGS),
+    getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS).then(normalizeDiscordTierRoleMappings),
+    getSiteConfiguration("robloxTierRoleMappings", ROBLOX_TIER_ROLE_MAPPINGS).then(normalizeRobloxTierRoleMappings),
     getSiteConfiguration<Record<string, string[]>>("tierCapabilities", {}),
     getSiteConfiguration("crimeTipForm", CRIME_TIP_FORM),
     getSiteConfiguration<"discord" | "roblox">("authProvider", env.ROBLOX_CLIENT_ID && env.ROBLOX_CLIENT_SECRET ? "roblox" : "discord"),
