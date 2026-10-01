@@ -1,35 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
 import { getSiteSettings } from "@/lib/site-settings";
+import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 const RENOTIFY_HOURS = 20;
-const DEADLINES = [
-  { key: "discDue", label: "Discovery due" },
-  { key: "pretrial", label: "Pretrial" },
-  { key: "appealBy", label: "Appeal deadline" },
-] as const;
-
 export async function runDeadlineCheck() {
   const settings = await getSiteSettings();
   const reminderDays = settings.deadlineReminderDays.split(",").map(Number).filter((day) => Number.isInteger(day) && day > 0 && day <= 90);
-  const maxDays = Math.max(0, ...reminderDays);
   const now = new Date();
   const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);
-  const soon = new Date(today);
-  soon.setUTCDate(soon.getUTCDate() + maxDays + 1);
 
   let cases: Awaited<ReturnType<typeof prisma.case.findMany>> = [];
   try {
     cases = await prisma.case.findMany({
-      where: {
-        archived: false,
-        assignedAttorneyId: { not: null },
-        OR: [
-          ...(settings.overdueRemindersEnabled ? DEADLINES.map(({ key }) => ({ [key]: { lt: today } })) : []),
-          ...(maxDays ? DEADLINES.map(({ key }) => ({ [key]: { gte: today, lt: soon } })) : []),
-        ],
-      },
+      where: { archived: false, isDraft: false, assignedAttorneyId: { not: null } },
+      take: 5000,
     });
   } catch (error) {
     console.error("Deadline check query failed", error);
@@ -38,9 +24,8 @@ export async function runDeadlineCheck() {
 
   for (const item of cases) {
     if (!item.assignedAttorneyId) continue;
-    for (const { key, label } of DEADLINES) {
-      const dueDate = item[key];
-      if (!dueDate) continue;
+    for (const deadline of getProceduralDeadlines(item)) {
+      const { key, label, dueDate } = deadline;
       const days = Math.ceil((Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate()) - today.getTime()) / 86_400_000);
       if (days < 0 ? !settings.overdueRemindersEnabled : days === 0 ? false : !reminderDays.includes(days)) continue;
 

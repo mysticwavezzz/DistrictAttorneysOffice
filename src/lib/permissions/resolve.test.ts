@@ -107,6 +107,16 @@ describe("resolveTiersFromDiscordRoles", () => {
     const { resolveTiersFromDiscordRoles } = await import("./resolve");
     expect(resolveTiersFromDiscordRoles(["999"])).toEqual([]);
   });
+
+  it("removes the mapped tier immediately when the provider role is revoked", async () => {
+    vi.resetModules();
+    vi.doMock("@/config/discord-role-mappings", () => ({
+      DISCORD_TIER_ROLE_MAPPINGS: [{ tier: "district_attorney", roleIds: ["111"] }],
+    }));
+    const { resolveTiersFromDiscordRoles } = await import("./resolve");
+    expect(resolveTiersFromDiscordRoles(["111"])).toEqual(["district_attorney"]);
+    expect(resolveTiersFromDiscordRoles([])).toEqual([]);
+  });
 });
 
 describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {

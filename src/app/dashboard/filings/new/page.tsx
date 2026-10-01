@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser } from "@/lib/case-access";
 import { addFiling } from "@/app/dashboard/cases/actions";
+import { PdfUploadInput } from "@/components/pdf-upload-input";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 export default async function FileOnCasePage({ searchParams }: { searchParams: Promise<{ caseId?: string }> }) {
   const session = await auth();
@@ -27,8 +29,8 @@ export default async function FileOnCasePage({ searchParams }: { searchParams: P
       <input type="hidden" name="returnTo" value="filings" />
       <div className="field"><label htmlFor="filing-case">Case</label><select id="filing-case" name="caseId" required defaultValue={selectedId}><option value="" disabled>Select a case</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.caseNumber} · {item.title}{item.isDraft ? " (Draft)" : ""}</option>)}</select></div>
       <div className="field"><label htmlFor="filing-title">Document name</label><input id="filing-title" name="title" required maxLength={200} placeholder="Example: Supplemental report" /></div>
-      <div className="field"><label htmlFor="filing-pdf">Upload PDF (max 5 MB)</label><input id="filing-pdf" name="pdf" type="file" accept="application/pdf,.pdf" required /></div>
-      <div className="case-opening-controls"><Link href="/dashboard/filings" className="govbtn-outline">Cancel</Link><button type="submit" className="govbtn">Submit Filing</button></div>
+      <div className="field"><label htmlFor="filing-pdf">Upload PDF (max 5 MB)</label><PdfUploadInput id="filing-pdf" name="pdf" required /></div>
+      <div className="case-opening-controls"><Link href="/dashboard/filings" className="govbtn-outline">Cancel</Link><PendingSubmitButton label="Submit Filing" pendingLabel="Uploading PDF…" /></div>
     </form>}
   </div>;
 }

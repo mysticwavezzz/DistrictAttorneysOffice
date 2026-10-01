@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { createCase } from "@/app/dashboard/cases/actions";
+import { PdfUploadInput } from "@/components/pdf-upload-input";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 const steps = ["Case information", "Parties", "Documents", "Review"] as const;
 const partyRoles = ["Defendant", "Co-defendant", "Witness", "Reporting officer", "Other"] as const;
@@ -117,7 +119,7 @@ export function CaseOpeningForm({
           <p className="note-inline">Upload the initial complaint or supporting document as a PDF. If this request already has a PDF, leave the upload empty to keep it or choose a replacement.</p>
           {revision?.filingName && <p className="message">Current attachment: {revision.filingTitle || revision.filingName}</p>}
           <div className="field"><label htmlFor="initial-filing-title">Document name</label><input id="initial-filing-title" name="initialFilingTitle" maxLength={200} placeholder="Example: Charging complaint" value={documentName} onChange={(event) => setDocumentName(event.target.value)} /></div>
-          <div className="field"><label htmlFor="initial-pdf">Upload PDF (max 5 MB)</label><input id="initial-pdf" name="initialPdf" type="file" accept="application/pdf,.pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) setDocumentName((current) => current || file.name); }} /></div>
+          <div className="field"><label htmlFor="initial-pdf">Upload PDF (max 5 MB)</label><PdfUploadInput id="initial-pdf" name="initialPdf" /></div>
         </fieldset>
 
         <fieldset hidden={step !== 3}>
@@ -138,7 +140,7 @@ export function CaseOpeningForm({
           {step < steps.length - 1 ? (
             <button type="button" className="govbtn" onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}>Continue</button>
           ) : (
-            <button type="submit" className="govbtn">{revision ? "Resubmit for Review" : reviewersCanAutoApprove ? "Open Case" : "Submit for Review"}</button>
+            <PendingSubmitButton label={revision ? "Resubmit for Review" : reviewersCanAutoApprove ? "Open Case" : "Submit for Review"} pendingLabel="Submitting…" />
           )}
         </div>
       </form>

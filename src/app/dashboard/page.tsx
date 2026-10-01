@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TIER_DEFINITIONS, hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser } from "@/lib/case-access";
+import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
@@ -21,9 +22,8 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   const personalScope = { OR: [{ assignedAttorneyId: user?.id }, { createdById: user?.id }] };
   const caseScope = canViewAllCases ? {} : personalScope;
 
-  const [myActiveCount, deadlineCount, pendingRequestCount, newRecordsRequests, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
+  const [myActiveCount, pendingRequestCount, newRecordsRequests, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
     canViewCases ? prisma.case.count({ where: { archived: false, ...personalScope } }).catch(() => 0) : Promise.resolve(0),
-    canViewCases ? prisma.case.count({ where: { archived: false, ...caseScope, AND: [{ OR: [{ discDue: { lte: new Date(Date.now() + 3 * 86400000) } }, { pretrial: { lte: new Date(Date.now() + 3 * 86400000) } }, { appealBy: { lte: new Date(Date.now() + 3 * 86400000) } }] }] } }).catch(() => 0) : Promise.resolve(0),
     canApproveRequests ? prisma.caseActionRequest.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
     canViewRequests ? prisma.recordsRequest.count({ where: { status: "NEW" } }).catch(() => 0) : Promise.resolve(0),
     user ? prisma.notification.count({ where: { userId: user.id, isRead: false } }).catch(() => 0) : Promise.resolve(0),
@@ -31,11 +31,14 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
     canManageAnnouncements ? prisma.announcement.count({ where: { isPublished: true, publishedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }).catch(() => 0) : Promise.resolve(0),
   ]);
 
-  const upcomingCases = canViewCases ? await prisma.case.findMany({
-    where: { archived: false, isDraft: false, ...caseScope, AND: [{ OR: [{ discDue: { lte: new Date(Date.now() + 14 * 86400000) } }, { pretrial: { lte: new Date(Date.now() + 14 * 86400000) } }, { appealBy: { lte: new Date(Date.now() + 14 * 86400000) } }] }] },
-    select: { id: true, caseNumber: true, title: true, discDue: true, pretrial: true, appealBy: true },
-    orderBy: { updatedAt: "desc" }, take: 10,
-  }).catch(() => []) : [];
+  const deadlineCases = canViewCases ? await prisma.case.findMany({ where: { archived: false, isDraft: false, ...caseScope }, orderBy: { updatedAt: "desc" }, take: 5000 }).catch(() => []) : [];
+  const now = new Date();
+  const today = new Date(now); today.setUTCHours(0, 0, 0, 0);
+  const deadlineRows = deadlineCases.flatMap((item) => getProceduralDeadlines(item).map((deadline) => ({ item, deadline })))
+    .filter(({ deadline }) => deadline.dueDate.getTime() < today.getTime() + 14 * 86400000)
+    .sort((a, b) => a.deadline.dueDate.getTime() - b.deadline.dueDate.getTime());
+  const deadlineCount = deadlineRows.filter(({ deadline }) => deadline.dueDate.getTime() < today.getTime() + 4 * 86400000).length;
+  const upcomingDeadlines = deadlineRows.slice(0, 40);
   const recentFilings = canViewCases ? await prisma.caseFiling.findMany({
     where: { case: caseScope },
     select: { id: true, title: true, createdAt: true, case: { select: { id: true, caseNumber: true, title: true } } },
@@ -61,7 +64,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
 
     <section aria-labelledby="my-work-heading"><h2 id="my-work-heading">My Work</h2><p className="section-lede">Your assigned and recently created work.</p><div className="cards">{canViewCases && <Link href="/dashboard/cases?mine=1&tab=ongoing" className="card card-action"><span className="card-label">My active cases</span><span className="card-value">{myActiveCount}</span><span className="card-action-label">Open my cases</span></Link>}{canCreateCases && <Link href="/dashboard/cases/new" className="card card-action"><span className="card-label">Open a case</span><span className="card-value" aria-hidden="true">＋</span><span className="card-action-label">Start a case submission</span></Link>}</div></section>
 
-    {canViewCases && <section aria-labelledby="deadlines-heading"><h2 id="deadlines-heading">Upcoming Deadlines</h2>{upcomingCases.length === 0 ? <div className="message message-success">No case deadlines in the next 14 days.</div> : <div className="tablewrap"><table className="stat mobile-cards"><thead><tr><th scope="col">Case</th><th scope="col">Deadline</th><th scope="col">Date</th><th scope="col">Next action</th></tr></thead><tbody>{upcomingCases.flatMap((item) => ([ ["Discovery", item.discDue], ["Pretrial", item.pretrial], ["Appeal", item.appealBy] ] as [string, Date | null][]).filter(([, date]) => date && date.getTime() <= Date.now() + 14 * 86400000).map(([label, date]) => <tr key={`${item.id}-${label}`}><td data-label="Case"><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} - {item.title}</Link></td><td data-label="Deadline">{label}</td><td data-label="Date"><time className={date!.getTime() < Date.now() ? "deadline-overdue" : undefined} dateTime={date!.toISOString()}>{dateFormatter.format(date!)}</time></td><td data-label="Next action"><Link href={`/dashboard/cases/${item.id}`}>{date!.getTime() < Date.now() ? "Resolve overdue item" : "Review case"}</Link></td></tr>))}</tbody></table></div>}</section>}
+    {canViewCases && <section aria-labelledby="deadlines-heading"><h2 id="deadlines-heading">Upcoming Deadlines</h2>{upcomingDeadlines.length === 0 ? <div className="message message-success">No case deadlines in the next 14 days.</div> : <div className="tablewrap"><table className="stat mobile-cards"><thead><tr><th scope="col">Case</th><th scope="col">Deadline</th><th scope="col">Date</th><th scope="col">Next action</th></tr></thead><tbody>{upcomingDeadlines.map(({ item, deadline }) => <tr key={`${item.id}-${deadline.key}`}><td data-label="Case"><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} - {item.title}</Link></td><td data-label="Deadline">{deadline.label}</td><td data-label="Date"><time className={deadline.dueDate.getTime() < today.getTime() ? "deadline-overdue" : undefined} dateTime={deadline.dueDate.toISOString()}>{dateFormatter.format(deadline.dueDate)}</time><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : "Manually entered"}</small></td><td data-label="Next action"><Link href={`/dashboard/cases/${item.id}#deadlines`}>{deadline.dueDate.getTime() < today.getTime() ? "Resolve overdue item" : "Review case"}</Link></td></tr>)}</tbody></table></div>}</section>}
 
     {canViewCases && <section aria-labelledby="recent-filings-heading"><div className="page-heading-row"><h2 id="recent-filings-heading">Recent Filings</h2><Link href="/dashboard/filings">Filing history</Link></div>{recentFilings.length ? <ul className="recent-filings-list">{recentFilings.map((filing) => <li key={filing.id}><span><Link href={`/dashboard/cases/${filing.case.id}`}><strong>{filing.case.caseNumber}</strong> · {filing.title}</Link><small>{filing.case.title}</small></span><time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></li>)}</ul> : <div className="message">No filings yet.</div>}</section>}
 

@@ -20,13 +20,26 @@ import { getWebsiteVersion } from "@/lib/site-version";
 import { formatDateTimeInTimeZone } from "@/lib/time-zone";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
 
-export default async function SiteSettingsPage() {
+export default async function SiteSettingsPage({ searchParams }: { searchParams: Promise<{ audit?: string; actor?: string; action?: string; from?: string; to?: string }> }) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.SETTINGS_MANAGE)) {
     redirect("/login?error=forbidden");
   }
 
   const settings = await getSiteSettings();
+  const auditFilters = await searchParams;
+  const auditQuery = (auditFilters.audit ?? "").trim().slice(0, 120);
+  const auditActor = (auditFilters.actor ?? "").trim().slice(0, 120);
+  const auditAction = (auditFilters.action ?? "").trim().slice(0, 120);
+  const validDay = (value?: string) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  const auditFrom = validDay(auditFilters.from);
+  const auditTo = validDay(auditFilters.to);
+  const auditWhere = {
+    ...(auditActor ? { actorName: { contains: auditActor } } : {}),
+    ...(auditAction ? { action: { contains: auditAction } } : {}),
+    ...(auditQuery ? { OR: [{ actorName: { contains: auditQuery } }, { action: { contains: auditQuery } }, { details: { contains: auditQuery } }] } : {}),
+    ...(auditFrom || auditTo ? { createdAt: { ...(auditFrom ? { gte: new Date(`${auditFrom}T00:00:00.000Z`) } : {}), ...(auditTo ? { lt: (() => { const end = new Date(`${auditTo}T00:00:00.000Z`); end.setUTCDate(end.getUTCDate() + 1); return end; })() } : {}) } } : {}),
+  };
   const [roleMappings, configuredCapabilities, divisions, ranks, caseStatuses] = await Promise.all([
     getSiteConfiguration("discordRoleMappings", DISCORD_TIER_ROLE_MAPPINGS),
     getSiteConfiguration<Record<string, string[]>>(
@@ -40,7 +53,7 @@ export default async function SiteSettingsPage() {
   const [tipConfiguration, backups, auditLogs, tipBlacklist, maintenanceExemptTiers, maintenanceExemptUserIds, websiteVersionOverride, websiteVersion] = await Promise.all([
     getSiteConfiguration("crimeTipForm", null),
     prisma.configurationBackup.findMany({ orderBy: { createdAt: "desc" }, take: 10 }).catch(() => []),
-    prisma.settingsAuditLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }).catch(() => []),
+    prisma.settingsAuditLog.findMany({ where: auditWhere, orderBy: { createdAt: "desc" }, take: 100 }).catch(() => []),
     prisma.crimeTipBlacklist.findMany({ orderBy: { createdAt: "desc" } }).catch(() => []),
     getSiteConfiguration<string[]>("maintenanceExemptTiers", []),
     getSiteConfiguration<string[]>("maintenanceExemptDiscordUserIds", []),
@@ -272,8 +285,11 @@ export default async function SiteSettingsPage() {
       <p className="note-inline">Automatic snapshots are created before settings changes and restores. These cover application settings only, not cases or the SQLite database.</p>
       <form action={saveConfigurationBackup}><button className="govbtn-outline" type="submit">Create backup now</button></form>
       {backups.length > 0 && <FormWithPendingSubmit action={restoreConfigurationBackup} submitLabel="Restore selected configuration" pendingLabel="Restoring..." className="formbox"><div className="field"><label htmlFor="backupId">Backup</label><select id="backupId" name="backupId" required defaultValue=""><option value="" disabled>Select a backup</option>{backups.map((backup)=><option key={backup.id} value={backup.id}>{backup.createdAt.toLocaleString()} - {backup.actorName}</option>)}</select></div><p className="note-inline">Restoring replaces current settings. A safety backup is created first.</p></FormWithPendingSubmit>}
-      <h2>Settings Audit Trail</h2>
-      <div className="tablewrap"><table className="stat"><thead><tr><th>When</th><th>Who</th><th>Change</th><th>Details</th></tr></thead><tbody>{auditLogs.length ? auditLogs.map((entry)=><tr key={entry.id}><td>{entry.createdAt.toLocaleString()}</td><td>{entry.actorName}</td><td>{entry.action}</td><td>{entry.details}</td></tr>) : <tr><td colSpan={4}>No settings changes recorded yet.</td></tr>}</tbody></table></div>
+      <h2 id="audit">Settings Audit Trail</h2>
+      <p className="note-inline">Filter by actor, action, details, or date. Up to 100 matching entries are shown.</p>
+      <form className="audit-filter-form"><div className="field"><label htmlFor="audit">Search</label><input id="audit" name="audit" defaultValue={auditQuery} placeholder="Search audit details"/></div><div className="field"><label htmlFor="actor">Actor</label><input id="actor" name="actor" defaultValue={auditActor}/></div><div className="field"><label htmlFor="action">Action</label><input id="action" name="action" defaultValue={auditAction}/></div><div className="field"><label htmlFor="from">From</label><input id="from" name="from" type="date" defaultValue={auditFrom}/></div><div className="field"><label htmlFor="to">Through</label><input id="to" name="to" type="date" defaultValue={auditTo}/></div><button className="govbtn" type="submit">Filter</button><Link className="govbtn-outline" href="/98981#audit">Clear</Link></form>
+      <p><Link className="govbtn-outline" href={`/98981/audit-export?${new URLSearchParams({ audit: auditQuery, actor: auditActor, action: auditAction, from: auditFrom, to: auditTo }).toString()}`}>Export matching audit entries</Link></p>
+      <div className="tablewrap"><table className="stat mobile-cards"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Change</th><th scope="col">Details</th></tr></thead><tbody>{auditLogs.length ? auditLogs.map((entry)=><tr key={entry.id}><td data-label="When">{entry.createdAt.toLocaleString()}</td><td data-label="Who">{entry.actorName}</td><td data-label="Change">{entry.action}</td><td data-label="Details">{entry.details}</td></tr>) : <tr><td colSpan={4}>No settings changes match those filters.</td></tr>}</tbody></table></div>
       <p><Link href="/98981/status">Open integration health and access diagnostics →</Link></p>
 
       <h2>Affidavit of Probable Cause Routing</h2>

@@ -6,10 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser } from "@/lib/case-access";
 import { updateDeadlineReminderState } from "../actions";
+import { getProceduralDeadlines, type ProceduralDeadlineCase } from "@/lib/procedural-deadlines";
 
-const deadlineLabels = { discDue: "Discovery due", pretrial: "Pretrial", appealBy: "Appeal" } as const;
-type DeadlineType = keyof typeof deadlineLabels;
-type CalendarCase = { id: string; caseNumber: string; title: string; assignedAttorney: { displayName: string } | null; discDue: Date | null; pretrial: Date | null; appealBy: Date | null };
+type DeadlineType = string;
+type CalendarCase = ProceduralDeadlineCase & { id: string; caseNumber: string; title: string; assignedAttorney: { displayName: string } | null };
 
 function monthKey(year: number, month: number) { return `${year}-${String(month + 1).padStart(2, "0")}`; }
 function eventKey(caseId: string, type: DeadlineType, date: Date) { return `${caseId}:${type}:${date.toISOString()}`; }
@@ -27,17 +27,14 @@ export default async function CaseCalendarPage({ searchParams }: { searchParams:
   const start = new Date(Date.UTC(year, month, 1));
   const end = new Date(Date.UTC(year, month + 1, 1));
   const viewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL);
-  const where: Prisma.CaseWhereInput = { archived: false, OR: [{ discDue: { gte: start, lt: end } }, { pretrial: { gte: start, lt: end } }, { appealBy: { gte: start, lt: end } }] };
+  const where: Prisma.CaseWhereInput = { archived: false, isDraft: false };
   if (!viewAll) where.AND = [{ OR: [{ assignedAttorneyId: viewer.id }, { createdById: viewer.id }] }];
   let cases: CalendarCase[] = [];
-  try { cases = await prisma.case.findMany({ where, select: { id: true, caseNumber: true, title: true, assignedAttorney: { select: { displayName: true } }, discDue: true, pretrial: true, appealBy: true }, orderBy: { caseNumber: "asc" } }); }
+  try { cases = await prisma.case.findMany({ where, select: { id: true, caseNumber: true, title: true, type: true, createdAt: true, assignedAttorney: { select: { displayName: true } }, discDue: true, pretrial: true, appealBy: true, arraignmentAt: true, proofOfServiceAt: true, discoveryOrderAt: true, discoveryRequestedAt: true, motionServedAt: true, verdictAt: true, sentenceAt: true, finalJudgmentAt: true }, orderBy: { caseNumber: "asc" }, take: 2000 }); }
   catch (error) { console.error("Failed to load deadline calendar", error); }
   const reminderRows = cases.length ? await prisma.deadlineReminder.findMany({ where: { userId: viewer.id, caseId: { in: cases.map((item) => item.id) }, dueDate: { gte: start, lt: end } } }).catch(() => []) : [];
-  const reminderMap = new Map(reminderRows.map((item) => [eventKey(item.caseId, item.deadlineType as DeadlineType, item.dueDate), item]));
-  const events = cases.flatMap((item) => (Object.keys(deadlineLabels) as DeadlineType[]).flatMap((type) => {
-    const date = item[type];
-    return date ? [{ item, type, date, reminder: reminderMap.get(eventKey(item.id, type, date)) }] : [];
-  }));
+  const reminderMap = new Map(reminderRows.map((item) => [eventKey(item.caseId, item.deadlineType, item.dueDate), item]));
+  const events = cases.flatMap((item) => getProceduralDeadlines(item).filter((deadline) => deadline.dueDate >= start && deadline.dueDate < end).map((deadline) => ({ item, type: deadline.key, deadline, date: deadline.dueDate, reminder: reminderMap.get(eventKey(item.id, deadline.key, deadline.dueDate)) })));
   const previous = new Date(Date.UTC(year, month - 1, 1));
   const next = new Date(Date.UTC(year, month + 1, 1));
   const title = start.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -67,7 +64,7 @@ export default async function CaseCalendarPage({ searchParams }: { searchParams:
               const acknowledged = Boolean(event.reminder?.acknowledgedAt);
               const snoozed = event.reminder?.snoozedUntil && event.reminder.snoozedUntil > new Date();
               return <article className="deadline-calendar-event" key={`${event.item.id}-${event.type}`}>
-                <Link href={`/dashboard/cases/${event.item.id}`}><strong>{event.item.caseNumber}</strong> · {deadlineLabels[event.type]}</Link>
+                <Link href={`/dashboard/cases/${event.item.id}`}><strong>{event.item.caseNumber}</strong> · {event.deadline.label}</Link>
                 <span>{event.date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} · {event.item.assignedAttorney?.displayName ?? "Unassigned"}</span>
                 {acknowledged ? <span className="pill pill-green">Acknowledged</span> : snoozed ? <span className="pill pill-gold">Snoozed until {event.reminder!.snoozedUntil!.toLocaleDateString()}</span> : <div className="deadline-reminder-actions">
                   <form action={updateDeadlineReminderState}><input type="hidden" name="caseId" value={event.item.id}/><input type="hidden" name="deadlineType" value={event.type}/><input type="hidden" name="dueDate" value={event.date.toISOString()}/><button type="submit" name="operation" value="acknowledge" className="linklike">Acknowledge</button></form>

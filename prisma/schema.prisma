@@ -87,6 +87,14 @@ model Case {
   outcome            String?
   closedOn           DateTime?
   appealBy           DateTime?
+  arraignmentAt      DateTime?
+  proofOfServiceAt   DateTime?
+  discoveryOrderAt   DateTime?
+  discoveryRequestedAt DateTime?
+  motionServedAt      DateTime?
+  verdictAt          DateTime?
+  sentenceAt         DateTime?
+  finalJudgmentAt    DateTime?
   archived           Boolean   @default(false)
   isDraft            Boolean   @default(false)
   summary            String

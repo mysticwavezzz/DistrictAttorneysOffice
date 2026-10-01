@@ -7,6 +7,7 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser } from "@/lib/case-access";
 import { caseStatusColor } from "@/config/case-statuses";
 import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
+import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 type CaseWithAttorney = Prisma.CaseGetPayload<{ include: { assignedAttorney: true; filings: { select: { id: true; title: true; url: true; pdfFileName: true; createdAt: true } } } }>;
 
@@ -145,13 +146,9 @@ export default async function CasesPage({
             {canBulkArchive && tab !== "archived" && <button className="govbtn-outline" name="operation" value="archive" type="submit">Archive selected</button>}
           </div></div>
           <div className="case-card-list">{cases.map((c) => {
-            const deadlineOptions = [
-              { label: "Discovery due", date: c.discDue },
-              { label: "Pretrial", date: c.pretrial },
-              { label: "Appeal by", date: c.appealBy },
-            ].filter((item): item is { label: string; date: Date } => Boolean(item.date)).sort((a, b) => a.date.getTime() - b.date.getTime());
+            const deadlineOptions = getProceduralDeadlines(c);
             const today = new Date(); today.setHours(0, 0, 0, 0);
-            const nextDeadline = deadlineOptions.find((item) => item.date >= today) ?? deadlineOptions.at(-1) ?? null;
+            const nextDeadline = deadlineOptions.find((item) => item.dueDate >= today) ?? deadlineOptions.at(-1) ?? null;
             const color = caseStatusColor(c.stage);
             let partyRole = "";
             try {
@@ -162,8 +159,8 @@ export default async function CasesPage({
             const yourRole = partyRole || (user && c.assignedAttorneyId === user.id ? "Assigned attorney" : user && c.createdById === user.id ? "Submitting officer" : "Office staff");
             return <article className="case-card" key={c.id}>
               <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Draft</span>}</div></div><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "Open"}</span></header>
-              <div className="case-card-meta"><span><small>Filed</small><strong>{fmt(c.createdAt)}</strong></span><span><small>Judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Your role</small><strong>{yourRole}</strong></span><span><small>{nextDeadline?.label ?? "Next deadline"}</small><strong className={nextDeadline && nextDeadline.date < today ? "deadline-overdue" : undefined}>{fmt(nextDeadline?.date ?? null)}</strong></span></div>
-              <details className="case-card-expand" open>
+              <div className="case-card-meta"><span><small>Filed</small><strong>{fmt(c.createdAt)}</strong></span><span><small>Judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Your role</small><strong>{yourRole}</strong></span><span><small>{nextDeadline?.label ?? "Next deadline"}</small><strong className={nextDeadline && nextDeadline.dueDate < today ? "deadline-overdue" : undefined}>{fmt(nextDeadline?.dueDate ?? null)}</strong></span></div>
+              <details className="case-card-expand">
                 <summary aria-label={`Toggle details for ${c.caseNumber}`}><span className="case-card-expand-open">Hide case details</span><span className="case-card-expand-closed">Show recent filings and actions</span></summary>
                 {c.filings.length > 0 && <div className="case-card-filings"><strong>Recent filings</strong><ul>{c.filings.map((filing) => <li key={filing.id}><span>{filing.title}{filing.pdfFileName && <> <a href={`/api/cases/filings/${filing.id}/pdf`} target="_blank" rel="noreferrer noopener">View PDF</a></>}</span><time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></li>)}</ul></div>}
                 <footer className="case-card-actions"><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}`}>View Case Details</Link><Link className="govbtn-outline" href={`/dashboard/filings/new?caseId=${c.id}`}>File Document</Link><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}#filings`}>View All Filings</Link></footer>

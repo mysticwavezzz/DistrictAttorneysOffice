@@ -10,6 +10,7 @@ import { caseFilingSchema, caseCommentSchema } from "@/lib/validation/case-extra
 import { localUser, canAccessCase, generateCaseNumber } from "@/lib/case-access";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { readCasePdf } from "@/lib/filing-upload";
+import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 async function requireStaff() {
   const session = await auth();
@@ -137,6 +138,14 @@ export async function createCase(formData: FormData) {
       outcome: emptyToNull(data.outcome),
       closedOn: toDate(data.closedOn),
       appealBy: toDate(data.appealBy),
+      arraignmentAt: toDate(data.arraignmentAt),
+      proofOfServiceAt: toDate(data.proofOfServiceAt),
+      discoveryOrderAt: toDate(data.discoveryOrderAt),
+      discoveryRequestedAt: toDate(data.discoveryRequestedAt),
+      motionServedAt: toDate(data.motionServedAt),
+      verdictAt: toDate(data.verdictAt),
+      sentenceAt: toDate(data.sentenceAt),
+      finalJudgmentAt: toDate(data.finalJudgmentAt),
       summary: emptyToNull(data.summary) ?? "",
       assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id,
       createdById: user.id,
@@ -207,6 +216,14 @@ export async function updateCase(formData: FormData) {
       outcome: emptyToNull(data.outcome),
       closedOn: toDate(data.closedOn),
       appealBy: toDate(data.appealBy),
+      arraignmentAt: toDate(data.arraignmentAt),
+      proofOfServiceAt: toDate(data.proofOfServiceAt),
+      discoveryOrderAt: toDate(data.discoveryOrderAt),
+      discoveryRequestedAt: toDate(data.discoveryRequestedAt),
+      motionServedAt: toDate(data.motionServedAt),
+      verdictAt: toDate(data.verdictAt),
+      sentenceAt: toDate(data.sentenceAt),
+      finalJudgmentAt: toDate(data.finalJudgmentAt),
       summary: existing.summary,
       assignedAttorneyId: nextAssignee,
       archived: formData.get("archived") === "on",
@@ -329,14 +346,13 @@ export async function updateDeadlineReminderState(formData: FormData) {
   const deadlineType = String(formData.get("deadlineType") ?? "");
   const dueDateRaw = String(formData.get("dueDate") ?? "");
   const operation = String(formData.get("operation") ?? "");
-  const dueFields = { discDue: "discDue", pretrial: "pretrial", appealBy: "appealBy" } as const;
-  if (!(deadlineType in dueFields) || !["acknowledge", "snooze"].includes(operation)) throw new Error("Invalid reminder action");
+  if (!deadlineType || !["acknowledge", "snooze"].includes(operation)) throw new Error("Invalid reminder action");
   const dueDate = new Date(dueDateRaw);
   if (!Number.isFinite(dueDate.getTime())) throw new Error("Invalid due date");
   const caseRecord = await prisma.case.findUnique({ where: { id: caseId } });
   if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord)) throw new Error("Case not accessible");
-  const field = deadlineType as keyof typeof dueFields;
-  if (caseRecord[field]?.getTime() !== dueDate.getTime()) throw new Error("That deadline has changed. Refresh the calendar and try again.");
+  const currentDeadline = getProceduralDeadlines(caseRecord).find((deadline) => deadline.key === deadlineType);
+  if (currentDeadline?.dueDate.getTime() !== dueDate.getTime()) throw new Error("That deadline has changed. Refresh the calendar and try again.");
 
   const identity = { userId: user.id, caseId, deadlineType, dueDate };
   const reminder = await prisma.deadlineReminder.upsert({ where: { userId_caseId_deadlineType_dueDate: identity }, create: identity, update: {} });

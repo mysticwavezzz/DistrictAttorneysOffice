@@ -1690,6 +1690,29 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .filing-search { align-items: end; }
 .case-inline-filing .field, .case-file-form .field { min-width: 0; }
 .case-file-form .case-opening-controls { align-items: center; }
+.review-inbox-filters { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)) auto auto; align-items: end; gap: 10px; margin: 16px 0; padding: 14px; border: 1px solid var(--bd); background: var(--box-alt); }
+.review-inbox-count { color: var(--ink-soft); font-size: 12px; }
+.review-inbox-list { display: grid; gap: 12px; }
+.review-inbox-card { min-width: 0; padding: 14px; border: 1px solid var(--bd); border-left: 4px solid var(--navy); background: var(--box); }
+.review-inbox-card > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.review-inbox-card > header time { color: var(--ink-soft); font-size: 12px; }
+.review-inbox-card h2 { margin: 10px 0 4px; font-size: 18px; }
+.review-inbox-card > p { margin: 0 0 10px; color: var(--ink-dim); }
+.review-inbox-card dl { display: flex; flex-wrap: wrap; gap: 12px 26px; margin: 10px 0; }
+.review-inbox-card dl div { display: grid; gap: 2px; }
+.review-inbox-card dt { color: var(--ink-soft); font-size: 10px; text-transform: uppercase; }
+.review-inbox-card dd { margin: 0; }
+.review-aopc-detail { margin-top: 10px; border-top: 1px solid var(--bd-lt); }
+.review-aopc-detail > summary { padding: 10px 2px; color: var(--link); font-weight: 700; cursor: pointer; }
+.review-aopc-form, .review-record-action { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.review-aopc-form .field { flex: 1 1 100%; }
+.review-record-action label { font-weight: 700; }
+.review-record-action select { min-width: 160px; }
+.pdf-upload-feedback { display: block; margin-top: 4px; color: var(--ink-soft); font-size: 11px; }
+.deadline-summary li { margin-bottom: 7px; }
+.deadline-summary li small { display: block; color: var(--ink-soft); font-size: 11px; }
+button:disabled { cursor: wait; opacity: .7; }
+@media (max-width: 720px) { .review-inbox-filters { grid-template-columns: 1fr 1fr; } .review-inbox-card > header { align-items: flex-start; flex-direction: column; } }
 
 @media (max-width: 720px) {
   .cases-page-header { align-items: flex-start; flex-direction: column; }

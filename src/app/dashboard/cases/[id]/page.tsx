@@ -10,6 +10,9 @@ import { updateCase, deleteCase, addFiling, deleteFiling, addComment } from "../
 import { submitCaseRequest } from "../requests/actions";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { RemoveButton } from "@/components/remove-button";
+import { PdfUploadInput } from "@/components/pdf-upload-input";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 type CaseWithRelations = Prisma.CaseGetPayload<{
   include: {
@@ -89,12 +92,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const accessLabel = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL)
     ? "Full docket access"
     : canEdit ? "Edit access" : canPropose ? "Read and propose edits" : "Read access";
-  const deadlines = [
-    ["Discovery due", caseRecord.discDue],
-    ["Pretrial", caseRecord.pretrial],
-    ["Appeal deadline", caseRecord.appealBy],
-  ] as const;
-  const activeDeadlines = deadlines.filter(([, date]) => date);
+  const activeDeadlines = getProceduralDeadlines(caseRecord);
   let parties: { name: string; role: string }[] = [];
   try {
     const parsedParties = JSON.parse(caseRecord.partyDetails) as unknown;
@@ -144,11 +142,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           <label htmlFor="inline-filing-title">Document name</label><input id="inline-filing-title" type="text" name="title" placeholder="Filing title" maxLength={200} required />
         </div>
         <div className="field" style={{ flex: "1 1 220px" }}>
-          <label htmlFor="inline-filing-pdf">PDF (max 5 MB)</label><input id="inline-filing-pdf" type="file" name="pdf" accept="application/pdf,.pdf" required />
+          <label htmlFor="inline-filing-pdf">PDF (max 5 MB)</label><PdfUploadInput id="inline-filing-pdf" name="pdf" required />
         </div>
-        <button type="submit" className="govbtn-outline">
-          Attach
-        </button>
+        <PendingSubmitButton label="Attach PDF" pendingLabel="Uploading PDF…" className="govbtn-outline" />
       </form>
 
       <h3 id="activity">Activity</h3>
@@ -195,9 +191,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
         <section id="deadlines" className="deadline-summary" aria-label="Case deadlines">
           <h2>Deadlines</h2>
-          {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map(([label, date]) => {
-            const overdue = date!.getTime() < new Date().setHours(0, 0, 0, 0);
-            return <li key={label}><span className={overdue ? "deadline-overdue" : undefined}>{label}: {date!.toLocaleDateString("en-US", { dateStyle: "medium" })}{overdue ? " - OVERDUE" : ""}</span></li>;
+          {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
+            const overdue = deadline.dueDate.getTime() < new Date().setHours(0, 0, 0, 0);
+            return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : deadline.authority}</small></li>;
           })}</ul>}
         </section>
 
@@ -276,6 +272,14 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               <input type="hidden" name="outcome" value={caseRecord.outcome ?? ""} />
               <input type="hidden" name="closedOn" value={toDateInputValue(caseRecord.closedOn)} />
               <input type="hidden" name="appealBy" value={toDateInputValue(caseRecord.appealBy)} />
+              <input type="hidden" name="arraignmentAt" value={toDateInputValue(caseRecord.arraignmentAt)} />
+              <input type="hidden" name="proofOfServiceAt" value={toDateInputValue(caseRecord.proofOfServiceAt)} />
+              <input type="hidden" name="discoveryOrderAt" value={toDateInputValue(caseRecord.discoveryOrderAt)} />
+              <input type="hidden" name="discoveryRequestedAt" value={toDateInputValue(caseRecord.discoveryRequestedAt)} />
+              <input type="hidden" name="motionServedAt" value={toDateInputValue(caseRecord.motionServedAt)} />
+              <input type="hidden" name="verdictAt" value={toDateInputValue(caseRecord.verdictAt)} />
+              <input type="hidden" name="sentenceAt" value={toDateInputValue(caseRecord.sentenceAt)} />
+              <input type="hidden" name="finalJudgmentAt" value={toDateInputValue(caseRecord.finalJudgmentAt)} />
               <button type="submit" className="govbtn">
                 Submit for Review
               </button>
@@ -302,9 +306,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <div className="formbox case-overview-people"><div className="case-detail-summary"><span><small>Assigned judge</small><strong>{caseRecord.assignedJudge ?? "Not assigned"}</strong></span><span><small>Submitting officer</small><strong>{caseRecord.createdBy.displayName}</strong></span><span><small>People / parties</small><strong>{parties.length}</strong></span></div><h2>People and parties</h2>{parties.length ? <ul className="case-parties">{parties.map((party, index) => <li key={`${party.name}-${index}`}><strong>{party.role}</strong><span>{party.name}</span></li>)}</ul> : <p className="note-inline">No people or parties have been listed.</p>}</div>
       <section id="deadlines" className="deadline-summary" aria-label="Case deadlines">
         <h2>Deadlines</h2>
-        {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map(([label, date]) => {
-          const overdue = date!.getTime() < new Date().setHours(0, 0, 0, 0);
-          return <li key={label}><span className={overdue ? "deadline-overdue" : undefined}>{label}: {date!.toLocaleDateString("en-US", { dateStyle: "medium" })}{overdue ? " - OVERDUE" : ""}</span></li>;
+        {activeDeadlines.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
+          const overdue = deadline.dueDate.getTime() < new Date().setHours(0, 0, 0, 0);
+          return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : deadline.authority}</small></li>;
         })}</ul>}
       </section>
 
@@ -397,6 +401,18 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             <label htmlFor="pretrial">Pretrial</label>
             <input type="date" id="pretrial" name="pretrial" defaultValue={toDateInputValue(caseRecord.pretrial)} />
           </div>
+        </div>
+        <h3>Trigger dates for automatic deadlines</h3>
+        <p className="note-inline">Enter an event date when it occurs. Applicable deadlines are calculated from the master procedural rules. Calendar days are counted in Eastern Time.</p>
+        <div className="field-row">
+          <div className="field"><label htmlFor="arraignmentAt">Arraignment date</label><input type="date" id="arraignmentAt" name="arraignmentAt" defaultValue={toDateInputValue(caseRecord.arraignmentAt)} /></div>
+          <div className="field"><label htmlFor="proofOfServiceAt">Proof of service date</label><input type="date" id="proofOfServiceAt" name="proofOfServiceAt" defaultValue={toDateInputValue(caseRecord.proofOfServiceAt)} /></div>
+          <div className="field"><label htmlFor="discoveryOrderAt">Discovery order date</label><input type="date" id="discoveryOrderAt" name="discoveryOrderAt" defaultValue={toDateInputValue(caseRecord.discoveryOrderAt)} /></div>
+          <div className="field"><label htmlFor="discoveryRequestedAt">Discovery request date</label><input type="date" id="discoveryRequestedAt" name="discoveryRequestedAt" defaultValue={toDateInputValue(caseRecord.discoveryRequestedAt)} /></div>
+          <div className="field"><label htmlFor="motionServedAt">Written motion served</label><input type="date" id="motionServedAt" name="motionServedAt" defaultValue={toDateInputValue(caseRecord.motionServedAt)} /></div>
+          <div className="field"><label htmlFor="verdictAt">Verdict date</label><input type="date" id="verdictAt" name="verdictAt" defaultValue={toDateInputValue(caseRecord.verdictAt)} /></div>
+          <div className="field"><label htmlFor="sentenceAt">Sentence date</label><input type="date" id="sentenceAt" name="sentenceAt" defaultValue={toDateInputValue(caseRecord.sentenceAt)} /></div>
+          <div className="field"><label htmlFor="finalJudgmentAt">Final judgment date</label><input type="date" id="finalJudgmentAt" name="finalJudgmentAt" defaultValue={toDateInputValue(caseRecord.finalJudgmentAt)} /></div>
         </div>
         </fieldset>
 

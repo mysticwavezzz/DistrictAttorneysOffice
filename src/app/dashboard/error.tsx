@@ -1,5 +1,5 @@
 "use client";
 
-export default function DashboardError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  return <main id="main" className="paper" role="alert"><h1>Staff portal temporarily unavailable</h1><p>Your work has not been changed. Retry the page, or return to the dashboard.</p><button className="govbtn" onClick={() => reset()}>Try again</button></main>;
+export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  return <main id="main" className="paper" role="alert"><h1>We couldn’t load this staff page</h1><p>If you just submitted a change, check the record before retrying. Otherwise, retry the page or return to the dashboard.</p>{error.digest && <p className="note-inline">Support reference: <code>{error.digest}</code></p>}<button className="govbtn" onClick={() => reset()}>Retry page</button></main>;
 }

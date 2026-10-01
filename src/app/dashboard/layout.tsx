@@ -21,6 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ] : []),
   ];
   const staffTools: NavItem[] = [
+    ...((hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW)) ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
     ...(canViewCases ? [{ label: "Deadline Calendar", href: "/dashboard/cases/calendar" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) ? [{ label: "Case Review Queue", href: "/dashboard/cases/requests" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW) ? [{ label: "Records Requests", href: "/dashboard/records-requests" }] : []),
