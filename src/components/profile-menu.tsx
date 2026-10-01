@@ -43,7 +43,7 @@ export function ProfileMenu({
     setSyncing(true);
     setSyncError(false);
     try {
-      await update();
+      await update({ refreshRoles: true });
       setSyncedAt(new Date().toLocaleTimeString());
       router.refresh();
     } catch {
@@ -58,7 +58,7 @@ export function ProfileMenu({
     setDeveloperError(false);
     try {
       await setDeveloperProfileEnabled(!developerEnabled);
-      await update();
+      await update({ refreshDeveloperProfile: true });
       router.refresh();
     } catch {
       setDeveloperError(true);
