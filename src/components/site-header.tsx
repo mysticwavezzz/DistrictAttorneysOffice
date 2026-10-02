@@ -10,6 +10,7 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { SessionProvider } from "next-auth/react";
 import { ProfileMenu } from "./profile-menu";
 import { isDeveloperProfileIdentity } from "@/config/developer-profiles";
+import { prisma } from "@/lib/prisma";
 
 export interface NavItem {
   label: string;
@@ -24,6 +25,9 @@ interface SiteHeaderProps {
 export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps = {}) {
   const session = await auth();
   const isStaff = Boolean(session?.user?.providerUserId);
+  const linkedDiscordUserId = session?.user?.robloxUserId
+    ? (await prisma.user.findUnique({ where: { robloxUserId: session.user.robloxUserId }, select: { discordUserId: true } }))?.discordUserId ?? null
+    : null;
   const canViewDashboard =
     isStaff && hasCapability(session!.user.tiers, CAPABILITIES.DASHBOARD_VIEW);
   const canViewBulletin = isStaff && hasCapability(session!.user.tiers, CAPABILITIES.BULLETIN_VIEW);
@@ -46,7 +50,7 @@ export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps 
               <>
                 {!staffNav && canViewDashboard && <Link href="/dashboard">Staff Dashboard</Link>}
                 <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}>
-                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} identityProvider={session!.user.identityProvider} providerUserId={session!.user.providerUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} canToggleDeveloperProfile={isDeveloperProfileIdentity(session!.user.identityProvider, session!.user.username)} />
+                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} identityProvider={session!.user.identityProvider} providerUserId={session!.user.providerUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} canToggleDeveloperProfile={isDeveloperProfileIdentity(session!.user.identityProvider, session!.user.username)} linkedDiscordUserId={linkedDiscordUserId} />
                 </SessionProvider>
                 <NotificationBell />
               </>

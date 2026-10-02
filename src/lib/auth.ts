@@ -53,7 +53,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       const custom = token as typeof token & { permissionModelVersion?: string; configuredRobloxRoleMappings?: typeof ROBLOX_TIER_ROLE_MAPPINGS; configuredTierCapabilities?: Record<string, string[]> };
-      const needsPermissionRefresh = custom.permissionModelVersion !== "release-1.1.0";
+      const needsPermissionRefresh = custom.permissionModelVersion !== "release-1.1.1";
       if (token.robloxUserId && (params.account || params.trigger === "update" || needsPermissionRefresh)) {
         try {
           await migrateSavedAttorneyPermissions();
@@ -69,7 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
           const tiers = withDeveloperProfile(token.identityProvider, token.username, resolveTiersFromRobloxRoles(roles, mappings), developerProfileSetting?.value === "true");
           token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, tierCapabilities)] as PermissionTier[];
-          custom.permissionModelVersion = "release-1.1.0";
+          custom.permissionModelVersion = "release-1.1.1";
           custom.configuredRobloxRoleMappings = mappings;
           custom.configuredTierCapabilities = tierCapabilities;
           token.tiersFetchedAt = Date.now();
@@ -114,6 +114,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
 
+      if (token.identityProvider === "roblox" && token.robloxUserId) {
+        try {
+          const linkedAccount = await prisma.user.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { discordUserId: true } });
+          token.discordUserId = linkedAccount?.discordUserId ?? "";
+        } catch (error) {
+          console.error("Failed to refresh the linked Discord identity", error);
+        }
+      }
       return token;
     },
   },

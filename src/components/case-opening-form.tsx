@@ -61,10 +61,10 @@ export function CaseOpeningForm({
       {revision && <p className="message" role="status"><strong>Returned for revision.</strong> {revision.rejectionNote || "Update the submission and resubmit it for review."}</p>}
       {revision && <p className="message" role="note">Resubmitting returns this request to the leadership review queue.</p>}
       {!revision && !reviewersCanAutoApprove && (
-        <p className="message" role="note">This submission will remain private until a Supervising Assistant District Attorney or the District Attorney reviews it.</p>
+        <p className="message" role="note">This submission will remain private until a Senior Assistant District Attorney or the District Attorney reviews it.</p>
       )}
       {!revision && reviewersCanAutoApprove && (
-        <p className="message message-success" role="note">As a Supervising Assistant District Attorney or District Attorney, your submission is added to the docket immediately.</p>
+        <p className="message message-success" role="note">As a Senior Assistant District Attorney or District Attorney, your submission is added to the docket immediately.</p>
       )}
 
       <ol className="case-opening-steps" aria-label="Case submission steps">

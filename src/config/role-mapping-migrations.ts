@@ -32,6 +32,28 @@ export function normalizeRobloxTierRoleMappings(saved: RobloxTierRoleMapping[]):
   return result;
 }
 
+/** Merge the retired Supervising ADA tier into Senior ADA without dropping saved Roblox role IDs. */
+export function mergeRetiredSupervisingAdaMappings(saved: Array<{ tier: string; groupId: number; roleIds: number[] }>): RobloxTierRoleMapping[] {
+  const result = saved.map((mapping) => ({ ...mapping, roleIds: [...mapping.roleIds] }));
+  const retired = result.filter((mapping) => mapping.tier === "supervising_ada");
+  const current = result.filter((mapping) => mapping.tier !== "supervising_ada");
+  for (const old of retired) {
+    for (const roleId of old.roleIds) {
+      const targetTier = roleId === 100910606
+        ? PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY
+        : roleId === 100910597
+          ? PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY
+          : roleId === 100910625
+            ? PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY
+            : PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY;
+      const target = current.find((mapping) => mapping.tier === targetTier && mapping.groupId === old.groupId);
+      if (target) target.roleIds = [...new Set([...target.roleIds, roleId])];
+      else current.push({ ...old, tier: targetTier, roleIds: [roleId] });
+    }
+  }
+  return current as RobloxTierRoleMapping[];
+}
+
 export function normalizeDiscordTierRoleMappings(saved: DiscordTierMapping[]): DiscordTierMapping[] {
   const result = saved.map((mapping) => ({ ...mapping, roleIds: [...mapping.roleIds] }));
   const defaultByTier = new Map(DISCORD_TIER_ROLE_MAPPINGS.map((mapping) => [mapping.tier, mapping]));

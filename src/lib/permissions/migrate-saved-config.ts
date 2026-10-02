@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { PERMISSION_TIERS, TIER_DEFINITIONS } from "./tiers";
+import { mergeRetiredSupervisingAdaMappings } from "@/config/role-mapping-migrations";
 
-const MIGRATION_KEY = "releaseV1_1Migration";
+const MIGRATION_KEY = "releaseV1_1_1Migration";
 
 /** Back up saved overrides, then apply the scoped role model and release version once. */
 export async function migrateSavedAttorneyPermissions() {
@@ -16,7 +17,7 @@ export async function migrateSavedAttorneyPermissions() {
     ]);
     await tx.configurationBackup.create({
       data: {
-        actorName: "Automatic 1.1 configuration migration",
+        actorName: "Automatic 1.1.1 configuration migration",
         payload: JSON.stringify({ siteSettings: settings, configurations: configurations.map(({ key, value }) => ({ key, value })) }),
       },
     });
@@ -28,15 +29,22 @@ export async function migrateSavedAttorneyPermissions() {
       PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY,
       PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY,
       PERMISSION_TIERS.DA_ATTORNEY,
-      PERMISSION_TIERS.SUPERVISING_ADA,
     ]) capabilities[tier] = TIER_DEFINITIONS[tier].capabilities;
+    delete capabilities.supervising_ada;
 
     await tx.siteConfiguration.upsert({
       where: { key: "tierCapabilities" },
       create: { key: "tierCapabilities", value: JSON.stringify(capabilities) },
       update: { value: JSON.stringify(capabilities) },
     });
-    await tx.siteConfiguration.upsert({ where: { key: "websiteVersion" }, create: { key: "websiteVersion", value: "1.1.0" }, update: { value: "1.1.0" } });
+    const savedRobloxMappings = configurations.find((entry) => entry.key === "robloxTierRoleMappings");
+    if (savedRobloxMappings) {
+      try {
+        const parsedMappings = JSON.parse(savedRobloxMappings.value) as Array<{ tier: string; groupId: number; roleIds: number[] }>;
+        await tx.siteConfiguration.update({ where: { key: "robloxTierRoleMappings" }, data: { value: JSON.stringify(mergeRetiredSupervisingAdaMappings(parsedMappings)) } });
+      } catch { /* Keep the backed-up raw mapping if it is malformed; auth config validation will fail closed. */ }
+    }
+    await tx.siteConfiguration.upsert({ where: { key: "websiteVersion" }, create: { key: "websiteVersion", value: "1.1.1" }, update: { value: "1.1.1" } });
     const legacyCases = await tx.case.findMany({
       where: { division: null },
       select: { id: true, assignedAttorney: { select: { division: true } }, createdBy: { select: { division: true } } },

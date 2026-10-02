@@ -191,9 +191,9 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
   });
 
-  it("Supervising ADA and District Attorney can review case openings", async () => {
+  it("Senior Assistant District Attorney and District Attorney can review case openings", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_APPROVE_DIVISION)).toBe(
+    expect(hasCapability([PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.CASES_APPROVE_DIVISION)).toBe(
       true
     );
     expect(hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(
@@ -210,7 +210,7 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
     expect(hasCapability([PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
     expect(
-      hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.SETTINGS_MANAGE)
+      hasCapability([PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)
     ).toBe(false);
     expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
   });

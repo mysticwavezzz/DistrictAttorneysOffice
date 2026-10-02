@@ -15,9 +15,26 @@ import { TIER_DEFINITIONS } from "@/lib/permissions/tiers";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
-export default async function SettingsPage() {
+function discordLinkMessage(result: string, linkedId: string | null): string {
+  if (result === "success") return linkedId ? `Discord account linked: ${linkedId}.` : "Discord authorization completed, but the link was not saved. Please retry or contact an administrator.";
+  if (result === "alreadyLinked") return linkedId ? `Your Roblox profile is already linked to Discord account ${linkedId}.` : "Your Roblox profile already has a Discord account linked.";
+  const messages: Record<string, string> = {
+    signInRequired: "Sign in with Roblox before linking Discord.",
+    stateMismatch: "Discord authorization could not be verified. Start the linking process again.",
+    cancelled: "Discord linking was cancelled.",
+    notConfigured: "Discord linking is not configured yet. Contact an administrator.",
+    oauthFailed: "Discord authorization failed. Please try again.",
+    identityFailed: "Discord did not return a valid account identity. Please try again.",
+    profileMissing: "Your Roblox profile could not be found. Sign out and sign in again before linking.",
+    discordInUse: "That Discord account is already linked to another Roblox profile.",
+  };
+  return messages[result] ?? "Discord linking could not be completed. Please try again.";
+}
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ discordLink?: string }> }) {
   const session = await auth();
   if (!session?.user?.providerUserId) redirect("/login?callbackUrl=/settings");
+  const query = await searchParams;
   const user = await localUser(session.user);
   const notifications = user ? await prisma.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
   const muted = new Set((user?.mutedTypes ?? "").split(",").filter(Boolean));
@@ -34,6 +51,12 @@ export default async function SettingsPage() {
           <p><strong>{session.user.identityProvider === "roblox" ? session.user.username : session.user.displayName}</strong> (@{session.user.username})</p>
           <p className="note-inline">{session.user.identityProvider === "roblox" ? "Roblox ID" : "Discord ID"}: <span className="mono">{session.user.providerUserId}</span></p>
           <p className="note-inline">Current access tiers: {session.user.tiers.filter((tier) => !tier.startsWith("cap:") && !tier.startsWith("denycap:")).map((tier) => TIER_DEFINITIONS[tier as keyof typeof TIER_DEFINITIONS]?.label ?? tier).join(", ") || "No active role tiers"}</p>
+          <h3>Discord account</h3>
+          {!query.discordLink && (user?.discordUserId ? <p className="message message-success" role="status">Linked to Discord user <span className="mono">{user.discordUserId}</span>. Discord linking does not grant website access.</p> : <>
+            <p className="note-inline">Your Discord account can be linked for identity and optional notifications. Roblox remains the only source of sign-in and website permissions.</p>
+            <Link className="govbtn-discord" href="/api/discord/link/start">Link Discord</Link>
+          </>)}
+          {query.discordLink && <p className={query.discordLink === "success" && user?.discordUserId ? "message message-success" : "message message-error"} role={query.discordLink === "success" && user?.discordUserId ? "status" : "alert"}>{discordLinkMessage(query.discordLink, user?.discordUserId ?? null)}</p>}
           <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}><RoleSyncButton /></SessionProvider>
           <p className="note-inline">Role sync checks your current Roblox group roles and refreshes your access. Discord is not used for website permissions.</p>
         </section>

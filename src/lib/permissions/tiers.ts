@@ -6,7 +6,6 @@ export const PERMISSION_TIERS = {
   DA_PARALEGAL: "da_paralegal",
   DA_ATTORNEY: "da_attorney",
   SPECIAL_INVESTIGATIONS: "special_investigations",
-  SUPERVISING_ADA: "supervising_ada",
   ROBLOX_GUEST: "roblox_guest",
   ROBLOX_MEMBER: "roblox_member",
   NON_ATTORNEY_PERSONNEL: "non_attorney_personnel",
@@ -76,12 +75,6 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
     label: "Special Investigations Bureau",
     description: "Submits case openings and supporting filings for supervisory review.",
     capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_CREATE],
-  },
-  [PERMISSION_TIERS.SUPERVISING_ADA]: {
-    id: PERMISSION_TIERS.SUPERVISING_ADA,
-    label: "Supervisory Assistant District Attorney",
-    description: "Division supervisor access, limited to cases in the assigned division.",
-    capabilities: [...DIVISION_SUPERVISOR_CAPABILITIES],
   },
   [PERMISSION_TIERS.ROBLOX_GUEST]: {
     id: PERMISSION_TIERS.ROBLOX_GUEST, label: "Roblox Group: Guest", description: "Guest group role; no portal permissions.", capabilities: [],

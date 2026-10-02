@@ -17,6 +17,7 @@ export function ProfileMenu({
   avatarUrl,
   initialTiers,
   canToggleDeveloperProfile,
+  linkedDiscordUserId,
 }: {
   displayName: string;
   username: string;
@@ -25,6 +26,7 @@ export function ProfileMenu({
   avatarUrl: string | null;
   initialTiers: string[];
   canToggleDeveloperProfile: boolean;
+  linkedDiscordUserId: string | null;
 }) {
   const { data: session, update } = useSession();
   const router = useRouter();
@@ -81,6 +83,7 @@ export function ProfileMenu({
           <span>Access: {tierLabels.length ? tierLabels.join(", ") || "Custom permissions" : "No active role tiers"}</span>
         </div>
         <Link href="/settings" onClick={() => setOpen(false)}>Settings &amp; notifications</Link>
+        {!linkedDiscordUserId && <Link href="/api/discord/link/start">Link Discord</Link>}
         {canToggleDeveloperProfile && <><button type="button" onClick={toggleDeveloperProfile} disabled={developerBusy} aria-pressed={developerEnabled}>{developerBusy ? "Updating developer access…" : developerEnabled ? "Disable Developer Profile" : "Enable Developer Profile"}</button>{developerError && <span className="profile-sync-error" role="alert">Developer access could not be updated. Try again.</span>}</>}
         <button type="button" onClick={syncRoles} disabled={syncing}>{syncing ? "Syncing Roblox roles…" : "Sync Roblox group roles now"}</button>
         {syncedAt && <span className="profile-sync-note" role="status">Roles synced at {syncedAt}.</span>}
