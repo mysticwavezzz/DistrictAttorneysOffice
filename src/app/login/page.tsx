@@ -24,7 +24,11 @@ export default async function LoginPage({
   const query = await searchParams;
   const session = await auth();
   const providerReady = Boolean(process.env.ROBLOX_CLIENT_ID && process.env.ROBLOX_CLIENT_SECRET);
-  const callbackUrl = query.callbackUrl ?? "/dashboard";
+  const requestedCallbackUrl = query.callbackUrl ?? "/dashboard";
+  const callbackUrl = requestedCallbackUrl.startsWith("/") && !requestedCallbackUrl.startsWith("//") && !requestedCallbackUrl.includes("\\")
+    ? requestedCallbackUrl
+    : "/dashboard";
+  const isContactFlow = callbackUrl === "/contacts" || callbackUrl.startsWith("/contacts?");
 
   if (session?.user?.providerUserId && session.user.identityProvider === "roblox" && !query.error) {
     redirect(callbackUrl);
@@ -58,9 +62,11 @@ export default async function LoginPage({
 
         <main className="paper" id="main">
           <p className="eyebrow">{siteConfig.county}</p>
-          <h1>Staff Sign In</h1>
+          <h1>{isContactFlow ? "Continue to Contact Us" : "Staff Sign In"}</h1>
           <p className="lede">
-            Authorized personnel only. Sign in with your Roblox account. Your current Roblox group roles determine which staff pages are available.
+            {isContactFlow
+              ? "Verify your Roblox account to open your private Contact Us mailbox. You will return to your message inbox automatically after verification."
+              : "Authorized personnel only. Sign in with your Roblox account. Your current Roblox group roles determine which staff pages are available."}
           </p>
 
           {errorMessage && (
@@ -100,7 +106,7 @@ export default async function LoginPage({
                 }}
               >
                 <button type="submit" className="govbtn">
-                  Sign in with Roblox
+                  {isContactFlow ? "Verify with Roblox" : "Sign in with Roblox"}
                 </button>
               </form> : <p className="message message-error" role="alert">Roblox sign-in is not configured yet. Add its client ID and rotated secret in Railway.</p>
             )}

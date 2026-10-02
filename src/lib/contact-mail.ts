@@ -35,3 +35,15 @@ const STAFF_ASSIGNABLE_TIERS: PermissionTier[] = [
 export function isAssignableContactEmployee(tiers: PermissionTier[]): boolean {
   return STAFF_ASSIGNABLE_TIERS.some((tier) => tiers.includes(tier));
 }
+
+const ATTORNEY_TIERS: PermissionTier[] = [
+  PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY,
+  PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY,
+  PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY,
+  PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY,
+  PERMISSION_TIERS.DISTRICT_ATTORNEY,
+];
+
+export function isContactAttorney(tiers: PermissionTier[]): boolean {
+  return ATTORNEY_TIERS.some((tier) => tiers.includes(tier));
+}

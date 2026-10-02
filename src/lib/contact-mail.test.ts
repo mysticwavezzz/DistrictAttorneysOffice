@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canRouteContactMail, canViewAllContactMail, canViewContactMail, isAssignableContactEmployee, parseStoredTiers } from "./contact-mail";
+import { canRouteContactMail, canViewAllContactMail, canViewContactMail, isAssignableContactEmployee, isContactAttorney, parseStoredTiers } from "./contact-mail";
 import { DEVELOPER_PROFILE_TIER, PERMISSION_TIERS } from "./permissions/tiers";
 
 describe("private contact-mail permissions", () => {
@@ -23,6 +23,12 @@ describe("private contact-mail permissions", () => {
     expect(isAssignableContactEmployee([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY])).toBe(true);
     expect(isAssignableContactEmployee([PERMISSION_TIERS.ROBLOX_MEMBER])).toBe(false);
     expect(isAssignableContactEmployee([DEVELOPER_PROFILE_TIER])).toBe(true);
+  });
+
+  it("limits public Contact Us attorney choices to ADA and higher tiers", () => {
+    expect(isContactAttorney([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY])).toBe(true);
+    expect(isContactAttorney([PERMISSION_TIERS.DISTRICT_ATTORNEY])).toBe(true);
+    expect(isContactAttorney([PERMISSION_TIERS.DA_PARALEGAL])).toBe(false);
   });
 
   it("parses known tiers and ignores arbitrary stored values", () => {

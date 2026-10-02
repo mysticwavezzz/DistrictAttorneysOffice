@@ -5,18 +5,29 @@ import { useRouter } from "next/navigation";
 import { createContactTicket, sendContactReply } from "@/app/contacts/actions";
 
 type Message = { id: string; body: string; createdAt: string; author: { id: string; username: string } };
-type Ticket = { id: string; subject: string; status: string; createdAt: string; updatedAt: string; messages: Message[] };
+type Ticket = { id: string; subject: string; status: string; division: string | null; createdAt: string; updatedAt: string; messages: Message[] };
 type FullTicket = Ticket & { messages: Message[] };
+type ContactDivision = { value: string; label: string };
+type ContactAttorney = { id: string; username: string; division: string; officeWide: boolean };
 
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
-export function ContactMailbox({ initialTickets, initialTicketId, currentUserId }: { initialTickets: Ticket[]; initialTicketId: string | null; currentUserId: string }) {
+export function ContactMailbox({ initialTickets, initialTicketId, currentUserId, divisions, attorneys }: { initialTickets: Ticket[]; initialTicketId: string | null; currentUserId: string; divisions: ContactDivision[]; attorneys: ContactAttorney[] }) {
   const router = useRouter();
   const [tickets, setTickets] = useState(initialTickets);
   const [selectedId, setSelectedId] = useState(initialTicketId && initialTickets.some((ticket) => ticket.id === initialTicketId) ? initialTicketId : null);
   const [activeTicket, setActiveTicket] = useState<FullTicket | null>(null);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [selectedDivision, setSelectedDivision] = useState("");
+  const [selectedAttorneyId, setSelectedAttorneyId] = useState("");
+  const [availableAttorneys, setAvailableAttorneys] = useState<ContactAttorney[]>([]);
+
+  function chooseDivision(value: string) {
+    setSelectedDivision(value);
+    setSelectedAttorneyId("");
+    setAvailableAttorneys(attorneys.filter((attorney) => attorney.division === value || attorney.officeWide));
+  }
 
   const refresh = useCallback(async (ticketId?: string | null) => {
     try {
@@ -43,6 +54,9 @@ export function ContactMailbox({ initialTickets, initialTicketId, currentUserId 
       try {
         const id = await createContactTicket(data);
         form.reset();
+        setSelectedDivision("");
+        setSelectedAttorneyId("");
+        setAvailableAttorneys([]);
         setSelectedId(id);
         router.replace(`/contacts?ticket=${encodeURIComponent(id)}`, { scroll: false });
         await refresh(id);
@@ -76,14 +90,14 @@ export function ContactMailbox({ initialTickets, initialTicketId, currentUserId 
       {!tickets.some((ticket) => ticket.status !== "CLOSED") && <p className="empty-state">No open tickets.</p>}
       {tickets.filter((ticket) => ticket.status !== "CLOSED").map((ticket) => <button type="button" className={`contact-ticket-choice ${selectedId === ticket.id ? "is-selected" : ""}`} key={ticket.id} onClick={() => { setSelectedId(ticket.id); setActiveTicket(null); router.replace(`/contacts?ticket=${encodeURIComponent(ticket.id)}`, { scroll: false }); }}>
         <span><strong>{ticket.subject}</strong><span className="pill pill-navy">{ticket.status === "ON_HOLD" ? "On hold" : "Open"}</span></span>
-        <small>{ticket.messages[0]?.body.slice(0, 140) || "No messages yet"}</small>
+        <small>{ticket.division ? `${divisions.find((division) => division.value === ticket.division)?.label ?? ticket.division} · ` : ""}{ticket.messages[0]?.body.slice(0, 140) || "No messages yet"}</small>
         <time dateTime={ticket.updatedAt}>{dateFormat.format(new Date(ticket.updatedAt))}</time>
       </button>)}
       {tickets.some((ticket) => ticket.status === "CLOSED") && <details className="contact-closed-list"><summary>Recently closed messages ({tickets.filter((ticket) => ticket.status === "CLOSED").length})</summary>{tickets.filter((ticket) => ticket.status === "CLOSED").map((ticket) => <button type="button" className={`contact-ticket-choice ${selectedId === ticket.id ? "is-selected" : ""}`} key={ticket.id} onClick={() => { setSelectedId(ticket.id); setActiveTicket(null); router.replace(`/contacts?ticket=${encodeURIComponent(ticket.id)}`, { scroll: false }); }}><span><strong>{ticket.subject}</strong><span className="pill pill-muted">Closed</span></span><small>Latest reply: {ticket.messages[0]?.body.slice(0, 140) || "No replies"}</small></button>)}</details>}
     </div>
     <div className="contact-ticket-content">
       {selectedId && selected ? <>
-        <header className="contact-ticket-header"><div><h2>{selected.subject}</h2><p>Ticket {selected.id} · {selected.status === "ON_HOLD" ? "On hold" : selected.status.toLowerCase()}</p></div><button type="button" className="govbtn-outline" onClick={() => { setSelectedId(null); setActiveTicket(null); router.replace("/contacts", { scroll: false }); }}>Close view</button></header>
+        <header className="contact-ticket-header"><div><h2>{selected.subject}</h2><p>{selected.division ? `${divisions.find((division) => division.value === selected.division)?.label ?? selected.division} · ` : ""}Ticket {selected.id} · {selected.status === "ON_HOLD" ? "On hold" : selected.status.toLowerCase()}</p></div><button type="button" className="govbtn-outline" onClick={() => { setSelectedId(null); setActiveTicket(null); router.replace("/contacts", { scroll: false }); }}>Close view</button></header>
         <div className="contact-message-thread" aria-live="polite" aria-relevant="additions text">
           {(activeTicket?.messages ?? []).map((message) => <article className={`contact-message ${message.author.id === currentUserId ? "contact-message-own" : ""}`} key={message.id}><header><strong>{message.author.id === currentUserId ? "You" : message.author.username}</strong><time dateTime={message.createdAt}>{dateFormat.format(new Date(message.createdAt))}</time></header><p>{message.body}</p></article>)}
           {!activeTicket?.messages.length && <p className="note-inline">Loading conversation…</p>}
@@ -92,7 +106,20 @@ export function ContactMailbox({ initialTickets, initialTicketId, currentUserId 
       </> : <>
         <h2>Send a message</h2>
         {!tickets.some((ticket) => ticket.status !== "CLOSED") && <p className="note-inline">No open tickets. Send a message to start a new conversation.</p>}
-        <form className="contact-message-form" onSubmit={submitNewTicket}><label htmlFor="contact-subject">Subject</label><input id="contact-subject" name="subject" maxLength={120} minLength={3} required/><label htmlFor="contact-message">Message</label><textarea id="contact-message" name="message" maxLength={8000} minLength={5} rows={7} required/><button type="submit" className="govbtn" disabled={pending}>{pending ? "Sending…" : "Send to the office"}</button></form>
+        <form className="contact-message-form" onSubmit={submitNewTicket}>
+          <label htmlFor="contact-division">Division</label>
+          <select id="contact-division" name="division" value={selectedDivision} onChange={(event) => chooseDivision(event.target.value)} required>
+            <option value="">Choose a division</option>{divisions.map((division) => <option key={division.value} value={division.value}>{division.label}</option>)}
+          </select>
+          <label htmlFor="contact-attorney">Attorney</label>
+          <select id="contact-attorney" name="attorneyId" value={selectedAttorneyId} onChange={(event) => setSelectedAttorneyId(event.target.value)} required disabled={!selectedDivision || availableAttorneys.length === 0}>
+            <option value="">{!selectedDivision ? "Choose a division first" : availableAttorneys.length ? "Choose an attorney" : "No attorneys listed for this division"}</option>
+            {availableAttorneys.map((attorney) => <option key={attorney.id} value={attorney.id}>{attorney.username}{attorney.officeWide ? " · Office-wide" : ""}</option>)}
+          </select>
+          <label htmlFor="contact-subject">Subject</label><input id="contact-subject" name="subject" maxLength={120} minLength={3} required/>
+          <label htmlFor="contact-message">Message</label><textarea id="contact-message" name="message" maxLength={8000} minLength={5} rows={7} required/>
+          <button type="submit" className="govbtn" disabled={pending || !availableAttorneys.length}>{pending ? "Sending…" : "Send to selected attorney"}</button>
+        </form>
       </>}
       {error && <p className="message message-error" role="alert">{error}</p>}
       <p className="note-inline" role="status">Messages refresh automatically while this page is open.</p>

@@ -76,7 +76,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
             <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
             {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
             <span className={`pill ${linkedDiscordId(entry) ? "pill-green" : "pill-muted"}`}>{linkedDiscordId(entry) ? "Discord linked" : "No Discord linked"}</span>
-            {canManage && <p><Link href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></p>}
+            {canManage && <p><Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></p>}
           </article>)}
         </div>
         <div className="tablewrap">
@@ -106,7 +106,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                     <td data-label="Roster status"><span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Active" : "Inactive"}</span></td>
                     {canManage && (
                       <td data-label="Actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <Link href={`/dashboard/roster/${entry.id}`}>Edit</Link>
+                        <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>Edit</Link>
                         {entry.robloxSynced ? <span className="hint">Membership managed by Roblox</span> : <>
                           <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>
                           <RemoveButton id={entry.id} action={removeRosterEntry} />

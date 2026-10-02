@@ -202,6 +202,7 @@ model ContactTicket {
   id           String   @id @default(cuid())
   subject      String
   status       String   @default("OPEN")
+  division     String?
   requesterId  String
   assigneeId   String?
   heldAt       DateTime?

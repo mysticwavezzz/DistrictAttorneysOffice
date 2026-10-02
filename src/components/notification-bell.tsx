@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -14,6 +15,7 @@ interface NotificationItem {
 }
 
 export function NotificationBell() {
+  const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
@@ -41,6 +43,40 @@ export function NotificationBell() {
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (!pathname) return;
+    let cancelled = false;
+    fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pathname }),
+    }).then(async (response) => {
+      if (!response.ok || cancelled) return;
+      const data = await response.json() as { markedIds?: string[] };
+      const markedIds = new Set(data.markedIds ?? []);
+      if (!markedIds.size) return;
+      setItems((current) => current.map((item) => markedIds.has(item.id) ? { ...item, isRead: true } : item));
+      setUnreadCount((count) => Math.max(0, count - markedIds.size));
+    }).catch(() => { /* Read-on-visit is best effort; the manual action remains available. */ });
+    return () => { cancelled = true; };
+  }, [pathname]);
+
+  async function markAsRead(id: string) {
+    try {
+      const response = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!response.ok) return;
+      const data = await response.json() as { markedIds?: string[] };
+      const markedIds = new Set(data.markedIds ?? []);
+      if (!markedIds.size) return;
+      setItems((current) => current.map((item) => markedIds.has(item.id) ? { ...item, isRead: true } : item));
+      setUnreadCount((count) => Math.max(0, count - markedIds.size));
+    } catch { /* Leave the item unread so the user can retry. */ }
+  }
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
@@ -88,15 +124,13 @@ export function NotificationBell() {
             <div className="notif-empty">No notifications yet.</div>
           ) : (
             items.map((n) => (
-              <Link
-                key={n.id}
-                href={n.link ?? "/settings#notifications"}
-                className="notif-item"
-                onClick={() => setOpen(false)}
-              >
-                {!n.isRead && <span className="notif-dot" />}
-                {n.title}
-              </Link>
+              <div key={n.id} className="notif-item-row">
+                <Link href={n.link ?? "/settings#notifications"} className="notif-item" onClick={() => setOpen(false)}>
+                  {!n.isRead && <span className="notif-dot" />}
+                  {n.title}
+                </Link>
+                {!n.isRead && <button type="button" className="notif-mark-read" onClick={() => void markAsRead(n.id)} aria-label={`Mark ${n.title} as read`}>Mark as read</button>}
+              </div>
             ))
           )}
           <Link href="/settings#notifications" className="notif-viewall" onClick={() => setOpen(false)}>

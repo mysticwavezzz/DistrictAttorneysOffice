@@ -38,7 +38,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
       include: { requester: { select: { username: true } }, assignee: { select: { username: true } }, messages: { orderBy: { createdAt: "desc" }, take: 1 } },
       orderBy: { updatedAt: "asc" }, take: 100,
     }).catch(() => []);
-    for (const row of rows) items.push({ id: row.id, kind: "contact", title: row.subject, summary: `${row.status === "ON_HOLD" ? "On hold" : "Open"} · ${row.assignee?.username ? `Assigned to ${row.assignee.username}` : "Unassigned"}`, submittedBy: row.requester.username, division: "Contact Us", createdAt: row.createdAt, href: `/dashboard/contact-mail/${row.id}`, details: row.messages[0]?.body });
+    for (const row of rows) items.push({ id: row.id, kind: "contact", title: row.subject, summary: `${row.status === "ON_HOLD" ? "On hold" : "Open"} · ${row.assignee?.username ? `Assigned to ${row.assignee.username}` : "Unassigned"}`, submittedBy: row.requester.username, division: row.division ?? "Contact Us", createdAt: row.createdAt, href: `/dashboard/contact-mail/${row.id}`, details: row.messages[0]?.body });
   }
 
   if (canReviewCases && (selectedType === "all" || selectedType === "case")) {

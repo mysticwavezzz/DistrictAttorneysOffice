@@ -5,8 +5,10 @@ import { auth } from "@/lib/auth";
 import { localUser } from "@/lib/case-access";
 import { prisma } from "@/lib/prisma";
 import { notify, notifyMany } from "@/lib/notifications";
-import { canRouteContactMail, canViewAllContactMail, isAssignableContactEmployee, parseStoredTiers } from "@/lib/contact-mail";
+import { canRouteContactMail, canViewAllContactMail, isAssignableContactEmployee, isContactAttorney, parseStoredTiers } from "@/lib/contact-mail";
 import { PERMISSION_TIERS } from "@/lib/permissions/tiers";
+import { UNITS } from "@/config/units";
+import { getSiteConfiguration } from "@/lib/site-settings";
 
 async function currentIdentity() {
   const session = await auth();
@@ -28,12 +30,21 @@ export async function createContactTicket(formData: FormData): Promise<string> {
   const { user } = await currentIdentity();
   const subject = String(formData.get("subject") ?? "").trim().slice(0, 120);
   const body = String(formData.get("message") ?? "").trim().slice(0, 8000);
+  const division = String(formData.get("division") ?? "").trim().slice(0, 100);
+  const attorneyId = String(formData.get("attorneyId") ?? "").trim();
   if (subject.length < 3 || body.length < 5) throw new Error("Add a subject and a message before sending.");
+  const divisions = await getSiteConfiguration("divisions", UNITS);
+  if (!divisions.some((item) => item.value === division)) throw new Error("Choose a valid division.");
+  const attorney = await prisma.user.findUnique({ where: { id: attorneyId }, select: { id: true, robloxUserId: true, tiers: true, username: true } });
+  if (!attorney || !isContactAttorney(parseStoredTiers(attorney.tiers)) || !attorney.robloxUserId) throw new Error("Choose an active ADA-or-higher attorney.");
+  const rosterEntry = await prisma.rosterEntry.findUnique({ where: { robloxUserId: attorney.robloxUserId }, select: { isActive: true, unit: true, rank: true } });
+  const officeWide = (rosterEntry?.rank === "District Attorney" || rosterEntry?.rank === "Deputy District Attorney") && !rosterEntry.unit;
+  if (!rosterEntry?.isActive || (rosterEntry.unit && rosterEntry.unit !== division) || (!rosterEntry.unit && !officeWide)) throw new Error("That attorney is not currently assigned to the selected division. Refresh and choose another attorney.");
   const ticket = await prisma.contactTicket.create({
-    data: { subject, requesterId: user.id, messages: { create: { authorId: user.id, body } } },
+    data: { subject, division, assigneeId: attorney.id, requesterId: user.id, messages: { create: { authorId: user.id, body } } },
     select: { id: true },
   });
-  try { await notifyMany(await officeReviewers(), { type: "contact_mail", title: "New Contact Us ticket", body: "A new private message is waiting in the review inbox.", link: `/dashboard/contact-mail/${ticket.id}` }); }
+  try { await notifyMany([attorney.id, ...await officeReviewers()], { type: "contact_mail", title: "New Contact Us ticket", body: `A new private message was sent to you for ${division}.`, link: `/dashboard/contact-mail/${ticket.id}` }); }
   catch (error) { console.error("Contact ticket was saved, but reviewer notification failed", error); }
   revalidatePath("/contacts");
   revalidatePath("/dashboard/review");
