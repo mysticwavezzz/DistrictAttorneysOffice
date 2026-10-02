@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { CaseOpeningForm } from "@/components/case-opening-form";
 import type { RevisionDraft } from "@/components/case-opening-form";
-import { localUser } from "@/lib/case-access";
+import { localUser, canAssignCase } from "@/lib/case-access";
 
 export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ reviseRequestId?: string }> }) {
   const session = await auth();
@@ -12,10 +12,12 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
     redirect("/login?error=forbidden");
   }
 
-  const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
+  const user = await localUser(session.user);
+  if (!user) redirect("/login?error=forbidden");
+  const canAssign = canAssignCase(session.user.tiers, user.division);
   const reviewersCanAutoApprove = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
   const attorneys = canAssign ? await prisma.user.findMany({
-    where: { tiers: { not: "" } },
+    where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }) },
     select: { id: true, displayName: true },
     orderBy: { displayName: "asc" },
   }).catch((error) => {
@@ -26,7 +28,6 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
   let revision: RevisionDraft | undefined;
   const { reviseRequestId } = await searchParams;
   if (reviseRequestId) {
-    const user = await localUser(session.user);
     const request = user ? await prisma.caseActionRequest.findFirst({
       where: { id: reviseRequestId, requestedById: user.id, kind: "CREATE", status: "REJECTED" },
     }) : null;

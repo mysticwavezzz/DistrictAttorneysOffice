@@ -4,18 +4,21 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
+import { localUser, canReviewDivision } from "@/lib/case-access";
 import { notify } from "@/lib/notifications";
 
 export async function reviewAopc(formData: FormData) {
   const session = await auth();
-  if (!session?.user?.providerUserId || !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS)) throw new Error("Forbidden");
+  if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION))) throw new Error("Forbidden");
   const user = await localUser(session.user);
   if (!user) throw new Error("Forbidden");
   const id = String(formData.get("id") ?? "");
   const decision = String(formData.get("decision") ?? "");
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   if (!id || !["ACCEPTED", "REJECTED"].includes(decision) || (decision === "REJECTED" && !note)) throw new Error("Choose a decision and provide a reason when rejecting.");
+
+  const existing = await prisma.aopc.findUnique({ where: { id }, select: { targetUnit: true, submittedById: true } });
+  if (!existing || !canReviewDivision(session.user.tiers, user.division, existing.targetUnit) || existing.submittedById === user.id) throw new Error("This AOPC is outside your review authority.");
 
   const result = await prisma.aopc.updateMany({
     where: { id, status: "PENDING" },

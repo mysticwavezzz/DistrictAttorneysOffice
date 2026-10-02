@@ -23,6 +23,23 @@ const groupRolesResponseSchema = z.object({
   ),
 });
 
+const groupMembersResponseSchema = z.object({
+  nextPageCursor: z.string().nullable().optional(),
+  data: z.array(z.object({
+    user: z.object({ userId: z.number().int().positive(), username: z.string().min(1), displayName: z.string().optional() }),
+    role: z.object({ id: z.number().int().positive(), name: z.string().min(1), rank: z.number().int().min(0).max(255) }),
+  })),
+});
+
+export interface RobloxGroupMember {
+  userId: string;
+  username: string;
+  displayName: string;
+  roleId: number;
+  roleName: string;
+  rank: number;
+}
+
 export class RobloxApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -61,4 +78,36 @@ export async function fetchRobloxGroupRoles(
     roleName: entry.role.name,
     rank: entry.role.rank,
   }));
+}
+
+/** Fetch the complete public group membership snapshot or fail without returning partial results. */
+export async function fetchRobloxGroupMembers(groupId: number): Promise<RobloxGroupMember[]> {
+  if (!Number.isSafeInteger(groupId) || groupId <= 0) throw new Error("Invalid Roblox group ID");
+  const members: RobloxGroupMember[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+  for (let page = 0; page < 250; page++) {
+    const params = new URLSearchParams({ limit: "100", sortOrder: "Asc" });
+    if (cursor) params.set("cursor", cursor);
+    const response = await fetch(`${GROUPS_API_BASE}/groups/${groupId}/users?${params}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new RobloxApiError(`Roblox group members API returned ${response.status} on page ${page + 1}`, response.status);
+    const json = groupMembersResponseSchema.parse(await response.json());
+    members.push(...json.data.map(({ user, role }) => ({
+      userId: String(user.userId),
+      username: user.username,
+      displayName: user.displayName ?? user.username,
+      roleId: role.id,
+      roleName: role.name,
+      rank: role.rank,
+    })));
+    cursor = json.nextPageCursor ?? null;
+    if (!cursor) return members;
+    if (seenCursors.has(cursor)) throw new Error("Roblox returned a repeated group pagination cursor; sync was stopped safely.");
+    seenCursors.add(cursor);
+  }
+  throw new Error("The group is larger than the safe sync limit of 25,000 members; no roster changes were applied.");
 }

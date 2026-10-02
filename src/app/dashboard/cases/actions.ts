@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
 import { caseFilingSchema, caseCommentSchema } from "@/lib/validation/case-extras";
-import { localUser, canAccessCase, generateCaseNumber } from "@/lib/case-access";
+import { localUser, canAccessCase, generateCaseNumber, canAssignCase, canEditCase } from "@/lib/case-access";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { readCasePdf } from "@/lib/filing-upload";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
@@ -45,7 +45,7 @@ export async function createCase(formData: FormData) {
   const parsed = caseInputSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid case data");
   const data = parsed.data;
-  const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
+  const canAssign = canAssignCase(session.user.tiers, user.division);
   const canApproveOpening = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
   const partyRows = formData.getAll("partyName").map((value, index) => ({ name: String(value).trim(), role: String(formData.getAll("partyRole")[index] ?? "") })).filter((party) => party.name);
   if (!partyRows.length || partyRows.length > 20) throw new Error("Add at least one party and no more than 20.");
@@ -84,6 +84,7 @@ export async function createCase(formData: FormData) {
     ...data,
     assignedJudge: data.assignedJudge ?? "",
     assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id,
+    division: user.division,
     partyDetails: JSON.stringify(parties),
     initialFiling,
     relatedCaseNumbers: String(formData.get("relatedCaseNumbers") ?? ""),
@@ -93,15 +94,20 @@ export async function createCase(formData: FormData) {
     if (reviseRequestId) {
       const updated = await prisma.caseActionRequest.updateMany({
         where: { id: reviseRequestId, kind: "CREATE", status: "REJECTED", requestedById: user.id },
-        data: { proposedData: JSON.stringify(proposedData), status: "PENDING", reviewedById: null, reviewNote: null, reviewedAt: null, createdAt: new Date() },
+        data: { proposedData: JSON.stringify(proposedData), division: user.division, status: "PENDING", reviewedById: null, reviewNote: null, reviewedAt: null, createdAt: new Date() },
       });
       if (updated.count !== 1) throw new Error("This submission was already revised or is no longer available.");
     } else {
       await prisma.caseActionRequest.create({
-        data: { kind: "CREATE", proposedData: JSON.stringify(proposedData), requestedById: user.id },
+        data: { kind: "CREATE", division: user.division, proposedData: JSON.stringify(proposedData), requestedById: user.id },
       });
     }
-    const reviewerIds = await userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS);
+    const [globalReviewerIds, divisionReviewerIds] = await Promise.all([
+      userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS),
+      userIdsWithCapability(CAPABILITIES.CASES_APPROVE_DIVISION),
+    ]);
+    const divisionReviewers = user.division ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: user.division }, select: { id: true } }) : [];
+    const reviewerIds = Array.from(new Set([...globalReviewerIds, ...divisionReviewers.map((reviewer) => reviewer.id)]));
     await notifyMany(reviewerIds.filter((id) => id !== user.id), {
       type: "case_request",
       title: "New case opening needs review",
@@ -148,6 +154,7 @@ export async function createCase(formData: FormData) {
       finalJudgmentAt: toDate(data.finalJudgmentAt),
       summary: emptyToNull(data.summary) ?? "",
       assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id,
+      division: user.division,
       createdById: user.id,
       relatedTo: relatedIds.length > 0 ? { connect: relatedIds.map((id) => ({ id })) } : undefined,
       },
@@ -177,16 +184,13 @@ export async function createCase(formData: FormData) {
 
 export async function updateCase(formData: FormData) {
   const { session, user } = await requireStaff();
-  if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT)) {
-    throw new Error("Forbidden");
-  }
 
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing case id");
 
   const existing = await prisma.case.findUnique({ where: { id } });
   if (!existing) throw new Error("Case not found");
-  if (!canAccessCase(session.user.tiers, user.id, existing)) {
+  if (!canAccessCase(session.user.tiers, user.id, existing, user.division) || !canEditCase(session.user.tiers, user.division, existing.division)) {
     throw new Error("Forbidden");
   }
 
@@ -194,8 +198,11 @@ export async function updateCase(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid case data");
   const data = parsed.data;
 
-  const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
-  const nextAssignee = canAssign ? emptyToNull(data.assignedAttorneyId) : existing.assignedAttorneyId;
+  const canAssign = canAssignCase(session.user.tiers, user.division, existing.division);
+  const requestedAssigneeId = canAssign ? emptyToNull(data.assignedAttorneyId) : existing.assignedAttorneyId;
+  const requestedAssignee = requestedAssigneeId ? await prisma.user.findUnique({ where: { id: requestedAssigneeId }, select: { id: true, division: true } }) : null;
+  if (requestedAssigneeId && (!requestedAssignee || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && requestedAssignee.division !== user.division))) throw new Error("Invalid assignee");
+  const nextAssignee = requestedAssigneeId;
   const caseNumber = emptyToNull(data.caseNumber) ?? existing.caseNumber;
   const relatedIds = await resolveRelatedCaseIds(formData.get("relatedCaseNumbers"), id);
   const nextIsDraft = formData.get("isDraft") === "on";
@@ -278,7 +285,7 @@ export async function deleteCase(formData: FormData) {
   if (!id) throw new Error("Missing case id");
 
   const existing = await prisma.case.findUnique({ where: { id } });
-  if (!existing || !canAccessCase(session.user.tiers, user.id, existing)) throw new Error("Case not found or not accessible");
+  if (!existing || !canAccessCase(session.user.tiers, user.id, existing, user.division)) throw new Error("Case not found or not accessible");
   await prisma.case.delete({ where: { id } });
 
   revalidatePath("/dashboard/cases");
@@ -291,19 +298,20 @@ export async function bulkUpdateCases(formData: FormData) {
   const operation = String(formData.get("operation") ?? "");
   if (!ids.length) throw new Error("Select at least one case");
 
-  const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
-  const canEdit = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT);
+  const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN_DIVISION);
+  const canEdit = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT) || hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT_DIVISION);
   if ((operation === "assign" && !canAssign) || (operation === "archive" && !canEdit)) {
     throw new Error("Forbidden");
   }
   const cases = await prisma.case.findMany({ where: { id: { in: ids } }, include: { assignedAttorney: { select: { displayName: true } } } });
-  if (cases.length !== ids.length || cases.some((c) => !canAccessCase(session.user.tiers, user.id, c))) {
+  if (cases.length !== ids.length || cases.some((c) => !canAccessCase(session.user.tiers, user.id, c, user.division) || (operation === "assign" && !canAssignCase(session.user.tiers, user.division, c.division)) || (operation === "archive" && !canEditCase(session.user.tiers, user.division, c.division)))) {
     throw new Error("One or more cases are not accessible");
   }
 
   if (operation === "assign") {
     const assigneeId = emptyToNull(String(formData.get("assigneeId") ?? ""));
-    if (assigneeId && !(await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true } }))) {
+    const assigneeTarget = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true, division: true } }) : null;
+    if (assigneeId && (!assigneeTarget || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assigneeTarget.division !== user.division))) {
       throw new Error("Invalid assignee");
     }
     const assignee = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { displayName: true } }) : null;
@@ -352,7 +360,7 @@ export async function updateDeadlineReminderState(formData: FormData) {
   const dueDate = new Date(dueDateRaw);
   if (!Number.isFinite(dueDate.getTime())) throw new Error("Invalid due date");
   const caseRecord = await prisma.case.findUnique({ where: { id: caseId } });
-  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord)) throw new Error("Case not accessible");
+  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division)) throw new Error("Case not accessible");
   const currentDeadline = getProceduralDeadlines(caseRecord).find((deadline) => deadline.key === deadlineType);
   if (currentDeadline?.dueDate.getTime() !== dueDate.getTime()) throw new Error("That deadline has changed. Refresh the calendar and try again.");
 
@@ -374,7 +382,7 @@ export async function addFiling(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   const existing = await prisma.case.findUnique({ where: { id: caseId } });
   if (!existing) throw new Error("Case not found");
-  if (!canAccessCase(session.user.tiers, user.id, existing)) throw new Error("Forbidden");
+  if (!canAccessCase(session.user.tiers, user.id, existing, user.division) || !canEditCase(session.user.tiers, user.division, existing.division)) throw new Error("Forbidden");
 
   const parsed = caseFilingSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid filing");
@@ -404,11 +412,10 @@ export async function addFiling(formData: FormData) {
 
 export async function deleteFiling(formData: FormData) {
   const { session, user } = await requireStaff();
-  if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT)) throw new Error("Forbidden");
   const id = String(formData.get("id") ?? "");
   const filing = await prisma.caseFiling.findUnique({ where: { id }, include: { case: true } });
   if (!filing) throw new Error("Filing not found");
-  if (!canAccessCase(session.user.tiers, user.id, filing.case)) throw new Error("Forbidden");
+  if (!canAccessCase(session.user.tiers, user.id, filing.case, user.division) || !canEditCase(session.user.tiers, user.division, filing.case.division)) throw new Error("Forbidden");
 
   await prisma.caseFiling.delete({ where: { id } });
   revalidatePath(`/dashboard/cases/${filing.caseId}`);
@@ -419,7 +426,7 @@ export async function addComment(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   const existing = await prisma.case.findUnique({ where: { id: caseId } });
   if (!existing) throw new Error("Case not found");
-  if (!canAccessCase(session.user.tiers, user.id, existing)) throw new Error("Forbidden");
+  if (!canAccessCase(session.user.tiers, user.id, existing, user.division)) throw new Error("Forbidden");
 
   const parsed = caseCommentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid comment");

@@ -3,23 +3,24 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
+import { localUser, caseVisibilityWhere, canViewCases } from "@/lib/case-access";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 export default async function FilingHistoryPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const session = await auth();
-  if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) redirect("/login?error=forbidden");
+  if (!session?.user || !canViewCases(session.user.tiers)) redirect("/login?error=forbidden");
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
   const query = (await searchParams).q?.trim() ?? "";
+  const visibility = caseVisibilityWhere(session.user.tiers, user.id, user.division);
+  if (!visibility) redirect("/login?error=forbidden");
   const where = {
-    ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) ? {} : { case: { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] } }),
-    ...(query ? { OR: [
+    AND: [{ case: visibility }, ...(query ? [{ OR: [
       { title: { contains: query } },
       { case: { caseNumber: { contains: query } } },
       { case: { title: { contains: query } } },
-    ] } : {}),
+    ] }] : [])],
   };
   const filings = await prisma.caseFiling.findMany({
     where,

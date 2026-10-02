@@ -8,6 +8,7 @@ import { updateRosterEntry, removeRosterEntry } from "../actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { getSiteConfiguration } from "@/lib/site-settings";
+import { localUser, canManageRosterInDivision } from "@/lib/case-access";
 
 function toDateInputValue(date: Date | null): string {
   if (!date) return "";
@@ -17,16 +18,19 @@ function toDateInputValue(date: Date | null): string {
 export default async function EditRosterEntryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
-  if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE)) {
+  if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION))) {
     redirect("/login?error=forbidden");
   }
 
   const entry = await prisma.rosterEntry.findUnique({ where: { id } });
   if (!entry) notFound();
+  const user = await localUser(session.user);
+  if (!user || !canManageRosterInDivision(session.user.tiers, user.division, entry.unit)) notFound();
   const [ranks, divisions] = await Promise.all([
     getSiteConfiguration("ranks", RANKS),
     getSiteConfiguration("divisions", UNITS),
   ]);
+  const visibleDivisions = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) ? divisions : divisions.filter((division) => division.value === user.division);
 
   return (
     <div>
@@ -42,11 +46,15 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
         <div className="field-row">
           <div className="field">
             <label htmlFor="name">Name</label>
-            <input type="text" id="name" name="name" required maxLength={100} defaultValue={entry.name} />
+            <input type="text" id="name" name="name" required maxLength={100} defaultValue={entry.name} readOnly={entry.robloxSynced} />
           </div>
           <div className="field">
             <label htmlFor="rank">Rank</label>
-            <select id="rank" name="rank" defaultValue={entry.rank ?? ""} required>
+            {entry.robloxSynced ? <>
+              <input type="text" id="rank" value={entry.rank ?? "Not assigned"} readOnly aria-describedby="synced-rank-hint" />
+              <span className="hint" id="synced-rank-hint">Synced from Roblox. Run a roster sync to update this rank.</span>
+              <input type="hidden" name="rank" value={entry.rank ?? ""} />
+            </> : <select id="rank" name="rank" defaultValue={entry.rank ?? ""} required>
               <option value="" disabled>
                 Select a rank
               </option>
@@ -55,7 +63,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
                   {r.label}
                 </option>
               ))}
-            </select>
+            </select>}
           </div>
           <div className="field">
             <label htmlFor="unit">
@@ -63,7 +71,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
             </label>
             <select id="unit" name="unit" defaultValue={entry.unit ?? ""}>
               <option value="">No unit set</option>
-              {divisions.map((u) => (
+              {visibleDivisions.map((u) => (
                 <option key={u.value} value={u.value}>
                   {u.label}
                 </option>
@@ -83,6 +91,10 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
               maxLength={50}
               defaultValue={entry.discordUserId ?? ""}
             />
+          </div>
+          <div className="field">
+            <label htmlFor="robloxUserId">Roblox User ID <span className="hint">(links division access to the authenticated Roblox account)</span></label>
+            <input type="text" id="robloxUserId" name="robloxUserId" inputMode="numeric" pattern="[0-9]*" maxLength={30} defaultValue={entry.robloxUserId ?? ""} readOnly={entry.robloxSynced} />
           </div>
           <div className="field">
             <label htmlFor="startDate">
@@ -112,7 +124,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
         </div>
       </FormWithPendingSubmit>
 
-      <RemoveButton
+      {!entry.robloxSynced && <RemoveButton
         id={entry.id}
         action={removeRosterEntry}
         label="Remove from Roster"
@@ -120,7 +132,8 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
         className="govbtn"
         style={{ background: "var(--down)", borderColor: "#6b2018" }}
         formStyle={{ marginTop: 16 }}
-      />
+      />}
+      {entry.robloxSynced && <p className="note-inline">This roster record is managed by Roblox group sync. Remove the member from the Roblox group and run a sync to mark them inactive.</p>}
     </div>
   );
 }

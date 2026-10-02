@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
+import { localUser, caseVisibilityWhere } from "@/lib/case-access";
 import { updateDeadlineReminderState } from "../actions";
 import { getProceduralDeadlines, type ProceduralDeadlineCase } from "@/lib/procedural-deadlines";
 
@@ -26,9 +26,9 @@ export default async function CaseCalendarPage({ searchParams }: { searchParams:
   const month = match ? Math.min(11, Math.max(0, Number(match[2]) - 1)) : now.getUTCMonth();
   const start = new Date(Date.UTC(year, month, 1));
   const end = new Date(Date.UTC(year, month + 1, 1));
-  const viewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL);
-  const where: Prisma.CaseWhereInput = { archived: false, isDraft: false };
-  if (!viewAll) where.AND = [{ OR: [{ assignedAttorneyId: viewer.id }, { createdById: viewer.id }] }];
+  const visibility = caseVisibilityWhere(session.user.tiers, viewer.id, viewer.division);
+  if (!visibility) redirect("/login?error=forbidden");
+  const where: Prisma.CaseWhereInput = { AND: [visibility, { archived: false, isDraft: false }] };
   let cases: CalendarCase[] = [];
   try { cases = await prisma.case.findMany({ where, select: { id: true, caseNumber: true, title: true, type: true, createdAt: true, assignedAttorney: { select: { displayName: true } }, discDue: true, pretrial: true, appealBy: true, arraignmentAt: true, proofOfServiceAt: true, discoveryOrderAt: true, discoveryRequestedAt: true, motionServedAt: true, verdictAt: true, sentenceAt: true, finalJudgmentAt: true }, orderBy: { caseNumber: "asc" }, take: 2000 }); }
   catch (error) { console.error("Failed to load deadline calendar", error); }

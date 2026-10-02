@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
-import { localUser, generateCaseNumber } from "@/lib/case-access";
+import { localUser, generateCaseNumber, canAccessCase, canReviewDivision } from "@/lib/case-access";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 
 async function requireProposer() {
@@ -21,7 +21,7 @@ async function requireProposer() {
 
 async function requireReviewer() {
   const session = await auth();
-  if (!session?.user?.providerUserId || !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS)) {
+  if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION))) {
     throw new Error("Forbidden");
   }
   const user = await localUser(session.user);
@@ -30,24 +30,30 @@ async function requireReviewer() {
 }
 
 export async function submitCaseRequest(formData: FormData) {
-  const { user } = await requireProposer();
+  const { session, user } = await requireProposer();
 
   const parsed = caseInputSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid case data");
 
   const caseId = emptyToNull(String(formData.get("caseId") ?? ""));
   const kind = caseId ? "EDIT" : "CREATE";
+  const targetCase = caseId ? await prisma.case.findUnique({ where: { id: caseId } }) : null;
+  if (caseId && (!targetCase || !canAccessCase(session.user.tiers, user.id, targetCase, user.division))) throw new Error("Case not found or not accessible");
 
   await prisma.caseActionRequest.create({
     data: {
       kind,
       caseId,
+      division: targetCase?.division ?? user.division,
       proposedData: JSON.stringify(parsed.data),
       requestedById: user.id,
     },
   });
 
-  const reviewerIds = await userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS);
+  const [globalReviewers, divisionReviewers] = await Promise.all([userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS), userIdsWithCapability(CAPABILITIES.CASES_APPROVE_DIVISION)]);
+  const reviewDivision = targetCase?.division ?? user.division;
+  const scopedReviewers = reviewDivision ? await prisma.user.findMany({ where: { id: { in: divisionReviewers }, division: reviewDivision }, select: { id: true } }) : [];
+  const reviewerIds = Array.from(new Set([...globalReviewers, ...scopedReviewers.map((reviewer) => reviewer.id)]));
   await notifyMany(
     reviewerIds.filter((id) => id !== user.id),
     {
@@ -77,6 +83,9 @@ export async function reviewCaseRequest(formData: FormData) {
   if (!request || request.status !== "PENDING") {
     throw new Error("Request not found or already reviewed");
   }
+  const targetCase = request.caseId ? await prisma.case.findUnique({ where: { id: request.caseId }, select: { division: true } }) : null;
+  const requestDivision = request.division ?? targetCase?.division;
+  if (!canReviewDivision(session.user.tiers, user.division, requestDivision) || request.requestedById === user.id) throw new Error("This request is outside your review authority.");
 
   let createdCaseId: string | null = null;
   let reviewAppliedInTransaction = false;
@@ -125,6 +134,7 @@ export async function reviewCaseRequest(formData: FormData) {
             finalJudgmentAt: toDate(caseData.finalJudgmentAt),
             summary: emptyToNull(caseData.summary) ?? "",
             assignedAttorneyId,
+            division: typeof data.division === "string" ? data.division : request.division ?? user.division,
             createdById: request.requestedById,
           },
         });

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
+import { localUser } from "@/lib/case-access";
 import { markRecordsRequestStatus } from "../records-requests/actions";
 import { reviewCaseRequest } from "../cases/requests/actions";
 import { reviewAopc } from "./actions";
@@ -13,7 +14,10 @@ const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeS
 export default async function ReviewInboxPage({ searchParams }: { searchParams: Promise<{ type?: string; age?: string; division?: string }> }) {
   const session = await auth();
   if (!session?.user) redirect("/login?error=forbidden");
-  const canReviewCases = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const canReviewAllCases = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const canReviewDivisionCases = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION);
+  const viewer = await localUser(session.user);
+  const canReviewCases = canReviewAllCases || (canReviewDivisionCases && Boolean(viewer?.division));
   const canReviewRecords = hasCapability(session.user.tiers, CAPABILITIES.REQUESTS_VIEW);
   if (!canReviewCases && !canReviewRecords) redirect("/login?error=forbidden");
 
@@ -25,12 +29,13 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   const items: ReviewItem[] = [];
 
   if (canReviewCases && (selectedType === "all" || selectedType === "case")) {
-    const rows = await prisma.caseActionRequest.findMany({ where: { status: "PENDING" }, include: { requestedBy: { select: { displayName: true } }, case: { select: { id: true, caseNumber: true, type: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
+    const rows = await prisma.caseActionRequest.findMany({ where: { status: "PENDING", ...(canReviewAllCases ? {} : { division: viewer!.division }) }, include: { requestedBy: { select: { displayName: true } }, case: { select: { id: true, caseNumber: true, type: true, division: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
     for (const row of rows) {
       let data: Record<string, unknown> = {};
       try { const parsed: unknown = JSON.parse(row.proposedData); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) data = parsed as Record<string, unknown>; } catch { /* Preserve malformed requests in the queue so reviewers can investigate. */ }
       const title = typeof data.title === "string" ? data.title : row.case?.caseNumber ?? "Case request";
-      const division = typeof data.division === "string" ? data.division : typeof data.targetUnit === "string" ? data.targetUnit : "Unassigned";
+      const division = typeof data.division === "string" ? data.division : typeof data.targetUnit === "string" ? data.targetUnit : row.division ?? row.case?.division ?? "Unassigned";
+      if (!canReviewAllCases && division !== viewer?.division) continue;
       const detailFields = ["type", "stage", "assignedJudge", "assignedAttorneyName", "summary"];
       let parties = "";
       if (typeof data.partyDetails === "string") {
@@ -49,7 +54,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
     for (const row of rows) items.push({ id: row.id, kind: "records", title: row.name, summary: row.status === "NEW" ? "New public records request" : "Records request in progress", submittedBy: row.name, division: "Public requests", createdAt: row.createdAt, href: "/dashboard/review?type=records", details: row.details, contact: row.contact });
   }
   if (canReviewCases && (selectedType === "all" || selectedType === "aopc")) {
-    const rows = await prisma.aopc.findMany({ where: { status: "PENDING" }, select: { id: true, reportId: true, title: true, targetUnit: true, subject: true, narrative: true, documentUrl: true, pdfFileName: true, linkedCaseId: true, createdAt: true, submittedBy: { select: { displayName: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
+    const rows = await prisma.aopc.findMany({ where: { status: "PENDING", ...(canReviewAllCases ? {} : { targetUnit: viewer!.division! }) }, select: { id: true, reportId: true, title: true, targetUnit: true, subject: true, narrative: true, documentUrl: true, pdfFileName: true, linkedCaseId: true, createdAt: true, submittedBy: { select: { displayName: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
     for (const row of rows) items.push({ id: row.id, kind: "aopc", title: row.reportId || row.title, summary: `${row.targetUnit} · ${row.subject}`, submittedBy: row.submittedBy.displayName, division: row.targetUnit, createdAt: row.createdAt, href: `/dashboard/cases${row.linkedCaseId ? `/${row.linkedCaseId}` : ""}`, details: row.narrative, documentHref: row.pdfFileName ? `/api/aopcs/${row.id}/pdf` : row.documentUrl ?? undefined, documentName: row.pdfFileName ?? undefined });
   }
 

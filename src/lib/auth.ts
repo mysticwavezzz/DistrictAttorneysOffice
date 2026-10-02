@@ -8,6 +8,7 @@ import type { PermissionTier } from "./permissions/tiers";
 import { developerProfileSettingKey, isDeveloperProfileIdentity, withDeveloperProfile } from "@/config/developer-profiles";
 import { normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
 import { mayUseCachedRoles } from "./role-refresh-policy";
+import { migrateSavedAttorneyPermissions } from "./permissions/migrate-saved-config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -51,8 +52,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       }
 
-      if (token.robloxUserId && (params.account || params.trigger === "update")) {
+      const custom = token as typeof token & { permissionModelVersion?: string; configuredRobloxRoleMappings?: typeof ROBLOX_TIER_ROLE_MAPPINGS; configuredTierCapabilities?: Record<string, string[]> };
+      const needsPermissionRefresh = custom.permissionModelVersion !== "release-1.1.0";
+      if (token.robloxUserId && (params.account || params.trigger === "update" || needsPermissionRefresh)) {
         try {
+          await migrateSavedAttorneyPermissions();
           const [roles, mappingRow, capabilityRow, developerProfileSetting] = await Promise.all([
             fetchRobloxGroupRoles(token.robloxUserId),
             prisma.siteConfiguration.findUnique({ where: { key: "robloxTierRoleMappings" } }),
@@ -65,13 +69,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
           const tiers = withDeveloperProfile(token.identityProvider, token.username, resolveTiersFromRobloxRoles(roles, mappings), developerProfileSetting?.value === "true");
           token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, tierCapabilities)] as PermissionTier[];
-          const custom = token as typeof token & { configuredRobloxRoleMappings?: typeof mappings; configuredTierCapabilities?: typeof tierCapabilities };
+          custom.permissionModelVersion = "release-1.1.0";
           custom.configuredRobloxRoleMappings = mappings;
           custom.configuredTierCapabilities = tierCapabilities;
           token.tiersFetchedAt = Date.now();
         } catch (error) {
           console.error("Failed to resolve configured Roblox group permissions", error);
-          if (!mayUseCachedRoles(token.tiersFetchedAt, Date.now())) token.tiers = [];
+          if (needsPermissionRefresh || !mayUseCachedRoles(token.tiersFetchedAt, Date.now())) token.tiers = [];
         }
       }
 
@@ -82,8 +86,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             displayName: token.identityProvider === "roblox" ? token.username ?? token.providerUserId ?? "unknown" : token.displayName ?? token.username ?? token.providerUserId ?? "unknown",
             avatarUrl: token.avatarUrl ?? null,
             tiers: (token.tiers ?? []).join(","),
+            division: null as string | null,
           };
           if (token.identityProvider === "roblox" && token.robloxUserId) {
+            const [rosterEntry, existingUser] = await Promise.all([
+              prisma.rosterEntry.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { unit: true } }),
+              prisma.user.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { division: true } }),
+            ]);
+            userData.division = rosterEntry?.unit ?? existingUser?.division ?? null;
             await prisma.user.upsert({
               where: { robloxUserId: token.robloxUserId },
               update: userData,

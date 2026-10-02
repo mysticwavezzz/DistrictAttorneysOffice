@@ -15,6 +15,7 @@ model User {
   displayName      String
   avatarUrl        String?
   tiers            String   @default("")
+  division         String?
   mutedTypes       String   @default("")
   savedCaseFilters String   @default("[]")
   createdAt        DateTime @default(now())
@@ -98,6 +99,7 @@ model Case {
   archived           Boolean   @default(false)
   isDraft            Boolean   @default(false)
   summary            String
+  division           String?
   assignedAttorneyId String?
   createdById        String
   createdAt          DateTime  @default(now())
@@ -148,6 +150,7 @@ model CaseActionRequest {
   caseId        String?
   status        String    @default("PENDING")
   proposedData  String
+  division      String?
   requestedById String
   reviewedById  String?
   reviewNote    String?
@@ -214,6 +217,11 @@ model RosterEntry {
   id            String    @id @default(cuid())
   name          String
   discordUserId String?
+  robloxUserId  String?   @unique
+  robloxSynced  Boolean   @default(false)
+  robloxRoleId  String?
+  robloxRank    Int?
+  lastRobloxSyncAt DateTime?
   rank          String?
   unit          String?
   imageUrl      String?
@@ -222,6 +230,24 @@ model RosterEntry {
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model RobloxRosterSyncRun {
+  id             String   @id @default(cuid())
+  actorName      String
+  groupId        String
+  status         String   @default("PREVIEW")
+  previewData    String
+  additions      Int      @default(0)
+  updates        Int      @default(0)
+  inactivations  Int      @default(0)
+  exceptions     Int      @default(0)
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  appliedAt      DateTime?
+
+  @@index([createdAt])
+  @@index([status, expiresAt])
 }
 
 model Aopc {

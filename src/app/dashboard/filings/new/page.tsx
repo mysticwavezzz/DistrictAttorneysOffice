@@ -3,19 +3,19 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
+import { localUser, caseVisibilityWhere, canViewCases } from "@/lib/case-access";
 import { addFiling } from "@/app/dashboard/cases/actions";
 import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 export default async function FileOnCasePage({ searchParams }: { searchParams: Promise<{ caseId?: string }> }) {
   const session = await auth();
-  if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) redirect("/login?error=forbidden");
+  if (!session?.user || !canViewCases(session.user.tiers)) redirect("/login?error=forbidden");
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
   const query = await searchParams;
   const cases = await prisma.case.findMany({
-    where: hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) ? {} : { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] },
+    where: caseVisibilityWhere(session.user.tiers, user.id, user.division) ?? { id: "__no-access__" },
     select: { id: true, caseNumber: true, title: true, isDraft: true },
     orderBy: { updatedAt: "desc" },
     take: 200,

@@ -37,9 +37,10 @@ describe("resolveTiersFromRobloxRoles", () => {
 
     expect(cadaTiers).toEqual([PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY]);
     expect(cadaCapabilities.has(CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
-    for (const capability of Object.values(CAPABILITIES)) {
-      expect(cadaCapabilities.has(capability)).toBe(capability !== CAPABILITIES.SETTINGS_MANAGE);
-    }
+    expect(cadaCapabilities.has(CAPABILITIES.CASES_VIEW_DIVISION)).toBe(true);
+    expect(cadaCapabilities.has(CAPABILITIES.ROSTER_MANAGE_DIVISION)).toBe(true);
+    expect(cadaCapabilities.has(CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
+    expect(cadaCapabilities.has(CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
     expect(ddaTiers).toEqual([PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY]);
     expect(ddaCapabilities).toEqual(daCapabilities);
   });
@@ -95,24 +96,32 @@ describe("resolveTiersFromRobloxRoles", () => {
 });
 
 describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
-  it("DA, DDA, ADA, and Senior ADA each independently receive every site capability", async () => {
+  it("preserves full access for DA and DDA while limiting ADA to ordinary casework", async () => {
     const { capabilitiesForTiers, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    const tiers = [
-      PERMISSION_TIERS.DISTRICT_ATTORNEY,
-      PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY,
-      PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY,
-      PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY,
-    ];
-    const permissionSets = tiers.map((tier) => capabilitiesForTiers([tier]));
-    for (const permissions of permissionSets) {
-      for (const capability of Object.values(CAPABILITIES)) expect(permissions.has(capability)).toBe(true);
+    for (const tier of [PERMISSION_TIERS.DISTRICT_ATTORNEY, PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY]) {
+      for (const capability of Object.values(CAPABILITIES)) expect(capabilitiesForTiers([tier]).has(capability)).toBe(true);
     }
-    for (let index = 0; index < permissionSets.length; index++) {
-      for (let other = index + 1; other < permissionSets.length; other++) {
-        expect(permissionSets[index]).not.toBe(permissionSets[other]);
-        expect(permissionSets[index]).toEqual(permissionSets[other]);
-      }
+    const ada = capabilitiesForTiers([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY]);
+    expect(ada.has(CAPABILITIES.CASES_CREATE)).toBe(true);
+    expect(ada.has(CAPABILITIES.CASES_EDIT)).toBe(true);
+    expect(ada.has(CAPABILITIES.CASES_PROPOSE_EDIT)).toBe(true);
+    for (const capability of [CAPABILITIES.CASES_VIEW_ALL, CAPABILITIES.CASES_ASSIGN, CAPABILITIES.CASES_APPROVE_EDITS, CAPABILITIES.ROSTER_MANAGE, CAPABILITIES.SETTINGS_MANAGE]) expect(ada.has(capability)).toBe(false);
+  });
+
+  it("limits SADA and CADA to division work, with roster management reserved for CADA", async () => {
+    const { capabilitiesForTiers, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
+    const sada = capabilitiesForTiers([PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY]);
+    const cada = capabilitiesForTiers([PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY]);
+    for (const capabilities of [sada, cada]) {
+      expect(capabilities.has(CAPABILITIES.CASES_VIEW_DIVISION)).toBe(true);
+      expect(capabilities.has(CAPABILITIES.CASES_ASSIGN_DIVISION)).toBe(true);
+      expect(capabilities.has(CAPABILITIES.CASES_APPROVE_DIVISION)).toBe(true);
+      expect(capabilities.has(CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
+      expect(capabilities.has(CAPABILITIES.CASES_APPROVE_EDITS)).toBe(false);
+      expect(capabilities.has(CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
     }
+    expect(sada.has(CAPABILITIES.ROSTER_MANAGE_DIVISION)).toBe(false);
+    expect(cada.has(CAPABILITIES.ROSTER_MANAGE_DIVISION)).toBe(true);
   });
 
   it("paralegal can view all cases and propose edits, but not delete or assign", async () => {
@@ -125,13 +134,12 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(hasCapability(tiers, CAPABILITIES.CASES_ASSIGN)).toBe(false);
   });
 
-  it("Assistant District Attorneys receive the full-docket permissions requested", async () => {
+  it("legacy attorney and supervisor tiers follow the revised least-privilege model", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    for (const tier of [PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY, PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY]) {
-      expect(hasCapability([tier], CAPABILITIES.CASES_VIEW_ALL)).toBe(true);
-      expect(hasCapability([tier], CAPABILITIES.CASES_ASSIGN)).toBe(true);
-      expect(hasCapability([tier], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(true);
-    }
+    expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.CASES_EDIT)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.CASES_APPROVE_DIVISION)).toBe(true);
     expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATOR], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
   });
 
@@ -157,7 +165,7 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(
       hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)
     ).toBe(true);
-    expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)).toBe(false);
     expect(hasCapability([PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY], CAPABILITIES.ROSTER_MANAGE)).toBe(true);
     expect(hasCapability([PERMISSION_TIERS.DA_PARALEGAL], CAPABILITIES.ROSTER_MANAGE)).toBe(
       false
@@ -166,10 +174,7 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
 
   it("hasAnyCapability is true if any tier grants any listed capability", async () => {
     const { hasAnyCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    const result = hasAnyCapability(
-      [PERMISSION_TIERS.DA_ATTORNEY],
-      [CAPABILITIES.CASES_ASSIGN, CAPABILITIES.CASES_EDIT]
-    );
+    const result = hasAnyCapability([PERMISSION_TIERS.DA_ATTORNEY], [CAPABILITIES.CASES_CREATE, CAPABILITIES.CASES_EDIT]);
     expect(result).toBe(true);
   });
 
@@ -188,7 +193,7 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
 
   it("Supervising ADA and District Attorney can review case openings", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(
+    expect(hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.CASES_APPROVE_DIVISION)).toBe(
       true
     );
     expect(hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(
@@ -202,14 +207,12 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
       hasCapability([PERMISSION_TIERS.DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)
     ).toBe(true);
     expect(hasCapability([PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(true);
-    expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
     expect(hasCapability([PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
     expect(
       hasCapability([PERMISSION_TIERS.SUPERVISING_ADA], CAPABILITIES.SETTINGS_MANAGE)
     ).toBe(false);
-    expect(
-      hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)
-    ).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.DA_ATTORNEY], CAPABILITIES.SETTINGS_MANAGE)).toBe(false);
   });
 
   it("developer profile grants every capability, including against explicit deny markers", async () => {

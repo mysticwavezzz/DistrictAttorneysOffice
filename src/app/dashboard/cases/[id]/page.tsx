@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser, canAccessCase } from "@/lib/case-access";
+import { localUser, canAccessCase, canViewCases, canEditCase, canAssignCase } from "@/lib/case-access";
 import { CASE_STATUSES, caseStatusColor } from "@/config/case-statuses";
 import { updateCase, deleteCase, addFiling, deleteFiling, addComment } from "../actions";
 import { submitCaseRequest } from "../requests/actions";
@@ -35,7 +35,7 @@ function toDateInputValue(date: Date | null): string {
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
-  if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) {
+  if (!session?.user || !canViewCases(session.user.tiers)) {
     redirect("/login?error=forbidden");
   }
 
@@ -62,19 +62,20 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
   if (!caseRecord) notFound();
   const caseStatuses = await getSiteConfiguration("caseStatuses", CASE_STATUSES);
-  if (!canAccessCase(session.user.tiers, user.id, caseRecord)) {
+  if (!canAccessCase(session.user.tiers, user.id, caseRecord, user.division)) {
     redirect("/login?error=forbidden");
   }
 
-  const canEdit = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT);
+  const canEdit = canEditCase(session.user.tiers, user.division, caseRecord.division);
   const canDelete = hasCapability(session.user.tiers, CAPABILITIES.CASES_DELETE);
-  const canAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
+  const canAssign = canAssignCase(session.user.tiers, user.division, caseRecord.division);
   const canPropose = !canEdit && hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
 
   if (canEdit && canAssign) {
     try {
       attorneys = await prisma.user.findMany({
         select: { id: true, displayName: true },
+        where: { ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }) },
         orderBy: { displayName: "asc" },
       });
     } catch (error) {
@@ -91,6 +92,8 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const relatedCaseNumbersDefault = caseRecord.relatedTo.map((c) => c.caseNumber).join(", ");
   const accessLabel = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL)
     ? "Full docket access"
+    : hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION)
+      ? `${user.division ?? "Unassigned"} division access`
     : canEdit ? "Edit access" : canPropose ? "Read and propose edits" : "Read access";
   const activeDeadlines = getProceduralDeadlines(caseRecord);
   const ongoingObligations = getOngoingObligations(caseRecord);

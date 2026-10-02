@@ -96,6 +96,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
       <main className="paper" id="main" style={{ maxWidth: 900, margin: "0 auto" }}>
       <p className="eyebrow">Hidden Control Panel</p>
       <h1>Site Settings</h1>
+      <p><Link className="govbtn-outline" href="/98981/roster-sync">Preview Roblox roster sync</Link></p>
       <p className="lede">
         This page is not linked from anywhere in the site and is only reachable by URL. It
         controls site-wide behavior, not any single user&apos;s account.

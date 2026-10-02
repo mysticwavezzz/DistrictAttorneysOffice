@@ -20,12 +20,12 @@ describe("findRouteRule", () => {
 
   it("prefers the more specific /dashboard/cases rule over the /dashboard rule", () => {
     const rule = findRouteRule("/dashboard/cases");
-    expect(rule?.capabilities).toEqual([CAPABILITIES.CASES_VIEW]);
+    expect(rule?.capabilities).toEqual([CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_VIEW_DIVISION]);
   });
 
   it("applies the specific rule to nested case routes too", () => {
     const rule = findRouteRule("/dashboard/cases/abc123");
-    expect(rule?.capabilities).toEqual([CAPABILITIES.CASES_VIEW]);
+    expect(rule?.capabilities).toEqual([CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_VIEW_DIVISION]);
   });
 
   it("does not treat an unrelated path with a matching prefix substring as protected", () => {

@@ -43,6 +43,8 @@ const PARALEGAL_CAPABILITIES: Capability[] = [
 ];
 
 const ALL_SITE_CAPABILITIES = Object.values(CAPABILITIES);
+const ADA_CASEWORK_CAPABILITIES: Capability[] = [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_CREATE, CAPABILITIES.CASES_EDIT, CAPABILITIES.CASES_PROPOSE_EDIT];
+const DIVISION_SUPERVISOR_CAPABILITIES: Capability[] = [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_VIEW_DIVISION, CAPABILITIES.CASES_CREATE, CAPABILITIES.CASES_EDIT_DIVISION, CAPABILITIES.CASES_ASSIGN_DIVISION, CAPABILITIES.CASES_APPROVE_DIVISION];
 
 export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
   [PERMISSION_TIERS.LAW_ENFORCEMENT]: {
@@ -66,8 +68,8 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
   [PERMISSION_TIERS.DA_ATTORNEY]: {
     id: PERMISSION_TIERS.DA_ATTORNEY,
     label: "Attorney",
-    description: "District Attorney's Office prosecuting attorney.",
-    capabilities: [...ALL_SITE_CAPABILITIES],
+    description: "Regular attorney casework without office-wide management permissions.",
+    capabilities: [...ADA_CASEWORK_CAPABILITIES],
   },
   [PERMISSION_TIERS.SPECIAL_INVESTIGATIONS]: {
     id: PERMISSION_TIERS.SPECIAL_INVESTIGATIONS,
@@ -78,19 +80,8 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
   [PERMISSION_TIERS.SUPERVISING_ADA]: {
     id: PERMISSION_TIERS.SUPERVISING_ADA,
     label: "Supervisory Assistant District Attorney",
-    description: "Supervises assistant district attorneys; oversees the full case docket.",
-    capabilities: [
-      CAPABILITIES.DASHBOARD_VIEW,
-      CAPABILITIES.CASES_VIEW,
-      CAPABILITIES.CASES_VIEW_ALL,
-      CAPABILITIES.CASES_CREATE,
-      CAPABILITIES.CASES_EDIT,
-      CAPABILITIES.CASES_ASSIGN,
-      CAPABILITIES.CASES_APPROVE_EDITS,
-      CAPABILITIES.ROSTER_VIEW,
-      CAPABILITIES.REQUESTS_VIEW,
-      CAPABILITIES.ACTIVITY_VIEW,
-    ],
+    description: "Division supervisor access, limited to cases in the assigned division.",
+    capabilities: [...DIVISION_SUPERVISOR_CAPABILITIES],
   },
   [PERMISSION_TIERS.ROBLOX_GUEST]: {
     id: PERMISSION_TIERS.ROBLOX_GUEST, label: "Roblox Group: Guest", description: "Guest group role; no portal permissions.", capabilities: [],
@@ -117,13 +108,13 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
     id: PERMISSION_TIERS.EXECUTIVE_SECRETARY, label: "Executive Secretary", description: "Executive Secretary role with the existing paralegal-level portal permissions.", capabilities: [...PARALEGAL_CAPABILITIES],
   },
   [PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY]: {
-    id: PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY, label: "Assistant District Attorney", description: "Assistant District Attorney role with every site capability, including admin database access.", capabilities: [...ALL_SITE_CAPABILITIES],
+    id: PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY, label: "Assistant District Attorney", description: "Division attorney access for assigned casework, filings, and proposed case changes.", capabilities: [...ADA_CASEWORK_CAPABILITIES],
   },
   [PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY]: {
-    id: PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY, label: "Senior Assistant District Attorney", description: "Senior Assistant District Attorney role with every site capability, including admin database access.", capabilities: [...ALL_SITE_CAPABILITIES],
+    id: PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY, label: "Senior Assistant District Attorney", description: "Division supervisor access for review, assignment, and casework within the assigned division.", capabilities: [...DIVISION_SUPERVISOR_CAPABILITIES],
   },
   [PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY]: {
-    id: PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY, label: "Chief Assistant District Attorney", description: "CADA has every standard portal capability except Site Settings and the admin database.", capabilities: ALL_SITE_CAPABILITIES.filter((capability) => capability !== CAPABILITIES.SETTINGS_MANAGE),
+    id: PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY, label: "Chief Assistant District Attorney", description: "Division head access to oversee the division's case docket and roster without office-wide settings access.", capabilities: [...DIVISION_SUPERVISOR_CAPABILITIES, CAPABILITIES.ROSTER_VIEW_DIVISION, CAPABILITIES.ROSTER_MANAGE_DIVISION],
   },
   [PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY]: {
     id: PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY, label: "Deputy District Attorney", description: "Deputy District Attorney with every site capability, matching the District Attorney.", capabilities: [...ALL_SITE_CAPABILITIES],

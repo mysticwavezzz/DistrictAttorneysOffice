@@ -10,6 +10,7 @@ import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { SafeImage } from "@/components/safe-image";
+import { localUser } from "@/lib/case-access";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
@@ -17,18 +18,22 @@ type RosterEntry = Awaited<ReturnType<typeof prisma.rosterEntry.findMany>>[numbe
 
 export default async function RosterPage({ searchParams }: { searchParams: Promise<{ q?: string; rank?: string; unit?: string; active?: string }> }) {
   const session = await auth();
-  if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW)) {
+  if (!session?.user || (!hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW_DIVISION))) {
     redirect("/login?error=forbidden");
   }
 
-  const canManage = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE);
-  const divisions = await getSiteConfiguration("divisions", UNITS);
+  const user = await localUser(session.user);
+  if (!user) redirect("/login?error=forbidden");
+  const canManageAll = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE);
+  const canManage = canManageAll || (Boolean(user.division) && hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION));
+  const allDivisions = await getSiteConfiguration("divisions", UNITS);
+  const divisions = canManageAll || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) ? allDivisions : allDivisions.filter((division) => division.value === user.division);
   const ranks = await getSiteConfiguration("ranks", RANKS);
   const filters = await searchParams;
 
   let entries: RosterEntry[] = [];
   try {
-    entries = await prisma.rosterEntry.findMany({ orderBy: { name: "asc" } });
+    entries = await prisma.rosterEntry.findMany({ where: canManageAll || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) ? {} : { unit: user.division ?? "__unassigned__" }, orderBy: { name: "asc" } });
   } catch (error) {
     console.error("Failed to load roster", error);
   }
@@ -65,6 +70,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
             {entry.imageUrl && <SafeImage src={entry.imageUrl} alt="" width={54} height={54} />}
             <h4>{entry.name}</h4><p>{entry.rank ?? "Rank not set"}</p>
             <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
+            {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
             <span className={`pill ${entry.discordUserId ? "pill-green" : "pill-muted"}`}>{entry.discordUserId ? "Discord linked" : "No Discord linked"}</span>
             {canManage && <p><Link href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></p>}
           </article>)}
@@ -97,8 +103,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                     {canManage && (
                       <td data-label="Actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
                         <Link href={`/dashboard/roster/${entry.id}`}>Edit</Link>
-                        <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>
-                        <RemoveButton id={entry.id} action={removeRosterEntry} />
+                        {entry.robloxSynced ? <span className="hint">Membership managed by Roblox</span> : <>
+                          <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>
+                          <RemoveButton id={entry.id} action={removeRosterEntry} />
+                        </>}
                       </td>
                     )}
                   </tr>
@@ -114,6 +122,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   return (
     <div>
       <h1>Staff Roster</h1>
+      {hasCapability(session.user.tiers, CAPABILITIES.SETTINGS_MANAGE) && <p><Link className="govbtn-outline" href="/98981/roster-sync">Roblox roster sync</Link></p>}
 
       <form method="get" className="formbox roster-filters" aria-label="Filter staff roster">
         <div className="field"><label htmlFor="roster-search">Search name or Discord ID</label><input id="roster-search" name="q" defaultValue={filters.q} /></div>
@@ -182,6 +191,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                   Discord User ID <span className="hint">(optional)</span>
                 </label>
                 <input type="text" id="discordUserId" name="discordUserId" maxLength={50} />
+              </div>
+              <div className="field">
+                <label htmlFor="robloxUserId">Roblox User ID <span className="hint">(links division access to the authenticated Roblox account)</span></label>
+                <input type="text" id="robloxUserId" name="robloxUserId" inputMode="numeric" pattern="[0-9]*" maxLength={30} />
               </div>
               <div className="field">
                 <label htmlFor="startDate">

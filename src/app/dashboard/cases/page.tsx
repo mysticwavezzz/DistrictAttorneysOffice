@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { caseVisibilityWhere, localUser } from "@/lib/case-access";
+import { caseVisibilityWhere, localUser, canViewCases, canAssignCase } from "@/lib/case-access";
 import { caseStatusColor } from "@/config/case-statuses";
 import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
@@ -22,16 +22,18 @@ export default async function CasesPage({
   searchParams: Promise<{ tab?: string; q?: string; status?: string; page?: string; sort?: string; dir?: string; mine?: string; deadline?: string; review?: string }>;
 }) {
   const session = await auth();
-  if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) {
+  if (!session?.user || !canViewCases(session.user.tiers)) {
     redirect("/login?error=forbidden");
   }
 
   const filters = await searchParams;
+  const user = await localUser(session.user);
+  if (!user) redirect("/login?error=forbidden");
   const canCreate = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
   const canPropose = hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
   const viewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL);
-  const canBulkAssign = hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN);
-  const canBulkArchive = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT);
+  const canBulkAssign = canAssignCase(session.user.tiers, user.division);
+  const canBulkArchive = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT) || hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT_DIVISION);
   const tab = filters.tab === "archived" ? "archived" : "ongoing";
   const q = (filters.q ?? "").trim();
   const statusFilter = (filters.status ?? "").trim();
@@ -43,12 +45,11 @@ export default async function CasesPage({
   const direction = filters.dir === "asc" ? "asc" : "desc";
   const pageSize = 25;
 
-  const user = await localUser(session.user);
   const mineOnly = filters.mine === "1";
   const overdueOnly = filters.deadline === "overdue";
   const reviewOnly = filters.review === "1";
   const assignableUsers = canBulkAssign ? await prisma.user.findMany({
-    where: { tiers: { not: "" } },
+    where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }) },
     select: { id: true, displayName: true },
     orderBy: { displayName: "asc" },
   }).catch((error) => {
@@ -58,8 +59,8 @@ export default async function CasesPage({
 
   const where: Prisma.CaseWhereInput = { archived: tab === "archived" };
   const visibility = mineOnly
-    ? (user ? { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] } : null)
-    : caseVisibilityWhere(session.user.tiers, user?.id);
+    ? { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] }
+    : caseVisibilityWhere(session.user.tiers, user.id, user.division);
   if (!visibility) redirect("/login?error=forbidden");
   Object.assign(where, visibility);
   if (q) {

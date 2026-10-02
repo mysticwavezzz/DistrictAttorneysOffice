@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TIER_DEFINITIONS, hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { caseVisibilityWhere, localUser } from "@/lib/case-access";
+import { caseVisibilityWhere, localUser, canViewCases as canViewCasesInDocket } from "@/lib/case-access";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
@@ -11,25 +11,25 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   const query = await searchParams;
   const session = await auth();
   const tiers = session!.user.tiers;
-  const canViewCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW);
+  const canViewCases = canViewCasesInDocket(tiers);
   const canViewAllCases = hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
-  const canViewRoster = hasCapability(tiers, CAPABILITIES.ROSTER_VIEW);
+  const canViewRoster = hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION);
   const canManageAnnouncements = hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE);
-  const canApproveRequests = hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const canApproveRequests = hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION);
   const canViewRequests = hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW);
   const canViewReviewInbox = canApproveRequests || canViewRequests;
   const canCreateCases = hasCapability(tiers, CAPABILITIES.CASES_CREATE);
   const user = await localUser(session!.user);
   const personalScope = user ? { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] } : null;
-  const caseScope = caseVisibilityWhere(tiers, user?.id);
+  const caseScope = caseVisibilityWhere(tiers, user?.id, user?.division);
 
   const [myActiveCount, pendingRequestCount, newRecordsRequests, pendingAopcCount, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
     canViewCases && personalScope ? prisma.case.count({ where: { archived: false, ...personalScope } }).catch(() => 0) : Promise.resolve(0),
-    canApproveRequests ? prisma.caseActionRequest.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
+    canApproveRequests ? prisma.caseActionRequest.count({ where: { status: "PENDING", ...(hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) ? {} : { division: user?.division ?? "__none__" }) } }).catch(() => 0) : Promise.resolve(0),
     canViewRequests ? prisma.recordsRequest.count({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }).catch(() => 0) : Promise.resolve(0),
-    canApproveRequests ? prisma.aopc.count({ where: { status: "PENDING" } }).catch(() => 0) : Promise.resolve(0),
+    canApproveRequests ? prisma.aopc.count({ where: { status: "PENDING", ...(hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) ? {} : { targetUnit: user?.division ?? "__none__" }) } }).catch(() => 0) : Promise.resolve(0),
     user ? prisma.notification.count({ where: { userId: user.id, isRead: false } }).catch(() => 0) : Promise.resolve(0),
-    canViewRoster ? prisma.rosterEntry.count().catch(() => 0) : Promise.resolve(0),
+    canViewRoster ? prisma.rosterEntry.count({ where: hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) ? {} : { unit: user?.division ?? "__none__" } }).catch(() => 0) : Promise.resolve(0),
     canManageAnnouncements ? prisma.announcement.count({ where: { isPublished: true, publishedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }).catch(() => 0) : Promise.resolve(0),
   ]);
 
@@ -58,7 +58,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   return <div className="dashboard-overview">
     <p className="eyebrow">Staff Portal</p>
     <h1>Welcome, {session!.user.displayName}</h1>
-    {query.caseSubmitted === "review" && <p className="message message-success" role="status">Your case opening was sent to the Supervising Assistant District Attorney and District Attorney for review. It will appear on the docket after approval.</p>}
+    {query.caseSubmitted === "review" && <p className="message message-success" role="status">Your case opening was sent to an authorized reviewer for your division. It will appear on the docket after approval.</p>}
     <p className="subtitle">{tiers.filter((tier) => tier in TIER_DEFINITIONS).map((tier) => TIER_DEFINITIONS[tier].label).join(", ") || "Staff member"}</p>
 
     <section aria-labelledby="attention-heading"><h2 id="attention-heading">Needs Attention</h2><p className="section-lede">Items that need a decision, assignment, or response.</p><div className="cards">{actionCards.map((card) => <Link href={card.href} className={`card card-action ${card.urgent ? "card-urgent" : ""}`} key={card.label}><span className="card-label">{card.label}</span><span className="card-value">{card.value}</span><span className="card-action-label">{card.action}</span></Link>)}</div></section>
