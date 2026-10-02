@@ -33,7 +33,7 @@ export default function PrivacyPolicyPage() {
       <p>Access to staff information is restricted by sign-in and configured permissions. No internet service can promise perfect security. Do not include passwords, payment information, government identification numbers, or other information that is not needed for a report. A report is not an emergency service; contact local emergency services for immediate danger.</p>
 
       <h2>Your questions</h2>
-      <p>For a privacy question or a request about information you submitted, contact the site administrators through the Discord contacts listed on the <a href="/contacts">Contact Us page</a>. Requests about a criminal tip may also need to be handled by the owner of the Google Form where the response was received.</p>
+      <p>For a privacy question or a request about information you submitted, send a private message through the <a href="/contacts">Contact Us mailbox</a>. Requests about a criminal tip may also need to be handled by the owner of the Google Form where the response was received.</p>
 
       <h2>Changes to this policy</h2>
       <p>This policy may be updated when the site&apos;s features or data practices change. The date at the top identifies the latest revision.</p>

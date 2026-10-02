@@ -23,6 +23,9 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true"),
+  VAPID_PUBLIC_KEY: z.string().optional().default(""),
+  VAPID_PRIVATE_KEY: z.string().optional().default(""),
+  VAPID_SUBJECT: z.string().optional().default("mailto:admin@example.com"),
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 

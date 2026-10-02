@@ -31,7 +31,7 @@ export default function TermsOfServicePage() {
       <p>To the extent allowed by applicable law, the site operators are not responsible for losses arising from interruptions, inaccurate user submissions, third-party services, or reliance on information on this community site. Nothing on the site is legal advice or a real government determination.</p>
 
       <h2>Changes and contact</h2>
-      <p>These terms may be revised as the site changes. Continued use after an updated version is posted means you accept the revised terms. Questions can be sent through the Discord contacts on the <a href="/contacts">Contact Us page</a>.</p>
+      <p>These terms may be revised as the site changes. Continued use after an updated version is posted means you accept the revised terms. Questions can be sent through the private mailbox on the <a href="/contacts">Contact Us page</a>.</p>
     </LegalPage>
   );
 }

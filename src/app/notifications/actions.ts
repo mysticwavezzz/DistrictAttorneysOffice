@@ -47,10 +47,13 @@ export async function updateNotificationPreferences(formData: FormData) {
   const muted = NOTIFICATION_TYPES.map((t) => t.value).filter(
     (value) => formData.get(`mute_${value}`) === "on"
   );
+  const pushMuted = NOTIFICATION_TYPES.map((t) => t.value).filter(
+    (value) => formData.get(`push_mute_${value}`) !== "on"
+  );
 
   await prisma.user.update({
     where: { id: userId },
-    data: { mutedTypes: muted.join(",") },
+    data: { mutedTypes: muted.join(","), pushMutedTypes: pushMuted.join(",") },
   });
 
   revalidatePath("/settings");

@@ -37,9 +37,13 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   } catch (error) {
     console.error("Failed to load roster", error);
   }
+  const linkedDiscordByRobloxId = new Map<string, string>();
+  const linkedUsers = await prisma.user.findMany({ where: { robloxUserId: { in: entries.flatMap((entry) => entry.robloxUserId ? [entry.robloxUserId] : []) }, discordUserId: { not: null } }, select: { robloxUserId: true, discordUserId: true } }).catch(() => []);
+  for (const linkedUser of linkedUsers) if (linkedUser.robloxUserId && linkedUser.discordUserId) linkedDiscordByRobloxId.set(linkedUser.robloxUserId, linkedUser.discordUserId);
+  const linkedDiscordId = (entry: RosterEntry) => (entry.robloxUserId && linkedDiscordByRobloxId.get(entry.robloxUserId)) || entry.discordUserId;
   const filteredEntries = entries.filter((entry) =>
     (filters.active !== "yes" || entry.isActive) && (filters.active !== "no" || !entry.isActive) &&
-    (!filters.q || `${entry.name} ${entry.discordUserId ?? ""}`.toLowerCase().includes(filters.q.toLowerCase())) &&
+    (!filters.q || `${entry.name} ${linkedDiscordId(entry) ?? ""}`.toLowerCase().includes(filters.q.toLowerCase())) &&
     (!filters.rank || entry.rank === filters.rank) && (!filters.unit || entry.unit === filters.unit)
   );
   const vacantUnits = new Set(divisions.filter((division) => !entries.some((entry) => entry.unit === division.value)).map((division) => division.value));
@@ -71,7 +75,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
             <h4>{entry.name}</h4><p>{entry.rank ?? "Rank not set"}</p>
             <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
             {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
-            <span className={`pill ${entry.discordUserId ? "pill-green" : "pill-muted"}`}>{entry.discordUserId ? "Discord linked" : "No Discord linked"}</span>
+            <span className={`pill ${linkedDiscordId(entry) ? "pill-green" : "pill-muted"}`}>{linkedDiscordId(entry) ? "Discord linked" : "No Discord linked"}</span>
             {canManage && <p><Link href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></p>}
           </article>)}
         </div>
@@ -96,7 +100,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                       {isLeadershipRank(entry.rank) && <span className="pill pill-gold">Leadership</span>}
                     </td>
                     <td data-label="Discord" className="mono">
-                      {entry.discordUserId ?? "Not linked"}{" "}
+                      {linkedDiscordId(entry) ?? "Not linked"}{" "}
                     </td>
                     <td data-label="Start date">{entry.startDate ? dateFormatter.format(entry.startDate) : "Not set"}</td>
                     <td data-label="Roster status"><span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Active" : "Inactive"}</span></td>

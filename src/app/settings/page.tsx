@@ -12,6 +12,7 @@ import { RoleSyncButton } from "@/components/role-sync-button";
 import { NOTIFICATION_TYPES } from "@/lib/notifications";
 import { markAllNotificationsRead, markNotificationRead, updateNotificationPreferences } from "@/app/notifications/actions";
 import { TIER_DEFINITIONS } from "@/lib/permissions/tiers";
+import { BrowserPushSettings } from "@/components/browser-push-settings";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
@@ -38,6 +39,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const user = await localUser(session.user);
   const notifications = user ? await prisma.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
   const muted = new Set((user?.mutedTypes ?? "").split(",").filter(Boolean));
+  const pushMuted = new Set((user?.pushMutedTypes ?? "").split(",").filter(Boolean));
   const grouped = NOTIFICATION_TYPES.map((type) => ({ ...type, items: notifications.filter((item) => item.type === type.value) })).filter((group) => group.items.length);
   const other = notifications.filter((item) => !NOTIFICATION_TYPES.some((type) => type.value === item.type));
 
@@ -66,6 +68,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <form action={updateNotificationPreferences} className="formbox">
             <h3>Notification preferences</h3><p className="note-inline">Muted types will no longer create notifications for you.</p>
             {NOTIFICATION_TYPES.map((type) => <div className="field" key={type.value}><label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}><input type="checkbox" name={`mute_${type.value}`} defaultChecked={muted.has(type.value)}/> Mute: {type.label}</label></div>)}
+            <h4>Computer notifications</h4><p className="note-inline">Choose which notification types may appear outside the website. These settings do not mute in-site notifications.</p>
+            {NOTIFICATION_TYPES.map((type) => <div className="field" key={`push-${type.value}`}><label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}><input type="checkbox" name={`push_mute_${type.value}`} defaultChecked={!pushMuted.has(type.value)}/> Allow computer notification: {type.label}</label></div>)}
+            <BrowserPushSettings publicKey={env.VAPID_PUBLIC_KEY} />
             <button className="govbtn" type="submit">Save notification preferences</button>
           </form>
           <h3>Recent notifications</h3>

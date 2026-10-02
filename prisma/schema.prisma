@@ -17,6 +17,7 @@ model User {
   tiers            String   @default("")
   division         String?
   mutedTypes       String   @default("")
+  pushMutedTypes   String   @default("")
   savedCaseFilters String   @default("[]")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -31,6 +32,10 @@ model User {
   requestsSubmitted    CaseActionRequest[] @relation("RequestsSubmitted")
   requestsReviewed     CaseActionRequest[] @relation("RequestsReviewed")
   notifications        Notification[]
+  pushSubscriptions    PushSubscription[]
+  contactTickets      ContactTicket[] @relation("ContactTicketRequester")
+  assignedContactTickets ContactTicket[] @relation("ContactTicketAssignee")
+  contactMessages     ContactMessage[]
   deadlineReminders    DeadlineReminder[]
   aopcsSubmitted       Aopc[]              @relation("AopcSubmitted")
   aopcsReviewed        Aopc[]              @relation("AopcReviewed")
@@ -177,6 +182,53 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead, createdAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ContactTicket {
+  id           String   @id @default(cuid())
+  subject      String
+  status       String   @default("OPEN")
+  requesterId  String
+  assigneeId   String?
+  heldAt       DateTime?
+  closedAt     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  requester User  @relation("ContactTicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  assignee  User? @relation("ContactTicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  messages  ContactMessage[]
+
+  @@index([requesterId, status, updatedAt])
+  @@index([assigneeId, status, updatedAt])
+  @@index([status, updatedAt])
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  ticket ContactTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
 }
 
 model DeadlineReminder {

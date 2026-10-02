@@ -7,8 +7,9 @@ import { localUser } from "@/lib/case-access";
 import { markRecordsRequestStatus } from "../records-requests/actions";
 import { reviewCaseRequest } from "../cases/requests/actions";
 import { reviewAopc } from "./actions";
+import { canViewAllContactMail } from "@/lib/contact-mail";
 
-type ReviewItem = { id: string; kind: "case" | "records" | "aopc"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string; details?: string; contact?: string; documentHref?: string; documentName?: string };
+type ReviewItem = { id: string; kind: "case" | "records" | "aopc" | "contact"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string; details?: string; contact?: string; documentHref?: string; documentName?: string };
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 export default async function ReviewInboxPage({ searchParams }: { searchParams: Promise<{ type?: string; age?: string; division?: string }> }) {
@@ -19,14 +20,26 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   const viewer = await localUser(session.user);
   const canReviewCases = canReviewAllCases || (canReviewDivisionCases && Boolean(viewer?.division));
   const canReviewRecords = hasCapability(session.user.tiers, CAPABILITIES.REQUESTS_VIEW);
-  if (!canReviewCases && !canReviewRecords) redirect("/login?error=forbidden");
+  const canReviewAllContact = canViewAllContactMail(session.user.tiers);
+  const assignedMailCount = viewer ? await prisma.contactTicket.count({ where: { assigneeId: viewer.id, status: { not: "CLOSED" } } }).catch(() => 0) : 0;
+  const canReviewContact = canReviewAllContact || (hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW) && assignedMailCount > 0);
+  if (!canReviewCases && !canReviewRecords && !canReviewContact) redirect("/login?error=forbidden");
 
   const filters = await searchParams;
-  const selectedType = ["case", "records", "aopc"].includes(filters.type ?? "") ? filters.type! : "all";
+  const selectedType = ["case", "records", "aopc", "contact"].includes(filters.type ?? "") ? filters.type! : "all";
   const ageHours = ["24", "72", "168"].includes(filters.age ?? "") ? Number(filters.age) : 0;
   const selectedDivision = (filters.division ?? "").trim().slice(0, 100);
   const now = Date.now();
   const items: ReviewItem[] = [];
+
+  if (canReviewContact && (selectedType === "all" || selectedType === "contact")) {
+    const rows = await prisma.contactTicket.findMany({
+      where: { status: { not: "CLOSED" }, ...(canReviewAllContact ? {} : { assigneeId: viewer!.id }) },
+      include: { requester: { select: { username: true } }, assignee: { select: { username: true } }, messages: { orderBy: { createdAt: "desc" }, take: 1 } },
+      orderBy: { updatedAt: "asc" }, take: 100,
+    }).catch(() => []);
+    for (const row of rows) items.push({ id: row.id, kind: "contact", title: row.subject, summary: `${row.status === "ON_HOLD" ? "On hold" : "Open"} · ${row.assignee?.username ? `Assigned to ${row.assignee.username}` : "Unassigned"}`, submittedBy: row.requester.username, division: "Contact Us", createdAt: row.createdAt, href: `/dashboard/contact-mail/${row.id}`, details: row.messages[0]?.body });
+  }
 
   if (canReviewCases && (selectedType === "all" || selectedType === "case")) {
     const rows = await prisma.caseActionRequest.findMany({ where: { status: "PENDING", ...(canReviewAllCases ? {} : { division: viewer!.division }) }, include: { requestedBy: { select: { displayName: true } }, case: { select: { id: true, caseNumber: true, type: true, division: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
@@ -69,9 +82,9 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
 
   return <div className="review-inbox">
     <p className="eyebrow">Staff workflow</p><h1>Review Inbox</h1>
-    <p className="lede">One queue for pending case decisions, affidavit reviews, and public records requests. Older items rise to the top.</p>
+    <p className="lede">One queue for pending case decisions, affidavit reviews, public records requests, and private Contact Us messages. Older items rise to the top.</p>
     <form className="review-inbox-filters">
-      <div className="field"><label htmlFor="review-type">Request type</label><select id="review-type" name="type" defaultValue={selectedType}><option value="all">All types</option>{canReviewCases && <><option value="case">Case requests</option><option value="aopc">AOPCs</option></>}{canReviewRecords && <option value="records">Records requests</option>}</select></div>
+      <div className="field"><label htmlFor="review-type">Request type</label><select id="review-type" name="type" defaultValue={selectedType}><option value="all">All types</option>{canReviewCases && <><option value="case">Case requests</option><option value="aopc">AOPCs</option></>}{canReviewRecords && <option value="records">Records requests</option>}{canReviewContact && <option value="contact">Contact Us</option>}</select></div>
       <div className="field"><label htmlFor="review-age">Waiting at least</label><select id="review-age" name="age" defaultValue={filters.age ?? ""}><option value="">Any age</option><option value="24">24 hours</option><option value="72">3 days</option><option value="168">7 days</option></select></div>
       <div className="field"><label htmlFor="review-division">Division / queue</label><select id="review-division" name="division" defaultValue={selectedDivision}><option value="">All queues</option>{divisions.map((division) => <option key={division} value={division}>{division}</option>)}</select></div>
       <button type="submit" className="govbtn">Filter</button><Link href="/dashboard/review" className="govbtn-outline">Clear</Link>
@@ -81,10 +94,11 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
       const hours = Math.floor((now - item.createdAt.getTime()) / 3_600_000);
       const urgency = hours >= 72 ? "Urgent" : hours >= 24 ? "Waiting" : "New";
       return <article className="review-inbox-card" key={`${item.kind}-${item.id}`}>
-        <header><div><span className={`pill ${urgency === "Urgent" ? "pill-red" : urgency === "Waiting" ? "pill-gold" : "pill-navy"}`}>{urgency}</span> <span className="pill pill-muted">{item.kind === "case" ? "Case request" : item.kind === "aopc" ? "AOPC" : "Records request"}</span></div><time dateTime={item.createdAt.toISOString()}>{dateFormat.format(item.createdAt)}</time></header>
+        <header><div><span className={`pill ${urgency === "Urgent" ? "pill-red" : urgency === "Waiting" ? "pill-gold" : "pill-navy"}`}>{urgency}</span> <span className="pill pill-muted">{item.kind === "case" ? "Case request" : item.kind === "aopc" ? "AOPC" : item.kind === "contact" ? "Contact Us" : "Records request"}</span></div><time dateTime={item.createdAt.toISOString()}>{dateFormat.format(item.createdAt)}</time></header>
         <h2>{item.title}</h2><p>{item.summary}</p><dl><div><dt>Submitted by</dt><dd>{item.submittedBy}</dd></div><div><dt>Division / queue</dt><dd>{item.division}</dd></div><div><dt>Waiting</dt><dd>{hours < 24 ? `${Math.max(0, hours)} hours` : `${Math.floor(hours / 24)} days`}</dd></div></dl>
         {item.details && item.kind !== "records" && <p className="review-item-details">{item.details}</p>}
-        {item.kind === "aopc" ? <details className="review-aopc-detail"><summary>Review details and decision</summary><p><strong>Target:</strong> {item.summary}</p>{item.documentHref && <p><a href={item.documentHref} target="_blank" rel="noopener noreferrer">{item.documentName ? `View ${item.documentName}` : "View supporting document"} ↗</a></p>}<form action={reviewAopc} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><div className="field"><label htmlFor={`aopc-note-${item.id}`}>Review note <span className="hint">Required when returning</span></label><textarea id={`aopc-note-${item.id}`} name="note" rows={2} maxLength={1000}/></div><button type="submit" name="decision" value="ACCEPTED" className="govbtn">Accept</button><button type="submit" name="decision" value="REJECTED" className="govbtn-outline">Return for changes</button></form></details>
+        {item.kind === "contact" ? <><p className="review-item-details">{item.details}</p><Link className="govbtn" href={item.href}>Open private conversation</Link></>
+          : item.kind === "aopc" ? <details className="review-aopc-detail"><summary>Review details and decision</summary><p><strong>Target:</strong> {item.summary}</p>{item.documentHref && <p><a href={item.documentHref} target="_blank" rel="noopener noreferrer">{item.documentName ? `View ${item.documentName}` : "View supporting document"} ↗</a></p>}<form action={reviewAopc} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><div className="field"><label htmlFor={`aopc-note-${item.id}`}>Review note <span className="hint">Required when returning</span></label><textarea id={`aopc-note-${item.id}`} name="note" rows={2} maxLength={1000}/></div><button type="submit" name="decision" value="ACCEPTED" className="govbtn">Accept</button><button type="submit" name="decision" value="REJECTED" className="govbtn-outline">Return for changes</button></form></details>
           : item.kind === "records" ? <><details className="review-aopc-detail"><summary>Request details and status</summary>{item.contact && <p><strong>Contact:</strong> {item.contact}</p>}<p className="review-item-details">{item.details}</p></details><form action={markRecordsRequestStatus} className="review-record-action"><input type="hidden" name="id" value={item.id}/><label htmlFor={`records-status-${item.id}`}>Update status</label><select id={`records-status-${item.id}`} name="status" defaultValue="IN_PROGRESS"><option value="IN_PROGRESS">In progress</option><option value="FULFILLED">Fulfilled</option><option value="DENIED">Denied</option></select><button type="submit" className="govbtn-outline">Save status</button></form></>
           : <><details className="review-aopc-detail"><summary>Case submission details</summary>{item.details && <p className="review-item-details">{item.details}</p>}{item.documentHref && <p><a href={item.documentHref} target="_blank" rel="noopener noreferrer">{item.documentName ? `Preview ${item.documentName}` : "Preview initial complaint"} ↗</a></p>}<Link href={item.href}>Open related case</Link></details><form action={reviewCaseRequest} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><div className="field"><label htmlFor={`case-review-note-${item.id}`}>Review note <span className="hint">Required when rejecting</span></label><textarea id={`case-review-note-${item.id}`} name="note" rows={2} maxLength={1000}/></div><button type="submit" name="decision" value="APPROVE" className="govbtn">Approve</button><button type="submit" name="decision" value="REJECT" className="govbtn-outline">Reject</button></form></>}
       </article>;

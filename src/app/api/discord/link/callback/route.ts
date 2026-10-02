@@ -64,11 +64,18 @@ export async function GET(request: NextRequest) {
 
     const currentUser = await prisma.user.findUnique({ where: { robloxUserId: session.user.robloxUserId }, select: { id: true, discordUserId: true } });
     if (!currentUser) return settingsRedirect(request, "profileMissing");
-    if (currentUser.discordUserId) return settingsRedirect(request, currentUser.discordUserId === discordUser.data.id ? "success" : "alreadyLinked");
+    if (currentUser.discordUserId) {
+      if (currentUser.discordUserId === discordUser.data.id) {
+        await prisma.rosterEntry.updateMany({ where: { robloxUserId: session.user.robloxUserId }, data: { discordUserId: currentUser.discordUserId } });
+        return settingsRedirect(request, "success");
+      }
+      return settingsRedirect(request, "alreadyLinked");
+    }
 
     const otherOwner = await prisma.user.findUnique({ where: { discordUserId: discordUser.data.id }, select: { id: true } });
     if (otherOwner && otherOwner.id !== currentUser.id) return settingsRedirect(request, "discordInUse");
     await prisma.user.update({ where: { id: currentUser.id }, data: { discordUserId: discordUser.data.id } });
+    await prisma.rosterEntry.updateMany({ where: { robloxUserId: session.user.robloxUserId }, data: { discordUserId: discordUser.data.id } });
     return settingsRedirect(request, "success");
   } catch (error) {
     console.error("Discord identity linking failed", error);

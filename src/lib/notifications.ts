@@ -16,6 +16,7 @@ export const NOTIFICATION_TYPES: { value: string; label: string }[] = [
   { value: "records_request", label: "New public records request" },
   { value: "aopc_submitted", label: "New affidavit of probable cause awaiting review" },
   { value: "aopc_reviewed", label: "Your affidavit of probable cause was reviewed" },
+  { value: "contact_mail", label: "Contact Us ticket replies and updates" },
 ];
 
 interface NotifyInput {
@@ -44,6 +45,30 @@ async function pushDiscordDm(userId: string, title: string, body?: string) {
   }
 }
 
+async function pushBrowserNotification(userId: string) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
+  try {
+    const subscriptions = await prisma.pushSubscription.findMany({ where: { userId } });
+    if (!subscriptions.length) return;
+    const moduleRuntime = process.getBuiltinModule("module") as typeof import("node:module") | undefined;
+    if (!moduleRuntime) return;
+    const webpush = moduleRuntime.createRequire(`${process.cwd()}/package.json`)("web-push") as typeof import("web-push");
+    webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
+    const payload = JSON.stringify({ title: "District Attorney's Office", body: "You have a new update. Sign in to view details.", url: "/settings#notifications" });
+    await Promise.all(subscriptions.map(async (subscription) => {
+      try {
+        await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, { TTL: 60 * 60 });
+      } catch (error) {
+        const statusCode = (error as { statusCode?: number }).statusCode;
+        if (statusCode === 404 || statusCode === 410) await prisma.pushSubscription.deleteMany({ where: { id: subscription.id } });
+        else console.error("Browser push delivery failed", statusCode ?? "unknown");
+      }
+    }));
+  } catch (error) {
+    console.error("Browser push notifications are unavailable", error);
+  }
+}
+
 export async function notify({ userId, type, title, body, link }: NotifyInput) {
   if ((await getSiteSettings()).notificationsDisabled) return;
   if (await isMuted(userId, type)) return;
@@ -51,6 +76,17 @@ export async function notify({ userId, type, title, body, link }: NotifyInput) {
     data: { userId, type, title, body, link },
   });
   void pushDiscordDm(userId, title, body);
+  void pushBrowserNotificationForType(userId, type);
+}
+
+async function pushBrowserNotificationForType(userId: string, type: string) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { pushMutedTypes: true } });
+    if (user?.pushMutedTypes.split(",").includes(type)) return;
+    await pushBrowserNotification(userId);
+  } catch (error) {
+    console.error("Could not check browser notification preferences", error);
+  }
 }
 
 export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "userId">) {
@@ -60,7 +96,7 @@ export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "us
 
   const users = await prisma.user.findMany({
     where: { id: { in: unique } },
-    select: { id: true, mutedTypes: true },
+    select: { id: true, mutedTypes: true, pushMutedTypes: true },
   });
   const recipients = users.filter((u) => !u.mutedTypes.split(",").includes(input.type)).map((u) => u.id);
   if (recipients.length === 0) return;
@@ -70,6 +106,7 @@ export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "us
   });
   for (const userId of recipients) {
     void pushDiscordDm(userId, input.title, input.body);
+    void pushBrowserNotificationForType(userId, input.type);
   }
 }
 
