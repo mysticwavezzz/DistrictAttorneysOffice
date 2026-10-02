@@ -80,8 +80,9 @@ export default async function AnnouncementsAdminPage() {
         </table>
       </div>
 
-      <h2>New Release</h2>
-      <form action={createAnnouncement} className="formbox">
+      <details className="dashboard-fold" open>
+      <summary><span className="dashboard-fold-title">New Release</span></summary>
+      <form action={createAnnouncement} className="formbox" encType="multipart/form-data">
         <div className="field">
           <label htmlFor="title">Title</label>
           <input type="text" id="title" name="title" required maxLength={200} />
@@ -94,11 +95,11 @@ export default async function AnnouncementsAdminPage() {
         </div>
         <div className="field">
           <label htmlFor="body">
-            Full Release Body{" "}
-            <span className="hint">(supports **bold**, *italic*, and [link text](https://...))</span>
+            Release text <span className="hint">(optional when a PDF is attached; supports **bold**, *italic*, and [link text](https://...))</span>
           </label>
-          <textarea id="body" name="body" required rows={6} maxLength={8000} />
+          <textarea id="body" name="body" rows={6} maxLength={8000} />
         </div>
+        <div className="field"><label htmlFor="releasePdf">Press release PDF <span className="hint">(optional, max 5 MB; displayed on the public release page)</span></label><input id="releasePdf" name="releasePdf" type="file" accept="application/pdf,.pdf" /></div>
         <div className="field">
           <label htmlFor="imageUrl">
             Image URL <span className="hint">(optional. Link to a hosted image)</span>
@@ -130,6 +131,7 @@ export default async function AnnouncementsAdminPage() {
           Save Release
         </button>
       </form>
+      </details>
     </div>
   );
 }

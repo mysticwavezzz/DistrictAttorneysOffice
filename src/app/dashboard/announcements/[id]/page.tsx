@@ -24,7 +24,7 @@ export default async function EditAnnouncementPage({ params }: { params: Promise
     <div>
       <h1>Edit Release</h1>
 
-      <form action={updateAnnouncement} className="formbox">
+      <form action={updateAnnouncement} className="formbox" encType="multipart/form-data">
         <input type="hidden" name="id" value={post.id} />
         <div className="field">
           <label htmlFor="title">Title</label>
@@ -37,9 +37,10 @@ export default async function EditAnnouncementPage({ params }: { params: Promise
           <input type="text" id="summary" name="summary" maxLength={300} defaultValue={post.summary ?? ""} />
         </div>
         <div className="field">
-          <label htmlFor="body">Full Release Body</label>
-          <textarea id="body" name="body" required rows={6} maxLength={8000} defaultValue={post.body} />
+          <label htmlFor="body">Release text <span className="hint">(optional when a PDF is attached)</span></label>
+          <textarea id="body" name="body" rows={6} maxLength={8000} defaultValue={post.body} />
         </div>
+        <div className="field"><label htmlFor="releasePdf">Replace with PDF <span className="hint">(optional, max 5 MB)</span></label><input id="releasePdf" name="releasePdf" type="file" accept="application/pdf,.pdf" />{post.pdfFileName && <p className="note-inline">Current PDF: {post.pdfFileName} <label><input type="checkbox" name="removeReleasePdf" /> Remove PDF</label></p>}</div>
         <div className="field">
           <label htmlFor="imageUrl">
             Image URL <span className="hint">(optional. Link to a hosted image)</span>

@@ -203,6 +203,8 @@ model Announcement {
   summary     String?
   body        String
   imageUrl    String?
+  pdfData     String?
+  pdfFileName String?
   audience    String   @default("PUBLIC")
   publishedAt DateTime @default(now())
   isPublished Boolean  @default(true)

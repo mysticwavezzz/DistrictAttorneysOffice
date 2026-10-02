@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Seal } from "@/components/seal";
 import { formatReleaseBody } from "@/lib/format-release-body";
 import { SafeImage } from "@/components/safe-image";
+import { env } from "@/lib/env";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "long" });
 
@@ -30,9 +31,23 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const announcement = await getAnnouncement((await params).id);
   if (!announcement) return {};
+  const description = announcement.summary?.trim() || announcement.body.slice(0, 160) || "Read the full press release.";
+  const base = env.NEXT_PUBLIC_SITE_URL || env.AUTH_URL || "https://districtattorneysoffice-production.up.railway.app";
+  const url = new URL(`/announcements/${announcement.id}`, base).toString();
   return {
     title: announcement.title,
-    description: announcement.summary ?? announcement.body.slice(0, 160),
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "article",
+      title: announcement.title,
+      description,
+      url,
+      siteName: `${siteConfig.county} ${siteConfig.name}`,
+      publishedTime: announcement.publishedAt.toISOString(),
+      images: announcement.imageUrl ? [{ url: announcement.imageUrl, alt: announcement.title }] : undefined,
+    },
+    twitter: { card: announcement.imageUrl ? "summary_large_image" : "summary", title: announcement.title, description, images: announcement.imageUrl ? [announcement.imageUrl] : undefined },
   };
 }
 
@@ -75,7 +90,11 @@ export default async function AnnouncementDetailPage({
               <div className="letter-head">
                 {siteConfig.county} {siteConfig.name}
               </div>
-              <p dangerouslySetInnerHTML={{ __html: formatReleaseBody(announcement.body) }} />
+              {announcement.summary && <p className="release-summary">{announcement.summary}</p>}
+              {announcement.pdfData ? <>
+                <div className="release-pdf-viewer"><iframe title={`PDF press release: ${announcement.title}`} src={`/api/announcements/${announcement.id}/pdf`} loading="lazy" /></div>
+                <p><a href={`/api/announcements/${announcement.id}/pdf?download=1`}>Download {announcement.pdfFileName || "press release PDF"}</a></p>
+              </> : <p dangerouslySetInnerHTML={{ __html: formatReleaseBody(announcement.body) }} />}
               <div className="letter-close">
                 <div className="letter-sign">Office of the District Attorney</div>
               </div>

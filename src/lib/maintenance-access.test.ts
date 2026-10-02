@@ -10,9 +10,11 @@ describe("maintenance route access", () => {
     expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/login", callbackUrl: "/98981" })).toBe(false);
   });
 
-  it("keeps the admin database, maintenance page, and assets reachable", () => {
-    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/98981" })).toBe(false);
-    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/98981/status" })).toBe(false);
+  it("keeps the maintenance page and assets reachable and gates the admin database", () => {
+    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/98981" })).toBe(true);
+    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/98981/status" })).toBe(true);
+    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/98981", exemptTiers: ["district_attorney"], user: { tiers: ["district_attorney"] } })).toBe(false);
+    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/98981", exemptUserIds: ["123456789"], user: { providerUserId: "123456789", tiers: ["district_attorney"] } })).toBe(false);
     expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/maintenance" })).toBe(false);
     expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/seal.webp" })).toBe(false);
   });

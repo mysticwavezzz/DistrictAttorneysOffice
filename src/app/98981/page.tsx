@@ -63,6 +63,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     getSiteConfiguration<string>("websiteVersion", ""),
     getWebsiteVersion(),
   ]);
+  const websiteVersionOverrideForUi = websiteVersionOverride === "1.1.1" ? "" : websiteVersionOverride;
   const [robloxRoleMappings] = await Promise.all([
     getSiteConfiguration("robloxTierRoleMappings", ROBLOX_TIER_ROLE_MAPPINGS).then(normalizeRobloxTierRoleMappings),
   ]);
@@ -102,7 +103,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
         controls site-wide behavior, not any single user&apos;s account.
       </p>
 
-      <h2>Maintenance Mode</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Maintenance Mode</span></summary>
       <p className="note-inline">
           {settings.maintenanceMode
           ? "Currently ON. Visitors are redirected to the maintenance page. This admin database remains available."
@@ -150,18 +151,21 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
         </fieldset>
         <div className="field"><label htmlFor="maintenanceExemptDiscordUserIds">Exempt account IDs</label><textarea id="maintenanceExemptDiscordUserIds" name="maintenanceExemptDiscordUserIds" rows={3} maxLength={2600} defaultValue={maintenanceExemptUserIds.join("\n")} placeholder="Provider account ID" /></div>
       </FormWithPendingSubmit>
+      </details>
 
-      <h2>Website Version</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Website Version</span></summary>
       <p className="note-inline">Current version: <strong>{websiteVersion}</strong>. Each Git commit automatically increments the patch number by default. For medium or major releases, set <code>VERSION_BUMP=medium</code> or <code>VERSION_BUMP=major</code> before committing. A manual value overrides the automatic version; clear it to return to automatic versioning.</p>
       <form action={updateWebsiteVersion} className="formbox">
-        <div className="field"><label htmlFor="websiteVersion">Manual version override <span className="hint">(blank uses the automatic version)</span></label><input id="websiteVersion" name="websiteVersion" inputMode="numeric" pattern="[0-9]+\.[0-9]+\.[0-9]+" defaultValue={websiteVersionOverride} placeholder="0.1.3" /></div>
+        <div className="field"><label htmlFor="websiteVersion">Manual version override <span className="hint">(blank uses the automatic version)</span></label><input id="websiteVersion" name="websiteVersion" inputMode="numeric" pattern="[0-9]+\.[0-9]+\.[0-9]+" defaultValue={websiteVersionOverrideForUi} placeholder="1.1.5" /></div>
         <button type="submit" className="govbtn">Save Website Version</button>
       </form>
+      </details>
 
-      <h2>Staff Sign-In &amp; Permissions</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Staff Sign-In &amp; Permissions</span></summary>
       <p className="note-inline">Roblox OAuth is the only staff sign-in method. Website access is determined exclusively by Roblox group role mappings below. Discord is not used to grant permissions; stored Discord user IDs remain available only for identity linking and optional Discord notifications.</p>
+      </details>
 
-      <h2>Notifications</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Notifications</span></summary>
       <p className="note-inline">
         {settings.notificationsDisabled
           ? "Currently OFF. No in-site or Discord DM notifications are being sent."
@@ -186,8 +190,9 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
         <div className="field"><label htmlFor="deadlineReminderDays">Upcoming deadline reminders (days before, comma-separated)</label><input id="deadlineReminderDays" name="deadlineReminderDays" defaultValue={settings.deadlineReminderDays} placeholder="7,3,1" /></div>
         <div className="field"><label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}><input type="checkbox" name="overdueRemindersEnabled" defaultChecked={settings.overdueRemindersEnabled}/> Send reminders for overdue deadlines</label></div>
       </FormWithPendingSubmit>
+      </details>
 
-      <h2>System Status</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">System Status</span></summary>
       <div className="tablewrap">
         <table className="stat">
           <tbody>
@@ -220,8 +225,9 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
           </tbody>
         </table>
       </div>
+      </details>
 
-      <h2>Permission Tiers &amp; Roblox Group Roles</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Permission Tiers &amp; Roblox Group Roles</span></summary>
       <p className="note-inline">Update role IDs, access grants, divisions, ranks and case status options below. Credentials and hosting settings remain in Railway.</p>
       <FormWithPendingSubmit action={saveApplicationConfiguration} submitLabel="Save Application Configuration" pendingLabel="Saving…" className="formbox">
         <h3>Roblox community role to permission tier mappings</h3>
@@ -275,19 +281,22 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
           </tbody>
         </table>
       </div>
+      </details>
 
-      <h2>Configuration Backups</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Configuration Backups</span></summary>
       <p className="note-inline">Automatic snapshots are created before settings changes and restores. These cover application settings only, not cases or the SQLite database.</p>
       <form action={saveConfigurationBackup}><button className="govbtn-outline" type="submit">Create backup now</button></form>
       {backups.length > 0 && <FormWithPendingSubmit action={restoreConfigurationBackup} submitLabel="Restore selected configuration" pendingLabel="Restoring..." className="formbox"><div className="field"><label htmlFor="backupId">Backup</label><select id="backupId" name="backupId" required defaultValue=""><option value="" disabled>Select a backup</option>{backups.map((backup)=><option key={backup.id} value={backup.id}>{backup.createdAt.toLocaleString()} - {backup.actorName}</option>)}</select></div><p className="note-inline">Restoring replaces current settings. A safety backup is created first.</p></FormWithPendingSubmit>}
-      <h2 id="audit">Settings Audit Trail</h2>
+      </details>
+      <details className="dashboard-fold" open><summary id="audit"><span className="dashboard-fold-title">Settings Audit Trail</span></summary>
       <p className="note-inline">Filter by actor, action, details, or date. Up to 100 matching entries are shown.</p>
       <form className="audit-filter-form"><div className="field"><label htmlFor="audit">Search</label><input id="audit" name="audit" defaultValue={auditQuery} placeholder="Search audit details"/></div><div className="field"><label htmlFor="actor">Actor</label><input id="actor" name="actor" defaultValue={auditActor}/></div><div className="field"><label htmlFor="action">Action</label><input id="action" name="action" defaultValue={auditAction}/></div><div className="field"><label htmlFor="from">From</label><input id="from" name="from" type="date" defaultValue={auditFrom}/></div><div className="field"><label htmlFor="to">Through</label><input id="to" name="to" type="date" defaultValue={auditTo}/></div><button className="govbtn" type="submit">Filter</button><Link className="govbtn-outline" href="/98981#audit">Clear</Link></form>
       <p><Link className="govbtn-outline" href={`/98981/audit-export?${new URLSearchParams({ audit: auditQuery, actor: auditActor, action: auditAction, from: auditFrom, to: auditTo }).toString()}`}>Export matching audit entries</Link></p>
       <div className="tablewrap"><table className="stat mobile-cards"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Change</th><th scope="col">Details</th></tr></thead><tbody>{auditLogs.length ? auditLogs.map((entry)=><tr key={entry.id}><td data-label="When">{entry.createdAt.toLocaleString()}</td><td data-label="Who">{entry.actorName}</td><td data-label="Change">{entry.action}</td><td data-label="Details">{entry.details}</td></tr>) : <tr><td colSpan={4}>No settings changes match those filters.</td></tr>}</tbody></table></div>
       <p><Link href="/98981/status">Open integration health and access diagnostics →</Link></p>
+      </details>
 
-      <h2>Affidavit of Probable Cause Routing</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Affidavit of Probable Cause Routing</span></summary>
       <p className="note-inline">Affidavit target units are defined in the configured divisions.</p>
       <div className="tablewrap">
         <table className="stat">
@@ -315,8 +324,9 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
           </tbody>
         </table>
       </div>
+      </details>
 
-      <h2>Crime Tip Blacklist</h2>
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Crime Tip Blacklist</span></summary>
       <p className="note-inline">Matching Roblox or Discord submitter identifiers are blocked from sending tips. Matching ignores capitalization and extra spaces.</p>
       <form action={addCrimeTipBlacklistEntry} className="formbox">
         <div className="field-row">
@@ -327,8 +337,9 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
         <button type="submit" className="govbtn">Add to Tip Blacklist</button>
       </form>
       {tipBlacklist.length === 0 ? <p className="message">No identifiers are currently blacklisted.</p> : <div className="tablewrap"><table className="stat"><thead><tr><th>Type</th><th>Identifier</th><th>Reason</th><th>Added by</th><th>Added</th><th>Action</th></tr></thead><tbody>{tipBlacklist.map((entry) => <tr key={entry.id}><td>{entry.kind === "roblox" ? "Roblox" : "Discord"}</td><td>{entry.identifier}</td><td>{entry.reason}</td><td>{entry.createdBy}</td><td>{entry.createdAt.toLocaleString()}</td><td><form action={removeCrimeTipBlacklistEntry}><input type="hidden" name="id" value={entry.id}/><button type="submit" className="linklike">Remove</button></form></td></tr>)}</tbody></table></div>}
+      </details>
 
-      <h2 style={{ color: "var(--down)" }}>Danger Zone</h2>
+      <details className="dashboard-fold danger-fold"><summary><span className="dashboard-fold-title" style={{ color: "var(--down)" }}>Danger Zone</span></summary>
       <div className="formbox" style={{ borderColor: "#6b2018" }}>
         <p className="note-inline">
           Permanently deletes all saved website data: cases and related records, affidavits,
@@ -342,6 +353,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
         </p>
         <ClearDataForm />
       </div>
+      </details>
       </main>
     </div>
   );

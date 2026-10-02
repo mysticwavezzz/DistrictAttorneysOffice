@@ -16,7 +16,7 @@ function buildCsp(nonce: string): string {
     "font-src 'self'",
     "img-src 'self' data: https:",
     "connect-src 'self'",
-    "frame-src 'none'",
+    "frame-src 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -49,8 +49,9 @@ async function getMaintenanceConfiguration(origin: string): Promise<{ enabled: b
     return maintenanceCache;
   } catch (error) {
     console.error("Failed to check maintenance mode", error);
-    if (maintenanceCache) return maintenanceCache;
-    return { enabled: false, exemptTiers: [], exemptUserIds: [] };
+    if (maintenanceCache && maintenanceCache.expiresAt > now) return maintenanceCache;
+    // Database/settings health is unknown, so fail closed on public routes.
+    return { enabled: true, exemptTiers: [], exemptUserIds: [] };
   }
 }
 

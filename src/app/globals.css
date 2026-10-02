@@ -2079,6 +2079,23 @@ button:disabled { cursor: wait; opacity: .7; }
     width: 100%;
   }
 }
+
+.dashboard-fold { margin: 16px 0; border: 1px solid var(--bd); background: var(--paper); }
+.dashboard-fold > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 10px 14px; color: var(--heading); background: var(--box-alt); }
+.dashboard-fold > summary::marker { color: var(--navy); }
+.dashboard-fold-title { display: block; margin: 0; font: 700 1.12rem/1.3 var(--serif); }
+.dashboard-fold > summary:focus-visible { outline: 3px solid var(--focus, #e0a62e); outline-offset: 2px; }
+.dashboard-fold > summary + section { padding: 0 14px 14px; }
+.dashboard-fold > .formbox, .dashboard-fold > .tablewrap, .dashboard-fold > p, .dashboard-fold > form { margin-left: 14px; margin-right: 14px; }
+.dashboard-fold[open] { padding-bottom: 2px; }
+.danger-fold { border-color: var(--down); }
+.danger-fold > summary { background: color-mix(in srgb, var(--down) 10%, var(--box-alt)); }
+.release-pdf-viewer { width: 100%; height: min(78vh, 1100px); min-height: 460px; margin: 18px 0; border: 1px solid var(--bd); background: #272727; }
+.release-pdf-viewer iframe { display: block; width: 100%; height: 100%; border: 0; }
+.release-summary { font-size: 1.05rem; line-height: 1.6; color: var(--ink-soft); }
+.maintenance-login { position: fixed; z-index: 10; right: 18px; bottom: 14px; padding: 5px 9px; border-radius: 4px; color: var(--ink-dim); opacity: .7; font-size: 12px; }
+.maintenance-login:hover, .maintenance-login:focus-visible { opacity: 1; color: var(--link); }
+@media (max-width: 640px) { .release-pdf-viewer { height: 68vh; min-height: 360px; } }
 .roster-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:12px 0; }
 .roster-card { border:1px solid var(--bd); border-radius:8px; padding:14px; background:var(--paper); }
 .roster-card img { width:54px; height:54px; object-fit:cover; border-radius:50%; float:right; }

@@ -2,10 +2,23 @@ import { siteConfig } from "@/config/site";
 import { getSiteSettings } from "@/lib/site-settings";
 import { Seal } from "@/components/seal";
 import { getWebsiteVersion } from "@/lib/site-version";
+import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { hasCapability, CAPABILITIES } from "@/lib/permissions";
+import { getSiteConfiguration } from "@/lib/site-settings";
 
 export default async function MaintenancePage() {
   const settings = await getSiteSettings();
   const version = await getWebsiteVersion();
+  const [session, exemptTiers, exemptUserIds] = await Promise.all([
+    auth(),
+    getSiteConfiguration<string[]>("maintenanceExemptTiers", []),
+    getSiteConfiguration<string[]>("maintenanceExemptDiscordUserIds", []),
+  ]);
+  const user = session?.user;
+  const accountId = user?.providerUserId ?? user?.robloxUserId ?? user?.discordUserId;
+  const maintenanceExempt = Boolean(accountId && exemptUserIds.includes(accountId)) || Boolean(user?.tiers?.some((tier) => exemptTiers.includes(tier)));
+  const canManageSite = Boolean(user && hasCapability(user.tiers, CAPABILITIES.SETTINGS_MANAGE));
 
   return (
     <div className="wrap">
@@ -29,6 +42,8 @@ export default async function MaintenancePage() {
           </p>
         )}
         <p className="maintenance-meta">Website version: {version}</p>
+        {user && !maintenanceExempt && user.tiers.length > 0 && <p className="message message-error" role="alert">While you may be an employee or law enforcement, currently the website is restricted to your roles for maintenance.</p>}
+        {!user ? <Link className="maintenance-login" href="/login?callbackUrl=%2F98981">Login</Link> : maintenanceExempt && canManageSite ? <Link className="maintenance-login" href="/98981">Admin login</Link> : null}
       </main>
     </div>
   );

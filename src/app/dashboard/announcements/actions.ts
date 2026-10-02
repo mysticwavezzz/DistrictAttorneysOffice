@@ -10,6 +10,18 @@ import { announcementInputSchema } from "@/lib/validation/announcement";
 import { emptyToNull } from "@/lib/validation/case";
 import { notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
+import { validateCasePdf } from "@/lib/filing-upload";
+
+async function parseReleasePdf(formData: FormData, current?: { pdfData: string | null; pdfFileName: string | null }) {
+  const upload = formData.get("releasePdf");
+  if (!(upload instanceof File) || upload.size === 0) {
+    return formData.get("removeReleasePdf") === "on" ? { pdfData: null, pdfFileName: null } : current ?? { pdfData: null, pdfFileName: null };
+  }
+  const bytes = new Uint8Array(await upload.arrayBuffer());
+  const error = validateCasePdf(bytes);
+  if (error) throw new Error(error);
+  return { pdfData: Buffer.from(bytes).toString("base64"), pdfFileName: upload.name.slice(0, 180) || "press-release.pdf" };
+}
 
 function revalidateAll() {
   revalidatePath("/dashboard/announcements");
@@ -36,6 +48,8 @@ export async function createAnnouncement(formData: FormData) {
     throw new Error("Invalid announcement");
   }
   const data = parsed.data;
+  const pdf = await parseReleasePdf(formData);
+  if (!(data.body ?? "").trim() && !pdf.pdfData) throw new Error("Add release text or attach a PDF.");
 
   const creator = await localUser(session.user);
 
@@ -47,8 +61,9 @@ export async function createAnnouncement(formData: FormData) {
     data: {
       title: data.title,
       summary: emptyToNull(data.summary),
-      body: data.body,
+      body: data.body ?? "",
       imageUrl: emptyToNull(data.imageUrl),
+      ...pdf,
       audience: data.audience,
       createdById: creator?.id,
       isPublished,
@@ -92,13 +107,18 @@ export async function updateAnnouncement(formData: FormData) {
   }
   const data = parsed.data;
 
+  const existing = await prisma.announcement.findUnique({ where: { id }, select: { pdfData: true, pdfFileName: true } });
+  const pdf = await parseReleasePdf(formData, existing ?? undefined);
+  if (!(data.body ?? "").trim() && !pdf.pdfData) throw new Error("Add release text or attach a PDF.");
+
   await prisma.announcement.update({
     where: { id },
     data: {
       title: data.title,
       summary: emptyToNull(data.summary),
-      body: data.body,
+      body: data.body ?? "",
       imageUrl: emptyToNull(data.imageUrl),
+      ...pdf,
       audience: data.audience,
       isPublished: formData.get("isPublished") === "on",
       publishedAt: resolvePublishedAt(data.publishedAt),

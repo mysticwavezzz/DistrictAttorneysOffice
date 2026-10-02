@@ -20,6 +20,7 @@ function formatDate(date: Date): string {
 
 function previewText(announcement: AnnouncementListItem): string {
   const source = announcement.summary?.trim() || announcement.body;
+  if (!source.trim()) return "Read the full press release.";
   if (source.length <= 220) return source;
   return `${source.slice(0, 220).trimEnd()}…`;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSiteSettings } from "@/lib/site-settings";
 import { getSiteConfiguration } from "@/lib/site-settings";
+import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { NextRequest } from "next/server";
 
@@ -11,13 +11,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const [settings, exemptTiers, exemptUserIds] = await Promise.all([
-    getSiteSettings(),
+    prisma.siteSettings.findUnique({ where: { id: 1 } }),
     getSiteConfiguration<string[]>("maintenanceExemptTiers", []),
     getSiteConfiguration<string[]>("maintenanceExemptDiscordUserIds", []),
   ]);
   return NextResponse.json(
     {
-      maintenanceMode: settings.maintenanceMode,
+      maintenanceMode: settings?.maintenanceMode ?? false,
       exemptTiers,
       exemptUserIds,
     },
