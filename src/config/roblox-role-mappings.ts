@@ -1,11 +1,23 @@
 import { PERMISSION_TIERS } from "@/lib/permissions/tiers";
 
 export const ROBLOX_DA_GROUP_ID = 32985413;
+export const ROBLOX_LESTA_GROUP_ID = 32305935;
+export const ROBLOX_LAW_ENFORCEMENT_AGENCY_GROUP_IDS = [
+  1071727956, // Kaslo Township Police Department
+  970861819, // Harrison County Military Law Enforcement
+  35056569, // Harrison County Transportation Police
+  32305984, // Jamestown Police Department
+  32985202, // Harrison County Sheriff's Office
+] as const;
 
 export interface RobloxTierRoleMapping {
   tier: (typeof PERMISSION_TIERS)[keyof typeof PERMISSION_TIERS];
   groupId: number;
   roleIds: number[];
+  /** Match any Roblox role in this group instead of enumerating role IDs. */
+  allRoles?: boolean;
+  /** Every listed group must also be present for this mapping to grant its tier. */
+  requiredGroupIds?: number[];
 }
 
 // Role IDs are from the public Roblox group roles endpoint. General and
@@ -26,4 +38,11 @@ export const ROBLOX_TIER_ROLE_MAPPINGS: RobloxTierRoleMapping[] = [
   { tier: PERMISSION_TIERS.DISTRICT_ATTORNEY, groupId: ROBLOX_DA_GROUP_ID, roleIds: [100901327] },
   { tier: PERMISSION_TIERS.ROBLOX_UTILITY, groupId: ROBLOX_DA_GROUP_ID, roleIds: [100901326] },
   { tier: PERMISSION_TIERS.ROBLOX_NATIONAL, groupId: ROBLOX_DA_GROUP_ID, roleIds: [100901325] },
+  ...ROBLOX_LAW_ENFORCEMENT_AGENCY_GROUP_IDS.map((groupId) => ({
+    tier: PERMISSION_TIERS.LAW_ENFORCEMENT,
+    groupId,
+    roleIds: [],
+    allRoles: true,
+    requiredGroupIds: [ROBLOX_LESTA_GROUP_ID],
+  })),
 ];

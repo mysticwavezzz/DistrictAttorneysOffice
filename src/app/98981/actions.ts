@@ -156,6 +156,8 @@ export async function saveApplicationConfiguration(formData: FormData) {
     tier: z.enum(ALL_TIERS as [typeof ALL_TIERS[number], ...typeof ALL_TIERS[number][]]),
     groupId: z.number().int().positive(),
     roleIds: z.array(z.number().int().positive()).max(100),
+    allRoles: z.boolean().optional(),
+    requiredGroupIds: z.array(z.number().int().positive()).max(20).optional(),
   })).max(100);
   const robloxRoleMappings = robloxRoleMappingsSchema.parse(parseJsonField(formData, "robloxTierRoleMappings"));
   const tierCapabilities = tierCapabilitiesSchema.parse(parseJsonField(formData, "tierCapabilities")) as Record<string, string[]>;

@@ -46,12 +46,35 @@ describe("resolveTiersFromRobloxRoles", () => {
   });
 
   it("assigns each current Roblox group role its own role-specific mapping", async () => {
-    const { ROBLOX_TIER_ROLE_MAPPINGS, ROBLOX_DA_GROUP_ID } = await import("@/config/roblox-role-mappings");
-    const roleIds = ROBLOX_TIER_ROLE_MAPPINGS.flatMap((mapping) => mapping.roleIds);
-    expect(ROBLOX_TIER_ROLE_MAPPINGS).toHaveLength(15);
-    expect(new Set(ROBLOX_TIER_ROLE_MAPPINGS.map((mapping) => mapping.tier)).size).toBe(15);
+    const { ROBLOX_TIER_ROLE_MAPPINGS, ROBLOX_DA_GROUP_ID, ROBLOX_LAW_ENFORCEMENT_AGENCY_GROUP_IDS, ROBLOX_LESTA_GROUP_ID } = await import("@/config/roblox-role-mappings");
+    const daMappings = ROBLOX_TIER_ROLE_MAPPINGS.filter((mapping) => mapping.groupId === ROBLOX_DA_GROUP_ID);
+    const lawEnforcementMappings = ROBLOX_TIER_ROLE_MAPPINGS.filter((mapping) => mapping.tier === "law_enforcement");
+    const roleIds = daMappings.flatMap((mapping) => mapping.roleIds);
+    expect(daMappings).toHaveLength(15);
+    expect(new Set(daMappings.map((mapping) => mapping.tier)).size).toBe(15);
     expect(new Set(roleIds).size).toBe(15);
-    expect(ROBLOX_TIER_ROLE_MAPPINGS.every((mapping) => mapping.groupId === ROBLOX_DA_GROUP_ID && mapping.roleIds.length === 1)).toBe(true);
+    expect(daMappings.every((mapping) => mapping.roleIds.length === 1)).toBe(true);
+    expect(lawEnforcementMappings.map((mapping) => mapping.groupId)).toEqual([...ROBLOX_LAW_ENFORCEMENT_AGENCY_GROUP_IDS]);
+    expect(lawEnforcementMappings.every((mapping) => mapping.allRoles && mapping.requiredGroupIds?.includes(ROBLOX_LESTA_GROUP_ID))).toBe(true);
+  });
+
+  it("grants Law Enforcement only for an academy member who is also in a configured agency", async () => {
+    const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
+    const academyRole: RobloxGroupRole = { groupId: 32305935, groupName: "Law Enforcement Standards and Training Academy", roleId: 100856091, roleName: "Certified", rank: 10 };
+    const agencyRole: RobloxGroupRole = { groupId: 1071727956, groupName: "Kaslo Township Police Department", roleId: 807918021, roleName: "Officer", rank: 101 };
+
+    expect(resolveTiersFromRobloxRoles([academyRole])).not.toContain(PERMISSION_TIERS.LAW_ENFORCEMENT);
+    expect(resolveTiersFromRobloxRoles([agencyRole])).not.toContain(PERMISSION_TIERS.LAW_ENFORCEMENT);
+    expect(resolveTiersFromRobloxRoles([academyRole, agencyRole])).toContain(PERMISSION_TIERS.LAW_ENFORCEMENT);
+  });
+
+  it("recognizes new agency roles without enumerating role IDs", async () => {
+    const { resolveTiersFromRobloxRoles, PERMISSION_TIERS } = await freshResolveModule();
+    const roles: RobloxGroupRole[] = [
+      { groupId: 32305935, groupName: "LESTA", roleId: 100856091, roleName: "Certified", rank: 10 },
+      { groupId: 970861819, groupName: "Harrison County Military Law Enforcement", roleId: 999999999, roleName: "New Agency Role", rank: 99 },
+    ];
+    expect(resolveTiersFromRobloxRoles(roles)).toContain(PERMISSION_TIERS.LAW_ENFORCEMENT);
   });
 
   it("does not grant capabilities to general members or provisional staff", async () => {

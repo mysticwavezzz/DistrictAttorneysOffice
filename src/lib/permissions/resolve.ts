@@ -10,7 +10,12 @@ export function resolveTiersFromRobloxRoles(
   const tiers = new Set<PermissionTier>();
   for (const mapping of mappings) {
     if ((mapping.tier as string) === DEVELOPER_PROFILE_TIER) continue;
-    if (roles.some((role) => role.groupId === mapping.groupId && mapping.roleIds.includes(role.roleId))) {
+    const requiredGroupsPresent = (mapping.requiredGroupIds ?? []).every((groupId) =>
+      roles.some((role) => role.groupId === groupId)
+    );
+    if (requiredGroupsPresent && roles.some((role) =>
+      role.groupId === mapping.groupId && (mapping.allRoles === true || mapping.roleIds.includes(role.roleId))
+    )) {
       tiers.add(mapping.tier);
     }
   }

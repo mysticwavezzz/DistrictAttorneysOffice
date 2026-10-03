@@ -162,7 +162,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
       </details>
 
       <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Staff Sign-In &amp; Permissions</span></summary>
-      <p className="note-inline">Roblox OAuth is the only staff sign-in method. Website access is determined exclusively by Roblox group role mappings below. Discord is not used to grant permissions; stored Discord user IDs remain available only for identity linking and optional Discord notifications.</p>
+      <p className="note-inline">Roblox OAuth is the only staff sign-in method. Law Enforcement access requires membership in the Law Enforcement Standards and Training Academy and at least one configured law-enforcement agency. Academy membership by itself grants no permissions. Discord is not used to grant permissions; stored Discord user IDs remain available only for identity linking and optional Discord notifications.</p>
       </details>
 
       <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Notifications</span></summary>
@@ -258,7 +258,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
           <tbody>
             {ALL_TIERS.map((tierId) => {
               const tier = TIER_DEFINITIONS[tierId];
-              const mapping = robloxRoleMappings.find((m) => m.tier === tier.id);
+              const mappings = robloxRoleMappings.filter((m) => m.tier === tier.id);
               return (
                 <tr key={tier.id}>
                   <th>
@@ -269,8 +269,13 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
                   </th>
                   <td style={{ fontSize: 11 }}>{(configuredCapabilities[tier.id] ?? tier.capabilities).join(", ")}</td>
                   <td className="mono" style={{ fontSize: 11 }}>
-                    {mapping && mapping.roleIds.length > 0 ? (
-                      `Group ${mapping.groupId}: ${mapping.roleIds.join(", ")}`
+                    {mappings.some((mapping) => mapping.allRoles || mapping.roleIds.length > 0) ? (
+                      mappings.filter((mapping) => mapping.allRoles || mapping.roleIds.length > 0).map((mapping) => (
+                        <div key={`${mapping.groupId}:${mapping.requiredGroupIds?.join(",") ?? ""}`}>
+                          Group {mapping.groupId}: {mapping.allRoles ? "all roles" : mapping.roleIds.join(", ")}
+                          {mapping.requiredGroupIds?.length ? ` (also requires group ${mapping.requiredGroupIds.join(", ")})` : ""}
+                        </div>
+                      ))
                     ) : (
                       <span className="pill pill-red">No role IDs set</span>
                     )}

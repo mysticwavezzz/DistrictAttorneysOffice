@@ -42,9 +42,15 @@ export default async function AdminStatusPage() {
     googleOk = response.ok;
     googleDetail = response.ok ? "Google Form is reachable (no response was submitted)." : `Google Form returned HTTP ${response.status}.`;
   } catch { googleOk = false; googleDetail = "Google Form could not be reached."; }
-  const matchedDetails = robloxMappings.filter((mapping) => robloxRoles.some((role) => role.groupId === mapping.groupId && mapping.roleIds.includes(role.roleId))).map((mapping) => ({
+  const matchedDetails = robloxMappings.filter((mapping) =>
+    (mapping.requiredGroupIds ?? []).every((groupId) => robloxRoles.some((role) => role.groupId === groupId)) &&
+    robloxRoles.some((role) => role.groupId === mapping.groupId && (mapping.allRoles || mapping.roleIds.includes(role.roleId)))
+  ).map((mapping) => ({
     tier: mapping.tier,
-    roles: robloxRoles.filter((role) => role.groupId === mapping.groupId && mapping.roleIds.includes(role.roleId)).map((role) => `${role.roleName} (${role.roleId})`),
+    roles: [
+      ...robloxRoles.filter((role) => role.groupId === mapping.groupId && (mapping.allRoles || mapping.roleIds.includes(role.roleId))).map((role) => `${role.roleName} (${role.roleId})`),
+      ...(mapping.requiredGroupIds ?? []).map((groupId) => `required group ${groupId} present`),
+    ],
   }));
   const baseTiers = resolveTiersFromRobloxRoles(robloxRoles, robloxMappings);
   const resolvedTiers = [...baseTiers, ...capabilityMarkersForTiers(baseTiers, capabilities)] as PermissionTier[];

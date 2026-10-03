@@ -4,7 +4,7 @@ import { PERMISSION_TIERS, ALL_TIERS } from "@/lib/permissions/tiers";
 
 /** Upgrade pre-per-role saved mappings while preserving subsequent admin edits. */
 export function normalizeRobloxTierRoleMappings(saved: RobloxTierRoleMapping[]): RobloxTierRoleMapping[] {
-  const result = saved.map((mapping) => ({ ...mapping, roleIds: [...mapping.roleIds] }));
+  const result: RobloxTierRoleMapping[] = saved.map((mapping) => ({ ...mapping, roleIds: [...mapping.roleIds], requiredGroupIds: mapping.requiredGroupIds ? [...mapping.requiredGroupIds] : undefined }));
 
   for (const currentDefault of ROBLOX_TIER_ROLE_MAPPINGS) {
     const alreadyConfigured = result.some(

@@ -40,6 +40,13 @@ describe("legacy role-mapping upgrades", () => {
     expect(normalized.find((mapping) => mapping.tier === PERMISSION_TIERS.DISTRICT_ATTORNEY)?.roleIds).toEqual([]);
   });
 
+  it("adds conditional agency-wide Law Enforcement defaults to existing saved settings", () => {
+    const normalized = normalizeRobloxTierRoleMappings([{ tier: PERMISSION_TIERS.DISTRICT_ATTORNEY, groupId: 32985413, roleIds: [100901327] }]);
+    const lawEnforcement = normalized.filter((mapping) => mapping.tier === PERMISSION_TIERS.LAW_ENFORCEMENT);
+    expect(lawEnforcement).toHaveLength(5);
+    expect(lawEnforcement.every((mapping) => mapping.allRoles && mapping.roleIds.length === 0 && mapping.requiredGroupIds?.includes(32305935))).toBe(true);
+  });
+
   it("moves retired Supervising ADA role IDs into Senior ADA and removes duplicate IDs", () => {
     const migrated = mergeRetiredSupervisingAdaMappings([
       { tier: "supervising_ada", groupId: 32985413, roleIds: [100910612, 999] },
