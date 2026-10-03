@@ -17,6 +17,7 @@ export const PROTECTED_ROUTES: RouteRule[] = [
   { prefix: "/dashboard", capabilities: [CAPABILITIES.DASHBOARD_VIEW] },
   { prefix: "/settings", capabilities: [CAPABILITIES.DASHBOARD_VIEW] },
   { prefix: "/98981", capabilities: [CAPABILITIES.SETTINGS_MANAGE] },
+  { prefix: "/debug", capabilities: [CAPABILITIES.SETTINGS_MANAGE] },
   { prefix: "/bulletin", capabilities: [CAPABILITIES.BULLETIN_VIEW] },
   {
     prefix: "/notifications",

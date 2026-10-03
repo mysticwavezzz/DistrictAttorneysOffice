@@ -8,8 +8,9 @@ import { CAPABILITIES } from "@/lib/permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { clientIpFromHeaders } from "@/lib/client-ip";
 import { headers } from "next/headers";
+import { runWithActionDebug } from "@/lib/action-debug";
 
-export async function submitRecordsRequest(formData: FormData) {
+async function submitRecordsRequestImpl(formData: FormData) {
   const parsed = recordsRequestSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     redirect("/records-request?error=1");
@@ -33,3 +34,5 @@ export async function submitRecordsRequest(formData: FormData) {
 
   redirect("/records-request?sent=1");
 }
+
+export async function submitRecordsRequest(formData: FormData) { return runWithActionDebug("submitRecordsRequest", [formData], () => submitRecordsRequestImpl(formData)); }

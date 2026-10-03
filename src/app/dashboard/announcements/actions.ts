@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { runWithActionDebug } from "@/lib/action-debug";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { localUser } from "@/lib/case-access";
@@ -37,7 +38,7 @@ function resolvePublishedAt(raw: string | undefined): Date {
   return parsed;
 }
 
-export async function createAnnouncement(formData: FormData) {
+async function createAnnouncementImpl(formData: FormData) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE)) {
     throw new Error("Forbidden");
@@ -92,7 +93,7 @@ export async function createAnnouncement(formData: FormData) {
   redirect("/dashboard/announcements");
 }
 
-export async function updateAnnouncement(formData: FormData) {
+async function updateAnnouncementImpl(formData: FormData) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE)) {
     throw new Error("Forbidden");
@@ -130,7 +131,7 @@ export async function updateAnnouncement(formData: FormData) {
   redirect("/dashboard/announcements");
 }
 
-export async function deleteAnnouncement(formData: FormData) {
+async function deleteAnnouncementImpl(formData: FormData) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE)) {
     throw new Error("Forbidden");
@@ -146,3 +147,7 @@ export async function deleteAnnouncement(formData: FormData) {
   revalidateAll();
   redirect("/dashboard/announcements");
 }
+
+export async function createAnnouncement(formData: FormData) { return runWithActionDebug("createAnnouncement", [formData], () => createAnnouncementImpl(formData)); }
+export async function updateAnnouncement(formData: FormData) { return runWithActionDebug("updateAnnouncement", [formData], () => updateAnnouncementImpl(formData)); }
+export async function deleteAnnouncement(formData: FormData) { return runWithActionDebug("deleteAnnouncement", [formData], () => deleteAnnouncementImpl(formData)); }

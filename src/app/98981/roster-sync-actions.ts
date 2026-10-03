@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { runWithActionDebug } from "@/lib/action-debug";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
@@ -98,7 +99,7 @@ async function buildPreview(members: RobloxGroupMember[]): Promise<SyncPreview> 
   return preview;
 }
 
-export async function previewRobloxRosterSync() {
+async function previewRobloxRosterSyncImpl() {
   const session = await requireAdmin();
   let run;
   try {
@@ -126,7 +127,7 @@ export async function previewRobloxRosterSync() {
   redirect(`${syncPath}?sync=${encodeURIComponent(run.id)}`);
 }
 
-export async function applyRobloxRosterSync(formData: FormData) {
+async function applyRobloxRosterSyncImpl(formData: FormData) {
   const session = await requireAdmin();
   const id = String(formData.get("syncId") ?? "");
   if (!id) throw new Error("Missing sync preview.");
@@ -196,3 +197,6 @@ export async function applyRobloxRosterSync(formData: FormData) {
   revalidatePath("/dashboard");
   redirect(`${syncPath}?sync=${encodeURIComponent(id)}&applied=1`);
 }
+
+export async function previewRobloxRosterSync() { return runWithActionDebug("previewRobloxRosterSync", [], () => previewRobloxRosterSyncImpl()); }
+export async function applyRobloxRosterSync(formData: FormData) { return runWithActionDebug("applyRobloxRosterSync", [formData], () => applyRobloxRosterSyncImpl(formData)); }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
+import { runWithActionDebug } from "@/lib/action-debug";
 
 const STATE_COOKIE = "discord_link_state";
 const discordTokenSchema = z.object({ access_token: z.string().min(1), token_type: z.string().min(1) });
@@ -21,7 +22,7 @@ function settingsRedirect(request: NextRequest, result: string) {
   return response;
 }
 
-export async function GET(request: NextRequest) {
+async function completeDiscordLink(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.robloxUserId || session.user.identityProvider !== "roblox") return settingsRedirect(request, "signInRequired");
 
@@ -81,4 +82,12 @@ export async function GET(request: NextRequest) {
     console.error("Discord identity linking failed", error);
     return settingsRedirect(request, "oauthFailed");
   }
+}
+
+export async function GET(request: NextRequest) {
+  return runWithActionDebug("completeDiscordIdentityLink", [request], async (actionId) => {
+    const response = await completeDiscordLink(request);
+    response.headers.set("x-action-id", actionId);
+    return response;
+  });
 }

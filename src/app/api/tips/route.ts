@@ -6,6 +6,7 @@ import { getSiteConfiguration } from "@/lib/site-settings";
 import { isAllowedRequestOrigin } from "@/lib/http/request-origin";
 import { prisma } from "@/lib/prisma";
 import { clientIpFromHeaders } from "@/lib/client-ip";
+import { runWithActionDebug } from "@/lib/action-debug";
 
 const MIN_HUMAN_FILL_TIME_MS = 3_000;
 
@@ -24,7 +25,7 @@ function normalizeTipIdentifier(value: string): string {
   return value.trim().toLocaleLowerCase("en-US").replace(/\s+/g, " ");
 }
 
-export async function POST(req: NextRequest) {
+async function postTip(req: NextRequest) {
   if (!isSameOriginRequest(req)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
@@ -170,4 +171,12 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ success: true, receipt, status: "submitted" });
+}
+
+export async function POST(req: NextRequest) {
+  return runWithActionDebug("submitCrimeTip", [req], async (actionId) => {
+    const response = await postTip(req);
+    response.headers.set("x-action-id", actionId);
+    return response;
+  });
 }

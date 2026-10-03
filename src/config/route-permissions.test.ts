@@ -42,6 +42,11 @@ describe("findRouteRule", () => {
     expect(rule?.capabilities).toEqual([CAPABILITIES.SETTINGS_MANAGE]);
   });
 
+  it("gates the unlinked debug console to settings:manage", () => {
+    const rule = findRouteRule("/debug");
+    expect(rule?.capabilities).toEqual([CAPABILITIES.SETTINGS_MANAGE]);
+  });
+
   it("does not gate the public maintenance page", () => {
     expect(findRouteRule("/maintenance")).toBeNull();
   });

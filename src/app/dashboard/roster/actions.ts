@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
+import { runWithActionDebug } from "@/lib/action-debug";
 import { localUser, canManageRosterInDivision } from "@/lib/case-access";
 import { rosterEntrySchema } from "@/lib/validation/roster";
 import { emptyToNull, toDate } from "@/lib/validation/case";
@@ -23,7 +24,7 @@ async function requireManager() {
   return { session, user };
 }
 
-export async function addRosterEntry(formData: FormData) {
+async function addRosterEntryImpl(formData: FormData) {
   const { session, user } = await requireManager();
 
   const parsed = rosterEntrySchema.safeParse(Object.fromEntries(formData));
@@ -55,7 +56,7 @@ export async function addRosterEntry(formData: FormData) {
   revalidatePath("/contacts");
 }
 
-export async function updateRosterEntry(formData: FormData) {
+async function updateRosterEntryImpl(formData: FormData) {
   const { session, user } = await requireManager();
 
   const id = String(formData.get("id") ?? "");
@@ -95,7 +96,7 @@ export async function updateRosterEntry(formData: FormData) {
   redirect("/dashboard/roster");
 }
 
-export async function removeRosterEntry(formData: FormData) {
+async function removeRosterEntryImpl(formData: FormData) {
   const { session, user } = await requireManager();
 
   const id = String(formData.get("id") ?? "");
@@ -112,7 +113,7 @@ export async function removeRosterEntry(formData: FormData) {
   revalidatePath("/contacts");
 }
 
-export async function setRosterActive(formData: FormData) {
+async function setRosterActiveImpl(formData: FormData) {
   const { session, user } = await requireManager();
   const id = String(formData.get("id") ?? "");
   const isActive = formData.get("isActive") === "true";
@@ -124,3 +125,8 @@ export async function setRosterActive(formData: FormData) {
   revalidatePath("/dashboard/roster");
   revalidatePath("/contacts");
 }
+
+export async function addRosterEntry(formData: FormData) { return runWithActionDebug("addRosterEntry", [formData], () => addRosterEntryImpl(formData)); }
+export async function updateRosterEntry(formData: FormData) { return runWithActionDebug("updateRosterEntry", [formData], () => updateRosterEntryImpl(formData)); }
+export async function removeRosterEntry(formData: FormData) { return runWithActionDebug("removeRosterEntry", [formData], () => removeRosterEntryImpl(formData)); }
+export async function setRosterActive(formData: FormData) { return runWithActionDebug("setRosterActive", [formData], () => setRosterActiveImpl(formData)); }

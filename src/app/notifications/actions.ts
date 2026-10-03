@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { localUser } from "@/lib/case-access";
+import { runWithActionDebug } from "@/lib/action-debug";
 
 async function currentUserId(): Promise<string | null> {
   const session = await auth();
@@ -12,7 +13,7 @@ async function currentUserId(): Promise<string | null> {
   return user?.id ?? null;
 }
 
-export async function markNotificationRead(formData: FormData) {
+async function markNotificationReadImpl(formData: FormData) {
   const userId = await currentUserId();
   if (!userId) throw new Error("Forbidden");
 
@@ -27,7 +28,7 @@ export async function markNotificationRead(formData: FormData) {
   revalidatePath("/settings");
 }
 
-export async function markAllNotificationsRead() {
+async function markAllNotificationsReadImpl() {
   const userId = await currentUserId();
   if (!userId) throw new Error("Forbidden");
 
@@ -39,7 +40,7 @@ export async function markAllNotificationsRead() {
   revalidatePath("/settings");
 }
 
-export async function updateNotificationPreferences(formData: FormData) {
+async function updateNotificationPreferencesImpl(formData: FormData) {
   const userId = await currentUserId();
   if (!userId) throw new Error("Forbidden");
 
@@ -58,3 +59,7 @@ export async function updateNotificationPreferences(formData: FormData) {
 
   revalidatePath("/settings");
 }
+
+export async function markNotificationRead(formData: FormData) { return runWithActionDebug("markNotificationRead", [formData], () => markNotificationReadImpl(formData)); }
+export async function markAllNotificationsRead() { return runWithActionDebug("markAllNotificationsRead", [], () => markAllNotificationsReadImpl()); }
+export async function updateNotificationPreferences(formData: FormData) { return runWithActionDebug("updateNotificationPreferences", [formData], () => updateNotificationPreferencesImpl(formData)); }

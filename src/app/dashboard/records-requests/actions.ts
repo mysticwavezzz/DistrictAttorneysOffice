@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
+import { runWithActionDebug } from "@/lib/action-debug";
 
-export async function markRecordsRequestStatus(formData: FormData) {
+async function markRecordsRequestStatusImpl(formData: FormData) {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.REQUESTS_VIEW)) {
     throw new Error("Forbidden");
@@ -21,3 +22,5 @@ export async function markRecordsRequestStatus(formData: FormData) {
   revalidatePath("/dashboard/review");
   revalidatePath("/dashboard/records-requests");
 }
+
+export async function markRecordsRequestStatus(formData: FormData) { return runWithActionDebug("markRecordsRequestStatus", [formData], () => markRecordsRequestStatusImpl(formData)); }

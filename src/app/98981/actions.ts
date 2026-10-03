@@ -21,6 +21,7 @@ import { VERSION_SCHEMA } from "@/lib/site-version";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
 import { fetchRobloxGroupRoles } from "@/lib/roblox/groups";
 import { resolveTiersFromRobloxRoles } from "@/lib/permissions/resolve";
+import { runWithActionDebug } from "@/lib/action-debug";
 
 async function requireSettingsManager() {
   const session = await auth();
@@ -30,7 +31,7 @@ async function requireSettingsManager() {
   return session;
 }
 
-export async function updateMaintenanceSettings(formData: FormData) {
+async function updateMaintenanceSettingsImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const maintenanceMode = formData.get("maintenanceMode") === "on";
   const maintenanceMessage = String(formData.get("maintenanceMessage") ?? "").trim();
@@ -67,7 +68,7 @@ export async function updateMaintenanceSettings(formData: FormData) {
   revalidatePath("/98981");
 }
 
-export async function updateWebsiteVersion(formData: FormData) {
+async function updateWebsiteVersionImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const version = String(formData.get("websiteVersion") ?? "").trim();
   if (version && !VERSION_SCHEMA.test(version)) {
@@ -80,7 +81,7 @@ export async function updateWebsiteVersion(formData: FormData) {
   revalidatePath("/maintenance");
 }
 
-export async function addCrimeTipBlacklistEntry(formData: FormData) {
+async function addCrimeTipBlacklistEntryImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const kind = String(formData.get("kind") ?? "");
   const identifier = String(formData.get("identifier") ?? "").trim().replace(/\s+/g, " ");
@@ -98,7 +99,7 @@ export async function addCrimeTipBlacklistEntry(formData: FormData) {
   revalidatePath("/98981");
 }
 
-export async function removeCrimeTipBlacklistEntry(formData: FormData) {
+async function removeCrimeTipBlacklistEntryImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const id = String(formData.get("id") ?? "");
   if (!id || id.length > 100) throw new Error("Invalid blacklist entry.");
@@ -109,7 +110,7 @@ export async function removeCrimeTipBlacklistEntry(formData: FormData) {
   revalidatePath("/98981");
 }
 
-export async function updateNotificationSettings(formData: FormData) {
+async function updateNotificationSettingsImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const notificationsDisabled = formData.get("notificationsDisabled") === "on";
   const deadlineReminderDays = String(formData.get("deadlineReminderDays") ?? "7,3,1").trim();
@@ -141,7 +142,7 @@ function parseJsonField(formData: FormData, name: string): unknown {
   }
 }
 
-export async function saveApplicationConfiguration(formData: FormData) {
+async function saveApplicationConfigurationImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const capabilityValues = Object.values(CAPABILITIES);
   const tierCapabilitiesSchema = z.record(
@@ -219,14 +220,14 @@ export async function saveApplicationConfiguration(formData: FormData) {
   revalidatePath("/contacts");
 }
 
-export async function saveConfigurationBackup() {
+async function saveConfigurationBackupImpl() {
   const session = await requireSettingsManager();
   const backup = await createConfigurationBackup(session.user.displayName);
   await recordSettingsAudit(session.user.displayName, "Configuration backup created", `Backup ${backup.id} created.`);
   revalidatePath("/98981");
 }
 
-export async function restoreConfigurationBackup(formData: FormData) {
+async function restoreConfigurationBackupImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const id = String(formData.get("backupId") ?? "");
   if (!id) throw new Error("Choose a configuration backup.");
@@ -293,7 +294,7 @@ export async function restoreConfigurationBackup(formData: FormData) {
   revalidatePath("/contacts");
 }
 
-export async function clearAllData(formData: FormData) {
+async function clearAllDataImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const confirmation = String(formData.get("confirmation") ?? "");
   if (confirmation !== CLEAR_DATA_CONFIRMATION) {
@@ -329,6 +330,7 @@ export async function clearAllData(formData: FormData) {
       accounts: (await tx.account.deleteMany({})).count,
       sessions: (await tx.session.deleteMany({})).count,
       users: (await tx.user.deleteMany({})).count,
+      actionDebugLogs: (await tx.actionDebugLog.deleteMany({})).count,
     };
     return counts;
   }, { maxWait: 10_000, timeout: 60_000 });
@@ -343,3 +345,13 @@ export async function clearAllData(formData: FormData) {
   revalidatePath("/98981");
   return { success: true as const, deleted };
 }
+
+export async function updateMaintenanceSettings(formData: FormData) { return runWithActionDebug("updateMaintenanceSettings", [formData], () => updateMaintenanceSettingsImpl(formData)); }
+export async function updateWebsiteVersion(formData: FormData) { return runWithActionDebug("updateWebsiteVersion", [formData], () => updateWebsiteVersionImpl(formData)); }
+export async function addCrimeTipBlacklistEntry(formData: FormData) { return runWithActionDebug("addCrimeTipBlacklistEntry", [formData], () => addCrimeTipBlacklistEntryImpl(formData)); }
+export async function removeCrimeTipBlacklistEntry(formData: FormData) { return runWithActionDebug("removeCrimeTipBlacklistEntry", [formData], () => removeCrimeTipBlacklistEntryImpl(formData)); }
+export async function updateNotificationSettings(formData: FormData) { return runWithActionDebug("updateNotificationSettings", [formData], () => updateNotificationSettingsImpl(formData)); }
+export async function saveApplicationConfiguration(formData: FormData) { return runWithActionDebug("saveApplicationConfiguration", [formData], () => saveApplicationConfigurationImpl(formData)); }
+export async function saveConfigurationBackup() { return runWithActionDebug("saveConfigurationBackup", [], () => saveConfigurationBackupImpl()); }
+export async function restoreConfigurationBackup(formData: FormData) { return runWithActionDebug("restoreConfigurationBackup", [formData], () => restoreConfigurationBackupImpl(formData)); }
+export async function clearAllData(formData: FormData) { return runWithActionDebug("clearAllData", [formData], () => clearAllDataImpl(formData)); }

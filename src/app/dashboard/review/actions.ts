@@ -6,8 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser, canReviewDivision } from "@/lib/case-access";
 import { notify } from "@/lib/notifications";
+import { runWithActionDebug } from "@/lib/action-debug";
 
-export async function reviewAopc(formData: FormData) {
+async function reviewAopcImpl(formData: FormData) {
   const session = await auth();
   if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION))) throw new Error("Forbidden");
   const user = await localUser(session.user);
@@ -36,3 +37,5 @@ export async function reviewAopc(formData: FormData) {
   revalidatePath("/dashboard/review");
   revalidatePath("/dashboard/affidavits");
 }
+
+export async function reviewAopc(formData: FormData) { return runWithActionDebug("reviewAopc", [formData], () => reviewAopcImpl(formData)); }

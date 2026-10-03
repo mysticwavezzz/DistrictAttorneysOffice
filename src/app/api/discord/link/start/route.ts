@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { localUser } from "@/lib/case-access";
+import { runWithActionDebug } from "@/lib/action-debug";
 
 const STATE_COOKIE = "discord_link_state";
 
@@ -12,7 +13,7 @@ function siteOrigin() {
   return new URL(configuredUrl).origin;
 }
 
-export async function GET() {
+async function startDiscordLink() {
   const session = await auth();
   if (!session?.user?.robloxUserId || session.user.identityProvider !== "roblox") {
     return NextResponse.redirect(new URL("/login?callbackUrl=%2Fsettings", siteOrigin()));
@@ -46,4 +47,12 @@ export async function GET() {
     maxAge: 600,
   });
   return response;
+}
+
+export async function GET() {
+  return runWithActionDebug("startDiscordIdentityLink", [], async (actionId) => {
+    const response = await startDiscordLink();
+    response.headers.set("x-action-id", actionId);
+    return response;
+  });
 }

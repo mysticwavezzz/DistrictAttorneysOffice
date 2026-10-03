@@ -9,6 +9,7 @@ import { canRouteContactMail, canViewAllContactMail, isAssignableContactEmployee
 import { PERMISSION_TIERS } from "@/lib/permissions/tiers";
 import { UNITS } from "@/config/units";
 import { getSiteConfiguration } from "@/lib/site-settings";
+import { runWithActionDebug } from "@/lib/action-debug";
 
 async function currentIdentity() {
   const session = await auth();
@@ -26,7 +27,7 @@ async function officeReviewers() {
   }).map((user) => user.id);
 }
 
-export async function createContactTicket(formData: FormData): Promise<string> {
+async function createContactTicketImpl(formData: FormData): Promise<string> {
   const { user } = await currentIdentity();
   const subject = String(formData.get("subject") ?? "").trim().slice(0, 120);
   const body = String(formData.get("message") ?? "").trim().slice(0, 8000);
@@ -51,7 +52,7 @@ export async function createContactTicket(formData: FormData): Promise<string> {
   return ticket.id;
 }
 
-export async function sendContactReply(ticketId: string, formData: FormData): Promise<void> {
+async function sendContactReplyImpl(ticketId: string, formData: FormData): Promise<void> {
   const { user, tiers } = await currentIdentity();
   const body = String(formData.get("message") ?? "").trim().slice(0, 8000);
   if (!ticketId || body.length < 1) throw new Error("Write a message before sending.");
@@ -70,7 +71,7 @@ export async function sendContactReply(ticketId: string, formData: FormData): Pr
   revalidatePath("/dashboard/review");
 }
 
-export async function manageContactTicket(ticketId: string, formData: FormData): Promise<void> {
+async function manageContactTicketImpl(ticketId: string, formData: FormData): Promise<void> {
   const { user, tiers } = await currentIdentity();
   if (!canRouteContactMail(tiers)) throw new Error("Only division supervisors and above can route tickets.");
   const targetAssigneeId = String(formData.get("assigneeId") ?? "").trim() || null;
@@ -111,7 +112,12 @@ export async function manageContactTicket(ticketId: string, formData: FormData):
   revalidatePath("/dashboard/review");
 }
 
-export async function canAssignContactMail(): Promise<boolean> {
+async function canAssignContactMailImpl(): Promise<boolean> {
   const { tiers } = await currentIdentity();
   return canRouteContactMail(tiers);
 }
+
+export async function createContactTicket(formData: FormData): Promise<string> { return runWithActionDebug("createContactTicket", [formData], () => createContactTicketImpl(formData)); }
+export async function sendContactReply(ticketId: string, formData: FormData): Promise<void> { return runWithActionDebug("sendContactReply", [ticketId, formData], () => sendContactReplyImpl(ticketId, formData)); }
+export async function manageContactTicket(ticketId: string, formData: FormData): Promise<void> { return runWithActionDebug("manageContactTicket", [ticketId, formData], () => manageContactTicketImpl(ticketId, formData)); }
+export async function canAssignContactMail(): Promise<boolean> { return runWithActionDebug("canAssignContactMail", [], () => canAssignContactMailImpl()); }

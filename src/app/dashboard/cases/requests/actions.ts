@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { runWithActionDebug } from "@/lib/action-debug";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
@@ -29,7 +30,7 @@ async function requireReviewer() {
   return { session, user };
 }
 
-export async function submitCaseRequest(formData: FormData) {
+async function submitCaseRequestImpl(formData: FormData) {
   const { session, user } = await requireProposer();
 
   const parsed = caseInputSchema.safeParse(Object.fromEntries(formData));
@@ -68,7 +69,7 @@ export async function submitCaseRequest(formData: FormData) {
   redirect("/dashboard/cases");
 }
 
-export async function reviewCaseRequest(formData: FormData) {
+async function reviewCaseRequestImpl(formData: FormData) {
   const { session, user } = await requireReviewer();
 
   const id = String(formData.get("id") ?? "");
@@ -224,3 +225,6 @@ export async function reviewCaseRequest(formData: FormData) {
   if (request.caseId) revalidatePath(`/dashboard/cases/${request.caseId}`);
   if (createdCaseId) revalidatePath(`/dashboard/cases/${createdCaseId}`);
 }
+
+export async function submitCaseRequest(formData: FormData) { return runWithActionDebug("submitCaseRequest", [formData], () => submitCaseRequestImpl(formData)); }
+export async function reviewCaseRequest(formData: FormData) { return runWithActionDebug("reviewCaseRequest", [formData], () => reviewCaseRequestImpl(formData)); }

@@ -406,6 +406,30 @@ model SettingsAuditLog {
   @@index([createdAt])
 }
 
+model ActionDebugLog {
+  id               String   @id @default(cuid())
+  actionId         String   @unique
+  actionName       String
+  actorId          String?
+  actorName        String?
+  identityProvider String?
+  requestMethod    String?
+  requestPath      String?
+  permissionTiers  String   @default("[]")
+  outcome          String
+  startedAt        DateTime
+  durationMs       Int
+  targetReference  String?
+  errorName        String?
+  errorStack       String?
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorName, createdAt])
+  @@index([actionName, createdAt])
+  @@index([outcome, createdAt])
+}
+
 model ConfigurationBackup {
   id        String   @id @default(cuid())
   actorName String

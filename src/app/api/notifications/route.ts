@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { localUser } from "@/lib/case-access";
+import { runWithActionDebug } from "@/lib/action-debug";
 
 export async function GET() {
   const session = await auth();
@@ -26,7 +27,7 @@ export async function GET() {
   return NextResponse.json({ unreadCount, items });
 }
 
-export async function POST(request: Request) {
+async function markNotificationsRead(request: Request) {
   const session = await auth();
   if (!session?.user?.providerUserId) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const user = await localUser(session.user);
@@ -64,4 +65,12 @@ export async function POST(request: Request) {
 
   if (ids.length) await prisma.notification.updateMany({ where: { id: { in: ids }, userId: user.id, isRead: false }, data: { isRead: true } });
   return NextResponse.json({ markedIds: ids });
+}
+
+export async function POST(request: Request) {
+  return runWithActionDebug("markNotificationsRead", [request], async (actionId) => {
+    const response = await markNotificationsRead(request);
+    response.headers.set("x-action-id", actionId);
+    return response;
+  });
 }

@@ -11,6 +11,7 @@ import { localUser, canAccessCase, generateCaseNumber, canAssignCase, canEditCas
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { readCasePdf } from "@/lib/filing-upload";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
+import { runWithActionDebug } from "@/lib/action-debug";
 
 async function requireStaff() {
   const session = await auth();
@@ -35,7 +36,7 @@ async function resolveRelatedCaseIds(raw: FormDataEntryValue | null, selfId?: st
   return matches.map((m) => m.id).filter((id) => id !== selfId);
 }
 
-export async function createCase(formData: FormData) {
+async function createCaseImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   const canSubmit = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) || hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
   if (!canSubmit) {
@@ -182,7 +183,7 @@ export async function createCase(formData: FormData) {
   redirect(`/dashboard/cases/${created.id}`);
 }
 
-export async function updateCase(formData: FormData) {
+async function updateCaseImpl(formData: FormData) {
   const { session, user } = await requireStaff();
 
   const id = String(formData.get("id") ?? "");
@@ -275,7 +276,7 @@ export async function updateCase(formData: FormData) {
   redirect(`/dashboard/cases/${id}`);
 }
 
-export async function deleteCase(formData: FormData) {
+async function deleteCaseImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_DELETE)) {
     throw new Error("Forbidden");
@@ -292,7 +293,7 @@ export async function deleteCase(formData: FormData) {
   redirect("/dashboard/cases");
 }
 
-export async function bulkUpdateCases(formData: FormData) {
+async function bulkUpdateCasesImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   const ids = formData.getAll("caseIds").map(String).filter(Boolean).slice(0, 100);
   const operation = String(formData.get("operation") ?? "");
@@ -328,7 +329,7 @@ export async function bulkUpdateCases(formData: FormData) {
   revalidatePath("/dashboard/cases");
 }
 
-export async function saveCaseFilter(formData: FormData) {
+async function saveCaseFilterImpl(formData: FormData) {
   const { user } = await requireStaff();
   const name = String(formData.get("name") ?? "").trim().slice(0, 60);
   const raw = String(formData.get("query") ?? "");
@@ -341,7 +342,7 @@ export async function saveCaseFilter(formData: FormData) {
   revalidatePath("/dashboard/cases");
 }
 
-export async function deleteCaseFilter(formData: FormData) {
+async function deleteCaseFilterImpl(formData: FormData) {
   const { user } = await requireStaff();
   const id = String(formData.get("id") ?? "");
   const existing = JSON.parse(user.savedCaseFilters || "[]") as { id: string; name: string; query: string }[];
@@ -349,7 +350,7 @@ export async function deleteCaseFilter(formData: FormData) {
   revalidatePath("/dashboard/cases");
 }
 
-export async function updateDeadlineReminderState(formData: FormData) {
+async function updateDeadlineReminderStateImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) throw new Error("Forbidden");
   const caseId = String(formData.get("caseId") ?? "");
@@ -377,7 +378,18 @@ export async function updateDeadlineReminderState(formData: FormData) {
   revalidatePath(`/dashboard/cases/${caseId}`);
 }
 
-export async function addFiling(formData: FormData) {
+export async function createCase(formData: FormData) { return runWithActionDebug("createCase", [formData], () => createCaseImpl(formData)); }
+export async function updateCase(formData: FormData) { return runWithActionDebug("updateCase", [formData], () => updateCaseImpl(formData)); }
+export async function deleteCase(formData: FormData) { return runWithActionDebug("deleteCase", [formData], () => deleteCaseImpl(formData)); }
+export async function bulkUpdateCases(formData: FormData) { return runWithActionDebug("bulkUpdateCases", [formData], () => bulkUpdateCasesImpl(formData)); }
+export async function saveCaseFilter(formData: FormData) { return runWithActionDebug("saveCaseFilter", [formData], () => saveCaseFilterImpl(formData)); }
+export async function deleteCaseFilter(formData: FormData) { return runWithActionDebug("deleteCaseFilter", [formData], () => deleteCaseFilterImpl(formData)); }
+export async function updateDeadlineReminderState(formData: FormData) { return runWithActionDebug("updateDeadlineReminderState", [formData], () => updateDeadlineReminderStateImpl(formData)); }
+export async function addFiling(formData: FormData) { return runWithActionDebug("addFiling", [formData], () => addFilingImpl(formData)); }
+export async function deleteFiling(formData: FormData) { return runWithActionDebug("deleteFiling", [formData], () => deleteFilingImpl(formData)); }
+export async function addComment(formData: FormData) { return runWithActionDebug("addComment", [formData], () => addCommentImpl(formData)); }
+
+async function addFilingImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   const caseId = String(formData.get("caseId") ?? "");
   const existing = await prisma.case.findUnique({ where: { id: caseId } });
@@ -410,7 +422,7 @@ export async function addFiling(formData: FormData) {
   redirect(`/dashboard/cases/${caseId}#filings`);
 }
 
-export async function deleteFiling(formData: FormData) {
+async function deleteFilingImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   const id = String(formData.get("id") ?? "");
   const filing = await prisma.caseFiling.findUnique({ where: { id }, include: { case: true } });
@@ -421,7 +433,7 @@ export async function deleteFiling(formData: FormData) {
   revalidatePath(`/dashboard/cases/${filing.caseId}`);
 }
 
-export async function addComment(formData: FormData) {
+async function addCommentImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   const caseId = String(formData.get("caseId") ?? "");
   const existing = await prisma.case.findUnique({ where: { id: caseId } });
