@@ -1321,7 +1321,7 @@ table.stat tbody tr.table-empty-row td {
 .card-action { display: flex; flex-direction: column; gap: 5px; }
 .card-action-label { color: var(--link); font-size: 12px; font-weight: 700; }
 .card-urgent { border-color: var(--down); }
-.dashboard-overview section { margin: 0 0 28px; }
+.dashboard-overview section { margin: 0; }
 .dashboard-overview h1 { margin-bottom: 3px; }
 .dashboard-overview > .subtitle { margin: 0 0 24px; color: var(--ink-soft); }
 .dashboard-overview section > h2 { margin-bottom: 10px; padding-bottom: 7px; border-bottom: 1px solid var(--bd-lt); }
@@ -1333,11 +1333,21 @@ table.stat tbody tr.table-empty-row td {
 .dashboard-overview .card-action-label { padding: 3px 11px 11px; }
 .dashboard-overview .card-urgent .card-value { color: var(--down); }
 .dashboard-overview .tablewrap { border-radius: 7px; }
+.dashboard-overview .dashboard-fold { margin: 18px 0; border-radius: 7px; overflow: clip; }
+.dashboard-overview .dashboard-fold > summary { min-height: 48px; padding: 11px 16px; }
+.dashboard-overview .dashboard-fold > summary + section { padding: 14px 16px 16px; }
+.dashboard-overview .section-lede { margin: 0 0 14px; line-height: 1.5; }
+.dashboard-overview .page-heading-row { margin: 0 0 12px; }
+.dashboard-overview .message { margin: 0; }
 .activity-preview { list-style: none; margin: 0; padding: 0; border: 1px solid var(--bd-lt); border-radius: 7px; overflow: hidden; }
 .activity-preview li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 12px; border-bottom: 1px solid var(--bd-lt); }
 .activity-preview li:last-child { border-bottom: 0; }
 .activity-preview time { flex: none; color: var(--ink-soft); font-size: 11px; }
 @media (max-width: 720px) {
+  .dashboard-overview .dashboard-fold { margin: 14px 0; }
+  .dashboard-overview .dashboard-fold > summary { padding: 10px 12px; }
+  .dashboard-overview .dashboard-fold > summary + section { padding: 12px; }
+  .dashboard-overview .section-lede { margin-bottom: 12px; }
   .dashboard-overview .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .dashboard-overview .card { min-width: 0; min-height: 104px; margin: 0; }
   .dashboard-overview .card-value { font-size: 22px; }
