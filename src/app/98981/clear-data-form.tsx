@@ -36,7 +36,7 @@ export function ClearDataForm() {
         });
       }}
     >
-      <p className="note-inline">This removes saved site records and signs staff out. Site configuration, role mappings, Google Forms settings, configuration backups, and settings audit history are retained.</p>
+      <p className="note-inline">This removes saved site records, including aggregate analytics, and signs staff out. Site configuration, role mappings, Google Forms settings, configuration backups, and settings audit history are retained.</p>
       <div className="field">
         <label htmlFor="confirmation">
           Type <code>{CLEAR_DATA_CONFIRMATION}</code> to confirm

@@ -8,7 +8,7 @@ interface SealProps {
 export function Seal({ className }: SealProps) {
   return (
     <Image
-      src="/seal.webp"
+      src="/seal-optimized.webp"
       alt={`${siteConfig.county} ${siteConfig.name} seal`}
       width={877}
       height={1000}

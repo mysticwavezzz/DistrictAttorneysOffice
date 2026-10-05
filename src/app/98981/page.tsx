@@ -98,6 +98,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
       <p className="eyebrow">Hidden Control Panel</p>
       <h1>Site Settings</h1>
       <p><Link className="govbtn-outline" href="/98981/roster-sync">Preview Roblox roster sync</Link></p>
+      <p><Link className="govbtn-outline" href="/98981/analytics">Open first-party analytics</Link></p>
       <p className="lede">
         This page is not linked from anywhere in the site and is only reachable by URL. It
         controls site-wide behavior, not any single user&apos;s account.
@@ -349,7 +350,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
         <p className="note-inline">
           Permanently deletes all saved website data: cases and related records, affidavits,
           releases, requests, notifications, activity logs, staff accounts,
-          roster entries, blacklists, rate-limit records, and saved identity data. Your
+          roster entries, blacklists, rate-limit records, analytics aggregates, and saved identity data. Your
           Google Forms setup, role/permission mappings, divisions, site settings, configuration
           backups, and configuration audit trail are kept. Everyone will be signed out and must sign in
           again. Only the internal session-revocation marker needed to invalidate existing

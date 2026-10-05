@@ -15,7 +15,7 @@ export function SafeImage({ src, alt, width, height, className, style }: {
   const [hide, setHide] = useState(false);
   useEffect(() => { setUseFallback(false); setHide(false); }, [src]);
   if (hide) return null;
-  return <Image src={useFallback ? "/seal.webp" : src} alt={alt} width={width} height={height} unoptimized className={className} style={style} onError={() => {
+  return <Image src={useFallback ? "/seal-optimized.webp" : src} alt={alt} width={width} height={height} unoptimized className={className} style={style} onError={() => {
     if (useFallback) setHide(true);
     else setUseFallback(true);
   }} />;

@@ -73,10 +73,12 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
           {group.entries.map((entry) => <article className="roster-card" key={`card-${entry.id}`}>
             {entry.imageUrl && <SafeImage src={entry.imageUrl} alt="" width={54} height={54} />}
             <h4>{entry.name}</h4><p>{entry.rank ?? "Rank not set"}</p>
-            <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
-            {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
-            <span className={`pill ${linkedDiscordId(entry) ? "pill-green" : "pill-muted"}`}>{linkedDiscordId(entry) ? "Discord linked" : "No Discord linked"}</span>
-            {canManage && <p><Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></p>}
+            <div className="roster-card-badges">
+              <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
+              {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
+              <span className={`pill ${linkedDiscordId(entry) ? "pill-green" : "pill-muted"}`}>{linkedDiscordId(entry) ? "Discord linked" : "No Discord linked"}</span>
+            </div>
+            {canManage && <div className="roster-card-actions"><Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></div>}
           </article>)}
         </div>
         <div className="tablewrap">
@@ -105,7 +107,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                     <td data-label="Start date">{entry.startDate ? dateFormatter.format(entry.startDate) : "Not set"}</td>
                     <td data-label="Roster status"><span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Active" : "Inactive"}</span></td>
                     {canManage && (
-                      <td data-label="Actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <td data-label="Actions" className="roster-row-actions">
                         <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>Edit</Link>
                         {entry.robloxSynced ? <span className="hint">Membership managed by Roblox</span> : <>
                           <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>

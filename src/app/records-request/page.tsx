@@ -2,7 +2,6 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { submitRecordsRequest } from "./actions";
-
 export default async function RecordsRequestPage({
   searchParams,
 }: {
@@ -41,6 +40,7 @@ export default async function RecordsRequestPage({
                 </div>
               )}
               <form action={submitRecordsRequest} className="formbox">
+                <div className="hp-field" aria-hidden="true"><label htmlFor="records-website">Leave this field empty</label><input id="records-website" name="website" type="text" tabIndex={-1} autoComplete="off" /></div>
                 <div className="field">
                   <label htmlFor="name">Name</label>
                   <input type="text" id="name" name="name" required maxLength={100} />

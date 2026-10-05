@@ -63,7 +63,7 @@ async function main() {
         summary:
           "A new partnership with county services aims to reduce recidivism among first-time, non-violent offenders through supervised diversion.",
         body: "Our office has partnered with county services to launch a diversion program aimed at reducing recidivism among first-time, non-violent offenders. Details on eligibility are available by contacting our office directly.",
-        imageUrl: "/seal.webp",
+        imageUrl: "/seal-optimized.webp",
         audience: "PUBLIC",
         isPublished: true,
         createdById: attorney.id,

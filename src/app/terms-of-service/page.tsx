@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function TermsOfServicePage() {
   return (
     <LegalPage title="Terms of Service" intro="By visiting or using this website, you agree to these terms. If you do not agree, do not use the site or submit information through it.">
-      <p><strong>Effective date:</strong> September 29, 2026.</p>
+      <p><strong>Effective date:</strong> October 4, 2026.</p>
 
       <h2>What this site is</h2>
       <p>This is a community website connected to a Roblox game. It is not a real district attorney&apos;s office, government service, law-enforcement agency, or emergency service. It is not affiliated with, endorsed by, or operated by Roblox Corporation. Names and materials associated with Roblox remain subject to Roblox&apos;s terms and applicable rights.</p>

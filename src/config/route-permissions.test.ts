@@ -40,6 +40,7 @@ describe("findRouteRule", () => {
   it("gates the hidden site settings route to settings:manage", () => {
     const rule = findRouteRule("/98981");
     expect(rule?.capabilities).toEqual([CAPABILITIES.SETTINGS_MANAGE]);
+    expect(findRouteRule("/98981/analytics")?.capabilities).toEqual([CAPABILITIES.SETTINGS_MANAGE]);
   });
 
   it("gates the unlinked debug console to settings:manage", () => {

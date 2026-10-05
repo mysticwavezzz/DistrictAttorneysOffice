@@ -11,6 +11,7 @@ import { headers } from "next/headers";
 import { runWithActionDebug } from "@/lib/action-debug";
 
 async function submitRecordsRequestImpl(formData: FormData) {
+  if (String(formData.get("website") ?? "").trim()) redirect("/records-request?sent=1");
   const parsed = recordsRequestSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     redirect("/records-request?error=1");

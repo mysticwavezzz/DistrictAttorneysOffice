@@ -10,6 +10,7 @@ import { PERMISSION_TIERS } from "@/lib/permissions/tiers";
 import { UNITS } from "@/config/units";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { runWithActionDebug } from "@/lib/action-debug";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 async function currentIdentity() {
   const session = await auth();
@@ -29,11 +30,11 @@ async function officeReviewers() {
 
 async function createContactTicketImpl(formData: FormData): Promise<string> {
   const { user } = await currentIdentity();
-  const subject = String(formData.get("subject") ?? "").trim().slice(0, 120);
-  const body = String(formData.get("message") ?? "").trim().slice(0, 8000);
+  const subject = String(formData.get("subject") ?? "").trim();
+  const body = String(formData.get("message") ?? "").trim();
   const division = String(formData.get("division") ?? "").trim().slice(0, 100);
   const attorneyId = String(formData.get("attorneyId") ?? "").trim();
-  if (subject.length < 3 || body.length < 5) throw new Error("Add a subject and a message before sending.");
+  if (subject.length < 3 || subject.length > 120 || body.length < 5 || body.length > 8000) throw new Error("Add a subject and a message within the posted length limits.");
   const divisions = await getSiteConfiguration("divisions", UNITS);
   if (!divisions.some((item) => item.value === division)) throw new Error("Choose a valid division.");
   const attorney = await prisma.user.findUnique({ where: { id: attorneyId }, select: { id: true, robloxUserId: true, tiers: true, username: true } });
@@ -41,6 +42,8 @@ async function createContactTicketImpl(formData: FormData): Promise<string> {
   const rosterEntry = await prisma.rosterEntry.findUnique({ where: { robloxUserId: attorney.robloxUserId }, select: { isActive: true, unit: true, rank: true } });
   const officeWide = (rosterEntry?.rank === "District Attorney" || rosterEntry?.rank === "Deputy District Attorney") && !rosterEntry.unit;
   if (!rosterEntry?.isActive || (rosterEntry.unit && rosterEntry.unit !== division) || (!rosterEntry.unit && !officeWide)) throw new Error("That attorney is not currently assigned to the selected division. Refresh and choose another attorney.");
+  const createLimit = await checkRateLimit(`contact-ticket-create:${user.id}`, { limit: 3, windowMs: 60 * 60 * 1000 });
+  if (!createLimit.allowed) throw new Error("You have reached the limit of 3 new Contact Us messages per hour. Please try again later.");
   const ticket = await prisma.contactTicket.create({
     data: { subject, division, assigneeId: attorney.id, requesterId: user.id, messages: { create: { authorId: user.id, body } } },
     select: { id: true },
@@ -54,11 +57,13 @@ async function createContactTicketImpl(formData: FormData): Promise<string> {
 
 async function sendContactReplyImpl(ticketId: string, formData: FormData): Promise<void> {
   const { user, tiers } = await currentIdentity();
-  const body = String(formData.get("message") ?? "").trim().slice(0, 8000);
-  if (!ticketId || body.length < 1) throw new Error("Write a message before sending.");
+  const body = String(formData.get("message") ?? "").trim();
+  if (!ticketId || body.length < 1 || body.length > 8000) throw new Error("Write a message within the 8,000-character limit.");
   const ticket = await prisma.contactTicket.findUnique({ where: { id: ticketId }, select: { id: true, requesterId: true, assigneeId: true, status: true, subject: true } });
   if (!ticket || (!canViewAllContactMail(tiers) && ticket.requesterId !== user.id && ticket.assigneeId !== user.id)) throw new Error("This ticket is not available to your account.");
   if (ticket.status === "CLOSED") throw new Error("This ticket is closed.");
+  const replyLimit = await checkRateLimit(`contact-ticket-reply:${user.id}`, { limit: 12, windowMs: 60 * 60 * 1000 });
+  if (!replyLimit.allowed) throw new Error("You have reached the limit of 12 replies per hour. Please try again later.");
   await prisma.contactMessage.create({ data: { ticketId, authorId: user.id, body } });
   const recipients = user.id === ticket.requesterId
     ? ticket.assigneeId ? [ticket.assigneeId] : await officeReviewers()

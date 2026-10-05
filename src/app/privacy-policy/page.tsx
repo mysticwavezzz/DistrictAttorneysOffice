@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function PrivacyPolicyPage() {
   return (
     <LegalPage title="Privacy Policy" intro="This policy explains what information this website receives, why it is used, and which services help operate the site. The site is a Roblox community project and is not affiliated with a real government office or with Roblox.">
-      <p><strong>Effective date:</strong> September 29, 2026.</p>
+      <p><strong>Effective date:</strong> October 4, 2026.</p>
 
       <h2>Information handled by the site</h2>
       <ul>
@@ -17,11 +17,11 @@ export default function PrivacyPolicyPage() {
         <li><strong>Roblox information:</strong> When Roblox sign-in is enabled, the site uses Roblox OpenID Connect profile information to identify the account and checks its roles in the configured Roblox community. Those roles determine staff permissions. Roblox usernames or IDs entered in a criminal tip are separately submitted with that report to the configured Google Form.</li>
         <li><strong>Reports and requests:</strong> Information entered in a criminal tip, including submitter and suspect identifiers, incident details, evidence links, witness information, and acknowledgments, is forwarded by the site to the office&apos;s configured Google Form. The website does not keep the body of a successfully submitted tip in its own database. The form provider and the people authorized to view its responses may handle that information under their own access and retention settings.</li>
         <li><strong>Other site content:</strong> Staff may create or review cases, affidavits, records requests, announcements, notifications, roster entries, and activity records. These are stored in the site&apos;s database and are available to staff whose configured permissions allow access.</li>
-        <li><strong>Technical information:</strong> The hosting platform and the site may process basic request information, such as IP address, browser request headers, and session cookies, to deliver the site, prevent abuse, and maintain sign-in sessions. The site also uses rate-limit counters to restrict repeated crime-tip submissions.</li>
+        <li><strong>Technical information:</strong> The hosting platform and the site may process basic request information, such as IP address, browser request headers, and essential session cookies, to deliver the site, prevent abuse, and maintain sign-in sessions. Abuse-prevention counters use hashed network identifiers. If you opt in through Privacy Choices, the site records aggregate counts of public page views by page and UTC day. It does not store individual page-view histories, query strings, account identifiers, or advertising identifiers. Your choice is saved in this browser&apos;s local storage; optional analytics does not set tracking cookies.</li>
       </ul>
 
       <h2>How information is used</h2>
-      <p>Information is used to authenticate staff, refresh role-based permissions, operate casework and site features, forward criminal tips to the configured form, prevent spam or blocked submissions, and keep the service secure. The site does not sell personal information or use it for advertising.</p>
+      <p>Information is used to authenticate staff, refresh role-based permissions, operate casework and site features, forward criminal tips to the configured form, prevent spam or blocked submissions, understand aggregate public-site use when a visitor opts in, and keep the service secure. The site does not sell personal information or use it for advertising. You may change your optional analytics choice using the Privacy Choices control.</p>
 
       <h2>Services that process information</h2>
       <p>Roblox provides staff authentication and group-role information. Discord may be used for an associated user identity and optional notifications, but does not determine website permissions. Google Forms receives criminal-tip submissions. Railway hosts the website and its database. These providers process information under their own policies and service settings.</p>

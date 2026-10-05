@@ -324,6 +324,7 @@ async function clearAllDataImpl(formData: FormData) {
       activityLogs: (await tx.activityLog.deleteMany({})).count,
       rosterEntries: (await tx.rosterEntry.deleteMany({})).count,
       rateLimitBuckets: (await tx.rateLimitBucket.deleteMany({})).count,
+      analyticsAggregates: (await tx.siteAnalyticsDaily.deleteMany({})).count,
       tipSubmissionReceipts: (await tx.tipSubmission.deleteMany({})).count,
       crimeTipBlacklistEntries: (await tx.crimeTipBlacklist.deleteMany({})).count,
       verificationTokens: (await tx.verificationToken.deleteMany({})).count,

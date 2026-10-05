@@ -376,6 +376,17 @@ model RateLimitBucket {
   resetAt DateTime
 }
 
+model SiteAnalyticsDaily {
+  id        String   @id @default(cuid())
+  path      String
+  day       String
+  views     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([path, day])
+  @@index([day])
+}
+
 // Stores only the public receipt and delivery state, never report contents or identities.
 model TipSubmission {
   reference String   @id

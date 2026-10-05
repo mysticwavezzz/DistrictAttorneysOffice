@@ -13,7 +13,7 @@ export function LegalPage({ title, intro, children }: { title: string; intro: st
         <main className="paper" id="main">
           <p className="eyebrow">Website Policies</p>
           <h1>{title}</h1>
-          <p className="note-inline">Last updated: September 29, 2026</p>
+          <p className="note-inline">Last updated: October 4, 2026</p>
           <p className="lede">{intro}</p>
           <div className="legal-content">{children}</div>
         </main>

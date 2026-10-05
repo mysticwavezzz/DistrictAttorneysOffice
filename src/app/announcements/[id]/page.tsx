@@ -59,6 +59,12 @@ export default async function AnnouncementDetailPage({
   const announcement = await getAnnouncement((await params).id);
   if (!announcement) notFound();
 
+  if (announcement.pdfData) {
+    return <main className="release-pdf-only" aria-label={`Press release PDF: ${announcement.title}`}>
+      <iframe title={`Press release PDF: ${announcement.title}`} src={`/api/announcements/${announcement.id}/pdf#toolbar=0&navpanes=0&view=FitH&zoom=page-width`} />
+    </main>;
+  }
+
   return (
     <div className="wrap">
       <a href="#main" className="skiplink">
@@ -91,10 +97,7 @@ export default async function AnnouncementDetailPage({
                 {siteConfig.county} {siteConfig.name}
               </div>
               {announcement.summary && <p className="release-summary">{announcement.summary}</p>}
-              {announcement.pdfData ? <>
-                <div className="release-pdf-viewer"><iframe title={`PDF press release: ${announcement.title}`} src={`/api/announcements/${announcement.id}/pdf`} loading="lazy" /></div>
-                <p><a href={`/api/announcements/${announcement.id}/pdf?download=1`}>Download {announcement.pdfFileName || "press release PDF"}</a></p>
-              </> : <p dangerouslySetInnerHTML={{ __html: formatReleaseBody(announcement.body) }} />}
+              <p dangerouslySetInnerHTML={{ __html: formatReleaseBody(announcement.body) }} />
               <div className="letter-close">
                 <div className="letter-sign">Office of the District Attorney</div>
               </div>

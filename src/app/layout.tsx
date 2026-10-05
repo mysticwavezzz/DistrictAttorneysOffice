@@ -4,6 +4,7 @@ import "./globals.css";
 import { siteConfig } from "@/config/site";
 import { MaintenanceWatcher } from "@/components/maintenance-watcher";
 import { SessionProvider } from "next-auth/react";
+import { PrivacyChoices } from "@/components/privacy-choices";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://districtattorneysoffice-production.up.railway.app"),
@@ -18,13 +19,13 @@ export const metadata: Metadata = {
     title: `${siteConfig.county} ${siteConfig.name}`,
     description: siteConfig.description,
     url: "/",
-    images: [{ url: "/seal.webp", width: 512, height: 512, alt: `${siteConfig.county} seal` }],
+    images: [{ url: "/seal-optimized.webp", width: 1754, height: 2000, alt: `${siteConfig.county} seal` }],
   },
-  twitter: { card: "summary", title: `${siteConfig.county} ${siteConfig.name}`, description: siteConfig.description, images: ["/seal.webp"] },
+  twitter: { card: "summary", title: `${siteConfig.county} ${siteConfig.name}`, description: siteConfig.description, images: ["/seal-optimized.webp"] },
   icons: {
-    icon: "/seal.webp",
-    shortcut: "/seal.webp",
-    apple: "/seal.webp",
+    icon: "/seal-optimized.webp",
+    shortcut: "/seal-optimized.webp",
+    apple: "/seal-optimized.webp",
   },
 };
 
@@ -66,7 +67,7 @@ export default async function RootLayout({
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body>{children}<SessionProvider><MaintenanceWatcher /></SessionProvider></body>
+      <body>{children}<SessionProvider><MaintenanceWatcher /></SessionProvider><PrivacyChoices /></body>
     </html>
   );
 }
