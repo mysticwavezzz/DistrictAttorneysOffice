@@ -29,6 +29,12 @@ describe("maintenance route access", () => {
     expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/dashboard", exemptUserIds: ["123456789"], user: { discordUserId: "123456789", tiers: [] } })).toBe(false);
   });
 
+  it("lets Developer Profile bypass maintenance, including the admin database gate", () => {
+    const user = { tiers: ["developer_profile" as const] };
+    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/dashboard", user })).toBe(false);
+    expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/98981", user })).toBe(false);
+  });
+
   it("does not grant exemptions when maintenance is off or no identity matches", () => {
     expect(shouldRedirectToMaintenance({ ...defaultInput, enabled: false, pathname: "/" })).toBe(false);
     expect(shouldRedirectToMaintenance({ ...defaultInput, pathname: "/dashboard", user: { discordUserId: "1", tiers: ["law_enforcement"] } })).toBe(true);

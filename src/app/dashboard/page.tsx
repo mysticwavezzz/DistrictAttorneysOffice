@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { TIER_DEFINITIONS, hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseVisibilityWhere, localUser, canViewCases as canViewCasesInDocket } from "@/lib/case-access";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
+import { DashboardFoldPersistence } from "@/components/dashboard-fold-persistence";
+import { getPrivacyConsentGeneration } from "@/lib/site-settings";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
@@ -19,7 +21,8 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   const canViewRequests = hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW);
   const canViewReviewInbox = canApproveRequests || canViewRequests;
   const canCreateCases = hasCapability(tiers, CAPABILITIES.CASES_CREATE);
-  const user = await localUser(session!.user);
+  const [user, preferenceGeneration] = await Promise.all([localUser(session!.user), getPrivacyConsentGeneration()]);
+  const preferenceAccountId = `${user?.id ?? session!.user.providerUserId}:${preferenceGeneration}`;
   const personalScope = user ? { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] } : null;
   const caseScope = caseVisibilityWhere(tiers, user?.id, user?.division);
 
@@ -56,6 +59,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   ].filter(Boolean) as { href: string; label: string; value: number | string; action: string; urgent: boolean }[];
 
   return <div className="dashboard-overview">
+    <DashboardFoldPersistence accountId={preferenceAccountId} />
     <p className="eyebrow">Staff Portal</p>
     <h1>Welcome, {session!.user.displayName}</h1>
     {query.caseSubmitted === "review" && <p className="message message-success" role="status">Your case opening was sent to an authorized reviewer for your division. It will appear on the docket after approval.</p>}

@@ -3,28 +3,30 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { privacyConsentKey } from "@/lib/ui-preferences";
 
 const CONSENT_KEY = "da-optional-analytics";
 type Choice = "accepted" | "rejected" | null;
 
-export function PrivacyChoices() {
+export function PrivacyChoices({ generation }: { generation: string }) {
   const pathname = usePathname();
   const [choice, setChoice] = useState<Choice>(null);
   const [ready, setReady] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [resolvedGeneration, setResolvedGeneration] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(CONSENT_KEY);
+      const stored = window.localStorage.getItem(privacyConsentKey(generation)) ?? (generation === "initial" ? window.localStorage.getItem(CONSENT_KEY) : null);
       setChoice(stored === "accepted" || stored === "rejected" ? stored : null);
     } catch {
-      setChoice("rejected");
+      setChoice(null);
     }
+    setResolvedGeneration(generation);
     setReady(true);
-  }, []);
+  }, [generation]);
 
   useEffect(() => {
-    if (!ready || choice !== "accepted") return;
+    if (!ready || resolvedGeneration !== generation || choice !== "accepted") return;
     void fetch("/api/analytics/pageview", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -32,16 +34,15 @@ export function PrivacyChoices() {
       keepalive: true,
       credentials: "same-origin",
     }).catch(() => {});
-  }, [choice, pathname, ready]);
+  }, [choice, generation, pathname, ready, resolvedGeneration]);
 
   function choose(next: Exclude<Choice, null>) {
-    try { window.localStorage.setItem(CONSENT_KEY, next); } catch { /* Keep this visit's choice if storage is unavailable. */ }
+    try { window.localStorage.setItem(privacyConsentKey(generation), next); } catch { /* Keep this visit's choice if storage is unavailable. */ }
     setChoice(next);
-    setEditing(false);
   }
 
-  if (!ready) return null;
-  if (choice && !editing) return <button type="button" className="privacy-choice-reopen" onClick={() => setEditing(true)}>Privacy choices</button>;
+  if (!ready || resolvedGeneration !== generation) return null;
+  if (choice) return null;
 
   return <aside className="privacy-choice-banner" role="region" aria-label="Privacy and analytics choices">
     <div><strong>Privacy choices</strong><p>Optional, first-party analytics count public page views by page and day only when enabled. No advertising trackers are used. Your choice is stored in this browser. See our <Link href="/privacy-policy">Privacy Policy</Link>.</p></div>

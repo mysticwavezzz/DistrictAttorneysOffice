@@ -10,8 +10,10 @@ import { ContactMailbox } from "@/components/contact-mailbox";
 import { UNITS } from "@/config/units";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { isContactAttorney, parseStoredTiers } from "@/lib/contact-mail";
+import { shareMetadata } from "@/lib/share-metadata";
 
 export const dynamic = "force-dynamic";
+export const metadata = shareMetadata("Contact Us", "Send a private message to an attorney in the selected division.", "/contacts");
 
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<{ ticket?: string }> }) {
   const session = await auth();

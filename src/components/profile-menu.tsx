@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { TIER_DEFINITIONS } from "@/lib/permissions/tiers";
 import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 import { setDeveloperProfileEnabled } from "@/app/settings/developer-profile-actions";
+import { SignOutButton } from "@/components/sign-out-button";
 
 export function ProfileMenu({
   displayName,
@@ -88,7 +89,7 @@ export function ProfileMenu({
         <button type="button" onClick={syncRoles} disabled={syncing}>{syncing ? "Syncing Roblox roles…" : "Sync Roblox group roles now"}</button>
         {syncedAt && <span className="profile-sync-note" role="status">Roles synced at {syncedAt}.</span>}
         {syncError && <span className="profile-sync-error" role="alert">Role sync failed. Try again in a moment.</span>}
-        <button type="button" onClick={() => signOut({ redirectTo: "/" })}>Sign out</button>
+        <SignOutButton>Sign out</SignOutButton>
       </div>}
     </div>
   );

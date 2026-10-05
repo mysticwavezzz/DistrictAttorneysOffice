@@ -12,6 +12,7 @@ import { getSiteConfiguration } from "@/lib/site-settings";
 import { RemoveButton } from "@/components/remove-button";
 import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { CaseShareButton } from "@/components/case-share-button";
 import { getOngoingObligations, getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 type CaseWithRelations = Prisma.CaseGetPayload<{
@@ -108,8 +109,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   }
 
   const relatedCasesSection = (
-    <section className="formbox" id="related">
-      <h3 style={{ marginTop: 0 }}>Related Cases</h3>
+    <details className="case-detail-fold" id="related">
+      <summary><h2>Related cases</h2><span>{relatedCases.length} linked</span></summary>
+      <div className="case-detail-fold-body">
       {relatedCases.length === 0 ? <p className="note-inline">No related cases.</p> : <ul style={{ paddingLeft: 18, margin: 0 }}>
         {relatedCases.map((c) => (
           <li key={c.id} style={{ fontSize: 12.5 }}>
@@ -119,12 +121,14 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           </li>
         ))}
       </ul>}
-    </section>
+      </div>
+    </details>
   );
 
-  const filingsAndComments = (
-    <>
-      <h3 id="filings">Filings</h3>
+  const filingsSection = (
+    <details className="case-detail-fold" id="filings" open>
+      <summary><h2>Filings</h2><span>{visibleFilings.length} visible</span></summary>
+      <div className="case-detail-fold-body">
       {visibleFilings.length === 0 ? (
         <p className="note-inline">No filings attached.</p>
       ) : (
@@ -152,8 +156,14 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         </div>
         <PendingSubmitButton label="Attach PDF" pendingLabel="Uploading PDF…" className="govbtn-outline" />
       </form>
+      </div>
+    </details>
+  );
 
-      <h3 id="activity">Activity</h3>
+  const activitySection = (
+    <details className="case-detail-fold" id="activity">
+      <summary><h2>Activity and updates</h2><span>{caseRecord.comments.length} entries</span></summary>
+      <div className="case-detail-fold-body">
       <div className="comment-log">
         {caseRecord.comments.length === 0 ? (
           <div className="comment-item">No updates yet.</div>
@@ -177,7 +187,20 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           Post Update
         </button>
       </form>
-    </>
+      </div>
+    </details>
+  );
+
+  const deadlinesSection = (
+    <details className="case-detail-fold" id="deadlines">
+      <summary><h2>Deadlines</h2><span>{activeDeadlines.length + ongoingObligations.length} items</span></summary>
+      <div className="case-detail-fold-body">
+        {activeDeadlines.length === 0 && ongoingObligations.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
+          const overdue = deadline.dueDate.getTime() < new Date().setHours(0, 0, 0, 0);
+          return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : deadline.authority}</small></li>;
+        })}{ongoingObligations.map((obligation) => <li key={obligation.key}><span>{obligation.label}</span><small>{obligation.authority} · Ongoing duty</small></li>)}</ul>}
+      </div>
+    </details>
   );
 
   if (!canEdit) {
@@ -190,20 +213,16 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           {caseRecord.stage ? <span className={`pill pill-${statusColor}`}>{caseRecord.stage}</span> : "No status set"}
           {caseRecord.isDraft && <span className="pill pill-muted" style={{ marginLeft: 6 }}>Draft</span>}
         </p>
-        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
+        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link>{!caseRecord.isDraft && <CaseShareButton caseId={caseRecord.id} />}</div>
         <nav className="case-section-nav" aria-label="Case sections">
           <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a>
         </nav>
 
-        <section id="deadlines" className="deadline-summary" aria-label="Case deadlines">
-          <h2>Deadlines</h2>
-          {activeDeadlines.length === 0 && ongoingObligations.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
-            const overdue = deadline.dueDate.getTime() < new Date().setHours(0, 0, 0, 0);
-            return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : deadline.authority}</small></li>;
-          })}{ongoingObligations.map((obligation) => <li key={obligation.key}><span>{obligation.label}</span><small>{obligation.authority} · Ongoing duty</small></li>)}</ul>}
-        </section>
+        {deadlinesSection}
 
-        <div className="formbox">
+        <details className="case-detail-fold" id="overview" open>
+          <summary><h2>Case overview</h2><span>{caseRecord.type ?? "Case details"}</span></summary>
+          <div className="case-detail-fold-body formbox">
           <div className="cards" style={{ marginBottom: 16 }}>
             <div className="card">
               <span className="card-label">Assigned attorney</span>
@@ -219,19 +238,22 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             </div>
           </div>
           <div className="case-detail-summary"><span><small>Assigned judge</small><strong>{caseRecord.assignedJudge ?? "Not assigned"}</strong></span><span><small>Submitting officer</small><strong>{caseRecord.createdBy.displayName}</strong></span><span><small>People / parties</small><strong>{parties.length}</strong></span></div>
-          <h3 id="overview">Summary</h3>
+          <h3>Summary</h3>
           <p style={{ whiteSpace: "pre-wrap" }}>{caseRecord.summary || "No summary has been added."}</p>
           <h3>People and parties</h3>
           {parties.length ? <ul className="case-parties">{parties.map((party, index) => <li key={`${party.name}-${index}`}><strong>{party.role}</strong><span>{party.name}</span></li>)}</ul> : <p className="note-inline">No people or parties have been listed.</p>}
-        </div>
+          </div>
+        </details>
 
         {relatedCasesSection}
 
-        <div className="formbox">{filingsAndComments}</div>
+        {filingsSection}
+        {activitySection}
 
         {canPropose && (
-          <div className="formbox">
-            <h2 style={{ marginTop: 0 }}>Propose an Edit</h2>
+          <details className="case-detail-fold" id="propose-edit">
+            <summary><h2>Propose a case edit</h2><span>Send for review</span></summary>
+            <div className="case-detail-fold-body">
             <p className="note-inline">Submitted for review by office leadership before it takes effect.</p>
             <form action={submitCaseRequest} className="formbox" style={{ border: 0, padding: 0 }}>
               <input type="hidden" name="caseId" value={caseRecord.id} />
@@ -291,6 +313,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               </button>
             </form>
           </div>
+          </details>
         )}
       </div>
     );
@@ -301,7 +324,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <p className="eyebrow">{caseRecord.caseNumber}</p>
       <h1>{caseRecord.title}</h1>
         <p className="subtitle">Assigned to {caseRecord.assignedAttorney?.displayName ?? "Unassigned"} · {accessLabel}</p>
-        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
+        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link>{!caseRecord.isDraft && <CaseShareButton caseId={caseRecord.id} />}</div>
         <ol className="status-timeline" aria-label="Case status timeline">
           <li><strong>Case opened</strong><time dateTime={caseRecord.createdAt.toISOString()}>{caseRecord.createdAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
           <li><strong>Current status: {caseRecord.stage ?? "Unassigned"}</strong><time dateTime={caseRecord.updatedAt.toISOString()}>Updated {caseRecord.updatedAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
@@ -309,16 +332,16 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <nav className="case-section-nav" aria-label="Case sections">
         <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a>
       </nav>
-      <div className="formbox case-overview-people"><div className="case-detail-summary"><span><small>Assigned judge</small><strong>{caseRecord.assignedJudge ?? "Not assigned"}</strong></span><span><small>Submitting officer</small><strong>{caseRecord.createdBy.displayName}</strong></span><span><small>People / parties</small><strong>{parties.length}</strong></span></div><h2>People and parties</h2>{parties.length ? <ul className="case-parties">{parties.map((party, index) => <li key={`${party.name}-${index}`}><strong>{party.role}</strong><span>{party.name}</span></li>)}</ul> : <p className="note-inline">No people or parties have been listed.</p>}</div>
-      <section id="deadlines" className="deadline-summary" aria-label="Case deadlines">
-        <h2>Deadlines</h2>
-        {activeDeadlines.length === 0 && ongoingObligations.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
-          const overdue = deadline.dueDate.getTime() < new Date().setHours(0, 0, 0, 0);
-          return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : deadline.authority}</small></li>;
-        })}{ongoingObligations.map((obligation) => <li key={obligation.key}><span>{obligation.label}</span><small>{obligation.authority} · Ongoing duty</small></li>)}</ul>}
-      </section>
+      <details className="case-detail-fold" id="overview" open>
+        <summary><h2>Case overview</h2><span>{parties.length} parties</span></summary>
+        <div className="case-detail-fold-body formbox case-overview-people"><div className="case-detail-summary"><span><small>Assigned judge</small><strong>{caseRecord.assignedJudge ?? "Not assigned"}</strong></span><span><small>Submitting officer</small><strong>{caseRecord.createdBy.displayName}</strong></span><span><small>People / parties</small><strong>{parties.length}</strong></span></div><h3>People and parties</h3>{parties.length ? <ul className="case-parties">{parties.map((party, index) => <li key={`${party.name}-${index}`}><strong>{party.role}</strong><span>{party.name}</span></li>)}</ul> : <p className="note-inline">No people or parties have been listed.</p>}</div>
+      </details>
+      {deadlinesSection}
 
-      <form action={updateCase} className="formbox case-edit-form" id="overview">
+      <details className="case-detail-fold" id="edit-case">
+        <summary><h2>Edit case</h2><span>Assignment, status, and case dates</span></summary>
+        <div className="case-detail-fold-body">
+      <form action={updateCase} className="formbox case-edit-form">
         <div className="case-edit-heading"><div><p className="eyebrow">Case management</p><h2>Edit case</h2><p className="lede">Update the case record, assignment, and key dates.</p></div><span className={`pill ${caseRecord.stage ? `pill-${statusColor}` : "pill-muted"}`}>{caseRecord.stage ?? "No status set"}</span></div>
         <input type="hidden" name="id" value={caseRecord.id} />
         <input type="hidden" name="summary" value={caseRecord.summary} />
@@ -376,7 +399,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             ) : (
               <input type="text" value={caseRecord.assignedAttorney?.displayName ?? "Unassigned"} disabled />
             )}
-          </div>
+            </div>
           <div className="field"><label htmlFor="assignedJudge">Assigned judge</label><input type="text" id="assignedJudge" name="assignedJudge" maxLength={120} defaultValue={caseRecord.assignedJudge ?? ""} /></div>
         </div>
         </fieldset>
@@ -482,10 +505,13 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
         <div className="case-edit-actions"><Link href={`/dashboard/cases/${caseRecord.id}`} className="govbtn-outline">Cancel</Link><button type="submit" className="govbtn">Save Changes</button></div>
       </form>
+        </div>
+      </details>
 
       {relatedCasesSection}
 
-      <div className="formbox">{filingsAndComments}</div>
+      {filingsSection}
+      {activitySection}
 
       {canDelete && (
         <RemoveButton id={caseRecord.id} action={deleteCase} label="Delete Case" confirmMessage={`Permanently delete case ${caseRecord.caseNumber} and its filings, comments, and requests?`} className="govbtn" style={{ background: "var(--down)", borderColor: "#6b2018" }} formStyle={{ marginTop: 16 }} />

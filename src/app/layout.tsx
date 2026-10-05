@@ -5,6 +5,7 @@ import { siteConfig } from "@/config/site";
 import { MaintenanceWatcher } from "@/components/maintenance-watcher";
 import { SessionProvider } from "next-auth/react";
 import { PrivacyChoices } from "@/components/privacy-choices";
+import { getPrivacyConsentGeneration } from "@/lib/site-settings";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://districtattorneysoffice-production.up.railway.app"),
@@ -61,13 +62,14 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const privacyConsentGeneration = await getPrivacyConsentGeneration();
 
   return (
     <html lang="en">
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body>{children}<SessionProvider><MaintenanceWatcher /></SessionProvider><PrivacyChoices /></body>
+      <body>{children}<SessionProvider><MaintenanceWatcher /></SessionProvider><PrivacyChoices generation={privacyConsentGeneration} /></body>
     </html>
   );
 }

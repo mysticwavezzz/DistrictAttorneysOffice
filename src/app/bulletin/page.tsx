@@ -7,6 +7,9 @@ import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { formatReleaseBody } from "@/lib/format-release-body";
 import { SafeImage } from "@/components/safe-image";
+import { shareMetadata } from "@/lib/share-metadata";
+
+export const metadata = shareMetadata("Law Enforcement Bulletin", "Current bulletins and releases intended for verified law enforcement personnel.", "/bulletin");
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "long" });
 

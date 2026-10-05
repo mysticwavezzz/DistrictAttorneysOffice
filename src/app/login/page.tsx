@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth, signIn, signOut } from "@/lib/auth";
+import { auth, signIn } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { SignOutButton } from "@/components/sign-out-button";
 
 const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "Your account doesn't hold a staff role that grants access to that page.",
@@ -87,16 +88,7 @@ export default async function LoginPage({
                 <p>
                   Signed in as <strong>{session!.user.displayName}</strong> with {session!.user.identityProvider}. Sign out to switch to the configured sign-in provider.
                 </p>
-                <form
-                  action={async () => {
-                    "use server";
-                    await signOut({ redirectTo: "/login" });
-                  }}
-                >
-                  <button type="submit" className="govbtn">
-                    Sign Out
-                  </button>
-                </form>
+                <SignOutButton redirectTo="/login" className="govbtn">Sign Out</SignOutButton>
               </>
             ) : (
               providerReady ? <form

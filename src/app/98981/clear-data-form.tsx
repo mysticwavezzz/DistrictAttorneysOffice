@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { signOut } from "next-auth/react";
 import { clearAllData } from "./actions";
 import { CLEAR_DATA_CONFIRMATION } from "./constants";
+import { clearDashboardFoldPreferences, clearPrivacyConsent } from "@/lib/ui-preferences";
 
 export function ClearDataForm() {
   const [value, setValue] = useState("");
@@ -26,6 +27,8 @@ export function ClearDataForm() {
             setValue("");
             const total = Object.values(result.deleted).reduce((sum, count) => sum + count, 0);
             setMessage(`All site data was cleared (${total} records). Signing you out now.`);
+            clearDashboardFoldPreferences();
+            clearPrivacyConsent();
             await signOut({ redirectTo: "/login?reset=complete" });
           } catch (cause) {
             setError(true);

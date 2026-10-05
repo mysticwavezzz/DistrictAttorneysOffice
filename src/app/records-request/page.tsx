@@ -2,6 +2,10 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { submitRecordsRequest } from "./actions";
+import { shareMetadata } from "@/lib/share-metadata";
+
+export const metadata = shareMetadata("Public Records Request", "Request copies of public records held by the office. Some records may be sealed or exempt from disclosure.", "/records-request");
+
 export default async function RecordsRequestPage({
   searchParams,
 }: {

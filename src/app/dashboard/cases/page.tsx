@@ -8,6 +8,9 @@ import { caseVisibilityWhere, localUser, canViewCases, canAssignCase } from "@/l
 import { caseStatusColor } from "@/config/case-statuses";
 import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
+import { shareMetadata } from "@/lib/share-metadata";
+
+export const metadata = shareMetadata("My Cases", "Search assigned and accessible cases, review their status, and continue casework.", "/dashboard/cases");
 
 type CaseWithAttorney = Prisma.CaseGetPayload<{ include: { assignedAttorney: true; filings: { select: { id: true; title: true; url: true; pdfFileName: true; createdAt: true } } } }>;
 

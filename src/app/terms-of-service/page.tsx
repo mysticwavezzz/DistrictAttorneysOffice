@@ -1,10 +1,7 @@
-import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
+import { shareMetadata } from "@/lib/share-metadata";
 
-export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: "Terms for using the Harrison County District Attorney's Office Roblox community website.",
-};
+export const metadata = shareMetadata("Terms of Service", "Terms for using this Roblox community website and its staff and public features.", "/terms-of-service");
 
 export default function TermsOfServicePage() {
   return (

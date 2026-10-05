@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth, signOut } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { hasCapability } from "@/lib/permissions";
 import { TIER_DEFINITIONS, ALL_TIERS } from "@/lib/permissions/tiers";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
@@ -19,6 +19,7 @@ import { getWebsiteVersion } from "@/lib/site-version";
 import { formatDateTimeInTimeZone } from "@/lib/time-zone";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
 import { normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
+import { SignOutButton } from "@/components/sign-out-button";
 
 export default async function SiteSettingsPage({ searchParams }: { searchParams: Promise<{ audit?: string; actor?: string; action?: string; from?: string; to?: string }> }) {
   const session = await auth();
@@ -80,16 +81,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <span>{session.user.displayName}</span>
             <Link href="/dashboard">Dashboard</Link>
-            <form
-              action={async () => {
-                "use server";
-                await signOut({ redirectTo: "/" });
-              }}
-            >
-              <button type="submit" className="linklike">
-                Sign Out
-              </button>
-            </form>
+            <SignOutButton className="linklike">Sign Out</SignOutButton>
           </div>
         </div>
       </div>

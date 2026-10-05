@@ -7,12 +7,18 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { TipForm } from "@/components/tip-form";
+import { shareMetadata } from "@/lib/share-metadata";
+
+export const metadata = shareMetadata("Official Criminal Tip Line", "Submit incident details and supporting information through the dedicated report form. Not for emergencies.", "/report-crime");
 
 export default async function ReportCrimePage() {
   const [session, form] = await Promise.all([
     auth(),
     getSiteConfiguration<CrimeTipFormConfiguration>("crimeTipForm", CRIME_TIP_FORM),
   ]);
+  const robloxIdentity = session?.user?.identityProvider === "roblox"
+    ? `${session.user.username} / ${session.user.robloxUserId}`
+    : "";
   const discordIdentity = session?.user?.discordUserId
     ? `${session.user.username} / ${session.user.discordUserId}`
     : "";
@@ -40,7 +46,7 @@ export default async function ReportCrimePage() {
             <p>This tip line is not monitored for emergencies. If someone is in immediate danger, contact local emergency services now.</p>
           </section>
 
-          <TipForm crimeTypes={form.crimeTypes} defaultDiscordIdentity={discordIdentity} />
+          <TipForm crimeTypes={form.crimeTypes} defaultRobloxIdentity={robloxIdentity} defaultDiscordIdentity={discordIdentity} />
           <p className="source"><Link href="/">← Return to the office homepage</Link></p>
         </main>
       </div>

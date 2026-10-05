@@ -1,10 +1,7 @@
-import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
+import { shareMetadata } from "@/lib/share-metadata";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: "How the Harrison County District Attorney's Office website handles account and submitted information.",
-};
+export const metadata = shareMetadata("Privacy Policy", "How this community website handles account, submitted, and technical information.", "/privacy-policy");
 
 export default function PrivacyPolicyPage() {
   return (

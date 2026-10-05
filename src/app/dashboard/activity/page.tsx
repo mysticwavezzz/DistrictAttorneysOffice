@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
+import { shareMetadata } from "@/lib/share-metadata";
+
+export const metadata = shareMetadata("Activity Log", "Review recent staff and system actions in the portal.", "/dashboard/activity");
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 

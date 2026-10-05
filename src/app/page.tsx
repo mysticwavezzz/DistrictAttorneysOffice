@@ -6,6 +6,9 @@ import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { AnnouncementsSection, type AnnouncementListItem } from "@/components/announcements-section";
 import { TipsSection } from "@/components/tips-section";
+import { shareMetadata } from "@/lib/share-metadata";
+
+export const metadata = shareMetadata(`${siteConfig.county} ${siteConfig.name}`, siteConfig.tagline, "/");
 
 async function getPublishedAnnouncements(): Promise<AnnouncementListItem[]> {
   try {

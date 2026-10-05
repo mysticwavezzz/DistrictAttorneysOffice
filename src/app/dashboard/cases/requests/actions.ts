@@ -9,6 +9,7 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
 import { localUser, generateCaseNumber, canAccessCase, canReviewDivision } from "@/lib/case-access";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
+import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 
 async function requireProposer() {
   const session = await auth();
@@ -86,7 +87,8 @@ async function reviewCaseRequestImpl(formData: FormData) {
   }
   const targetCase = request.caseId ? await prisma.case.findUnique({ where: { id: request.caseId }, select: { division: true } }) : null;
   const requestDivision = request.division ?? targetCase?.division;
-  if (!canReviewDivision(session.user.tiers, user.division, requestDivision) || request.requestedById === user.id) throw new Error("This request is outside your review authority.");
+  const isDeveloperProfile = session.user.tiers.includes(DEVELOPER_PROFILE_TIER);
+  if (!canReviewDivision(session.user.tiers, user.division, requestDivision) || (request.requestedById === user.id && !isDeveloperProfile)) throw new Error("This request is outside your review authority.");
 
   let createdCaseId: string | null = null;
   let reviewAppliedInTransaction = false;

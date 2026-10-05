@@ -7,6 +7,9 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser, caseVisibilityWhere } from "@/lib/case-access";
 import { updateDeadlineReminderState } from "../actions";
 import { getProceduralDeadlines, type ProceduralDeadlineCase } from "@/lib/procedural-deadlines";
+import { shareMetadata } from "@/lib/share-metadata";
+
+export const metadata = shareMetadata("Deadline Calendar", "Review calculated and manually entered case deadlines and their governing rules.", "/dashboard/cases/calendar");
 
 type DeadlineType = string;
 type CalendarCase = ProceduralDeadlineCase & { id: string; caseNumber: string; title: string; assignedAttorney: { displayName: string } | null };

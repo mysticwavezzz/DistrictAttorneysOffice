@@ -1,5 +1,5 @@
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
-import type { PermissionTier } from "@/lib/permissions/tiers";
+import { DEVELOPER_PROFILE_TIER, type PermissionTier } from "@/lib/permissions/tiers";
 
 const MAINTENANCE_EXEMPT_PREFIXES = ["/maintenance", "/privacy-policy", "/terms-of-service"];
 const PUBLIC_ASSET_PATTERN = /\.(?:avif|gif|ico|jpe?g|png|svg|webp|woff2?)$/i;
@@ -18,7 +18,7 @@ export function shouldRedirectToMaintenance(input: {
   ) || (input.pathname === "/login" && Boolean(input.callbackUrl && (input.callbackUrl === "/98981" || input.callbackUrl.startsWith("/98981/"))));
   if (!input.enabled || exemptPath) return false;
   const userId = input.user?.providerUserId ?? input.user?.discordUserId;
-  const exemptUser = Boolean(userId && input.exemptUserIds.includes(userId)) || Boolean(input.user?.tiers?.some((tier) => input.exemptTiers.includes(tier)));
+  const exemptUser = Boolean(input.user?.tiers?.includes(DEVELOPER_PROFILE_TIER)) || Boolean(userId && input.exemptUserIds.includes(userId)) || Boolean(input.user?.tiers?.some((tier) => input.exemptTiers.includes(tier)));
   if (adminDatabasePath) return !(exemptUser && hasCapability(input.user?.tiers ?? [], CAPABILITIES.SETTINGS_MANAGE));
   if (exemptUser) return false;
   return true;

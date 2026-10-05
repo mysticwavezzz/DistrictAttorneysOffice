@@ -5,7 +5,11 @@ import { getWebsiteVersion } from "@/lib/site-version";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
+import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 import { getSiteConfiguration } from "@/lib/site-settings";
+import { shareMetadata } from "@/lib/share-metadata";
+
+export const metadata = shareMetadata("Site Maintenance", "The website is temporarily unavailable while maintenance is in progress.", "/maintenance");
 
 export default async function MaintenancePage() {
   const settings = await getSiteSettings();
@@ -17,7 +21,7 @@ export default async function MaintenancePage() {
   ]);
   const user = session?.user;
   const accountId = user?.providerUserId ?? user?.robloxUserId ?? user?.discordUserId;
-  const maintenanceExempt = Boolean(accountId && exemptUserIds.includes(accountId)) || Boolean(user?.tiers?.some((tier) => exemptTiers.includes(tier)));
+  const maintenanceExempt = Boolean(user?.tiers?.includes(DEVELOPER_PROFILE_TIER)) || Boolean(accountId && exemptUserIds.includes(accountId)) || Boolean(user?.tiers?.some((tier) => exemptTiers.includes(tier)));
   const canManageSite = Boolean(user && hasCapability(user.tiers, CAPABILITIES.SETTINGS_MANAGE));
 
   return (
@@ -43,7 +47,10 @@ export default async function MaintenancePage() {
         )}
         <p className="maintenance-meta">Website version: {version}</p>
         {user && !maintenanceExempt && user.tiers.length > 0 && <p className="message message-error" role="alert">While you may be an employee or law enforcement, currently the website is restricted to your roles for maintenance.</p>}
-        {!user ? <Link className="maintenance-login" href="/login?callbackUrl=%2F98981">Login</Link> : maintenanceExempt && canManageSite ? <Link className="maintenance-login" href="/98981">Admin login</Link> : null}
+        <div className="maintenance-actions">
+          <Link className="maintenance-login" href="/login?callbackUrl=%2F98981">{user ? "Staff Login" : "Login"}</Link>
+          {maintenanceExempt && canManageSite && <Link className="maintenance-login" href="/98981">Admin login</Link>}
+        </div>
       </main>
     </div>
   );

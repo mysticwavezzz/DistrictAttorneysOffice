@@ -74,6 +74,16 @@ export async function getSiteConfiguration<T>(key: string, fallback: T): Promise
   }
 }
 
+export async function getPrivacyConsentGeneration(): Promise<string> {
+  try {
+    const row = await prisma.siteConfiguration.findUnique({ where: { key: "privacyConsentGeneration" }, select: { value: true } });
+    return row?.value || "initial";
+  } catch (error) {
+    console.error("Failed to load privacy consent generation", error);
+    return "initial";
+  }
+}
+
 export async function updateSiteConfiguration(key: string, value: unknown) {
   await prisma.siteConfiguration.upsert({
     where: { key },

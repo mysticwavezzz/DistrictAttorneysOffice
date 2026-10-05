@@ -302,6 +302,13 @@ async function clearAllDataImpl(formData: FormData) {
   }
 
   const deleted = await prisma.$transaction(async (tx) => {
+    const privacyConsentGeneration = crypto.randomUUID();
+    await tx.siteConfiguration.upsert({
+      where: { key: "privacyConsentGeneration" },
+      create: { key: "privacyConsentGeneration", value: privacyConsentGeneration },
+      update: { value: privacyConsentGeneration },
+    });
+
     // Keep one internal revocation generation so JWT sessions issued before
     // this wipe cannot become valid again after all user data is removed.
     await tx.siteConfiguration.upsert({
