@@ -12,6 +12,7 @@ import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { readCasePdf } from "@/lib/filing-upload";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { runWithActionDebug } from "@/lib/action-debug";
+import { shouldRequireFilingApproval } from "@/lib/filing-approval";
 
 async function requireStaff() {
   const session = await auth();
@@ -402,18 +403,39 @@ async function addFilingImpl(formData: FormData) {
   const pdf = await readCasePdf(formData.get("pdf"));
   if (!pdf) throw new Error("Upload a PDF to file this document.");
 
+  const requiresApproval = shouldRequireFilingApproval(session.user.tiers, user.division);
   await prisma.caseFiling.create({
-    data: { caseId, title: parsed.data.title, url: null, pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName, addedById: user.id },
+    data: { caseId, title: parsed.data.title, url: null, pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName, addedById: user.id, status: requiresApproval ? "PENDING" : "ACCEPTED" },
   });
 
-  if (existing.assignedAttorneyId && existing.assignedAttorneyId !== user.id) {
-    await notify({
-      userId: existing.assignedAttorneyId,
-      type: "case_filing",
-      title: `New filing on ${existing.caseNumber}`,
-      body: parsed.data.title,
-      link: `/dashboard/cases/${caseId}`,
-    });
+  try {
+    if (requiresApproval) {
+      const [globalReviewerIds, divisionReviewerIds] = await Promise.all([
+        userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS),
+        userIdsWithCapability(CAPABILITIES.CASES_APPROVE_DIVISION),
+      ]);
+      const divisionReviewers = existing.division
+        ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: existing.division }, select: { id: true } })
+        : [];
+      const reviewerIds = Array.from(new Set([...globalReviewerIds, ...divisionReviewers.map((reviewer) => reviewer.id)]));
+      await notifyMany(reviewerIds.filter((id) => id !== user.id), {
+        type: "case_filing_review",
+        title: `Filing needs review on ${existing.caseNumber}`,
+        body: parsed.data.title,
+        link: "/dashboard/review?type=filing",
+      });
+      await notify({ userId: user.id, type: "case_filing_review", title: "Filing submitted for approval", body: `${parsed.data.title} · ${existing.caseNumber}`, link: `/dashboard/cases/${caseId}#filings` });
+    } else if (existing.assignedAttorneyId && existing.assignedAttorneyId !== user.id) {
+      await notify({
+        userId: existing.assignedAttorneyId,
+        type: "case_filing",
+        title: `New filing on ${existing.caseNumber}`,
+        body: parsed.data.title,
+        link: `/dashboard/cases/${caseId}`,
+      });
+    }
+  } catch (error) {
+    console.error("Filing was saved, but review notification delivery failed", error);
   }
 
   revalidatePath(`/dashboard/cases/${caseId}`);
@@ -427,10 +449,13 @@ async function deleteFilingImpl(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const filing = await prisma.caseFiling.findUnique({ where: { id }, include: { case: true } });
   if (!filing) throw new Error("Filing not found");
-  if (!canAccessCase(session.user.tiers, user.id, filing.case, user.division) || !canEditCase(session.user.tiers, user.division, filing.case.division)) throw new Error("Forbidden");
+  if (!canAccessCase(session.user.tiers, user.id, filing.case, user.division)) throw new Error("Forbidden");
+  if (filing.status === "PENDING" && filing.addedById !== user.id) throw new Error("Only the submitter can withdraw a filing while it is awaiting review.");
+  if (filing.status !== "PENDING" && !canEditCase(session.user.tiers, user.division, filing.case.division)) throw new Error("Forbidden");
 
   await prisma.caseFiling.delete({ where: { id } });
   revalidatePath(`/dashboard/cases/${filing.caseId}`);
+  revalidatePath("/dashboard/filings");
 }
 
 async function addCommentImpl(formData: FormData) {

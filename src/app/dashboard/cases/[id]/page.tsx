@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser, canAccessCase, canViewCases, canEditCase, canAssignCase } from "@/lib/case-access";
+import { localUser, canAccessCase, canViewCases, canEditCase, canAssignCase, canReviewDivision } from "@/lib/case-access";
 import { CASE_STATUSES, caseStatusColor } from "@/config/case-statuses";
 import { updateCase, deleteCase, addFiling, deleteFiling, addComment } from "../actions";
 import { submitCaseRequest } from "../requests/actions";
@@ -18,7 +18,7 @@ type CaseWithRelations = Prisma.CaseGetPayload<{
   include: {
     assignedAttorney: true;
     createdBy: true;
-    filings: { select: { id: true; title: true; url: true; pdfFileName: true; createdAt: true; addedBy: { select: { displayName: true } } } };
+    filings: { select: { id: true; title: true; url: true; pdfFileName: true; status: true; reviewNote: true; addedById: true; createdAt: true; addedBy: { select: { displayName: true } } } };
     comments: { include: { author: true } };
     relatedTo: true;
     relatedFrom: true;
@@ -50,7 +50,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       include: {
         assignedAttorney: true,
         createdBy: true,
-        filings: { select: { id: true, title: true, url: true, pdfFileName: true, createdAt: true, addedBy: { select: { displayName: true } } }, orderBy: { createdAt: "desc" } },
+        filings: { select: { id: true, title: true, url: true, pdfFileName: true, status: true, reviewNote: true, addedById: true, createdAt: true, addedBy: { select: { displayName: true } } }, orderBy: { createdAt: "desc" } },
         comments: { include: { author: true }, orderBy: { createdAt: "asc" } },
         relatedTo: true,
         relatedFrom: true,
@@ -70,6 +70,8 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const canDelete = hasCapability(session.user.tiers, CAPABILITIES.CASES_DELETE);
   const canAssign = canAssignCase(session.user.tiers, user.division, caseRecord.division);
   const canPropose = !canEdit && hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
+  const canReviewThisDivision = canReviewDivision(session.user.tiers, user.division, caseRecord.division);
+  const visibleFilings = caseRecord.filings.filter((filing) => filing.status === "ACCEPTED" || filing.addedById === user.id || canReviewThisDivision);
 
   if (canEdit && canAssign) {
     try {
@@ -123,17 +125,17 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const filingsAndComments = (
     <>
       <h3 id="filings">Filings</h3>
-      {caseRecord.filings.length === 0 ? (
+      {visibleFilings.length === 0 ? (
         <p className="note-inline">No filings attached.</p>
       ) : (
         <ul className="case-filings-list">
-          {caseRecord.filings.map((f) => (
+          {visibleFilings.map((f) => (
             <li className="case-filing-row" key={f.id}>
-              <div className="case-filing-info"><strong>{f.title}</strong><span>{f.pdfFileName ?? "Document"} · Filed by {f.addedBy.displayName} · {dateTimeFormatter.format(f.createdAt)}</span></div>
+              <div className="case-filing-info"><strong>{f.title} <span className={`pill ${f.status === "ACCEPTED" ? "pill-green" : f.status === "PENDING" ? "pill-gold" : "pill-red"}`}>{f.status === "ACCEPTED" ? "Approved" : f.status === "PENDING" ? "Pending approval" : "Returned"}</span></strong><span>{f.pdfFileName ?? "Document"} · Submitted by {f.addedBy.displayName} · {dateTimeFormatter.format(f.createdAt)}</span>{f.reviewNote && f.status !== "ACCEPTED" && <span className="note-inline">Review note: {f.reviewNote}</span>}</div>
               <div className="case-filing-actions">
                 {f.pdfFileName && <a href={`/api/cases/filings/${f.id}/pdf`} target="_blank" rel="noreferrer noopener" className="govbtn-outline">View PDF</a>}
                 {f.url && <a href={f.url} target="_blank" rel="noreferrer noopener" className="govbtn-outline">Open link</a>}
-                {canEdit && <RemoveButton id={f.id} action={deleteFiling} label="Remove" confirmMessage={`Remove the filing “${f.title}”?`} className="linklike" style={{ fontSize: 11 }} formStyle={{ display: "inline" }} />}
+                {((f.status === "PENDING" && f.addedById === user.id) || (f.status !== "PENDING" && canEdit)) && <RemoveButton id={f.id} action={deleteFiling} label={f.status === "PENDING" ? "Withdraw" : "Remove"} confirmMessage={`${f.status === "PENDING" ? "Withdraw" : "Remove"} the filing “${f.title}”?`} className="linklike" style={{ fontSize: 11 }} formStyle={{ display: "inline" }} />}
               </div>
             </li>
           ))}

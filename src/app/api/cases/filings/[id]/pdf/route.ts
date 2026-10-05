@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { localUser, canAccessCase } from "@/lib/case-access";
+import { localUser, canAccessCase, canReviewDivision } from "@/lib/case-access";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { decodeCasePdf } from "@/lib/filing-upload";
 
@@ -14,9 +14,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const filing = await prisma.caseFiling.findUnique({
     where: { id },
-    select: { pdfData: true, pdfFileName: true, case: { select: { id: true, assignedAttorneyId: true, createdById: true, isDraft: true } } },
+    select: { pdfData: true, pdfFileName: true, status: true, addedById: true, case: { select: { id: true, assignedAttorneyId: true, createdById: true, isDraft: true, division: true } } },
   });
-  if (!filing || !filing.pdfData || !canAccessCase(session.user.tiers, user.id, filing.case, user.division)) {
+  const canReviewPending = filing && canReviewDivision(session.user.tiers, user.division, filing.case.division);
+  const canSeePending = filing && filing.status !== "ACCEPTED" && (filing.addedById === user.id || canReviewPending);
+  const canSeeAccepted = filing && filing.status === "ACCEPTED" && canAccessCase(session.user.tiers, user.id, filing.case, user.division);
+  if (!filing || !filing.pdfData || (!canSeePending && !canSeeAccepted)) {
     return new Response("Not found", { status: 404 });
   }
   const fileName = (filing.pdfFileName ?? "case-document.pdf").replace(/[\r\n"\\/]/g, "_");

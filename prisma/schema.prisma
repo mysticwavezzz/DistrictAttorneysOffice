@@ -131,10 +131,16 @@ model CaseFiling {
   pdfData   String?
   pdfFileName String?
   addedById String
+  status    String   @default("ACCEPTED")
+  reviewedById String?
+  reviewNote String?
+  reviewedAt DateTime?
   createdAt DateTime @default(now())
 
   case    Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
   addedBy User @relation("FilingsAdded", fields: [addedById], references: [id])
+
+  @@index([status, createdAt])
 }
 
 model CaseComment {
