@@ -2207,6 +2207,11 @@ body:has(.release-pdf-only) .privacy-choice-banner { display:none; }
 .document-printed-heading { margin-bottom: 0; }
 .document-printed-heading input { max-width: 440px; }
 .document-paragraph-list { display: grid; gap: 10px; }
+.document-structured-list { display: grid; gap: 12px; }
+.document-entry-card { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--bd-lt); background: var(--box-alt); }
+.document-entry-card legend { max-width: 90%; padding: 0 6px; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+.document-add-to-case { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--bd-lt); }
+.document-add-to-case h3 { margin: 0; font-size: 14px; }
 .document-paragraph-field { display: grid; gap: 7px; }
 .document-paragraph-field > label { font-size: 13px; font-weight: 650; }
 .document-paragraph-field textarea { width: 100%; resize: vertical; }

@@ -12,11 +12,23 @@ import { getSiteConfiguration } from "@/lib/site-settings";
 import { RemoveButton } from "@/components/remove-button";
 import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
-import { CaseShareButton } from "@/components/case-share-button";
 import { getOngoingObligations, getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { staffPageMetadata } from "@/lib/staff-metadata";
+import { shareMetadata } from "@/lib/share-metadata";
 
-export const metadata = staffPageMetadata("Case Record", "Private staff case record. Use the time-limited case preview link when sharing a basic case summary.", "/dashboard/cases");
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  try {
+    const record = await prisma.case.findUnique({ where: { id }, select: { caseNumber: true, title: true, type: true, stage: true } });
+    if (record) {
+      const description = [record.type, record.stage ? `Status: ${record.stage}` : "Case record"].filter(Boolean).join(" · ");
+      return { ...shareMetadata(`${record.caseNumber} · ${record.title}`, description, `/dashboard/cases/${id}`), robots: { index: false, follow: false } };
+    }
+  } catch {
+    // Keep a safe generic preview if the database is temporarily unavailable.
+  }
+  return { ...staffPageMetadata("Case Record", "Private staff case record.", "/dashboard/cases"), robots: { index: false, follow: false } };
+}
 
 type CaseWithRelations = Prisma.CaseGetPayload<{
   include: {
@@ -216,7 +228,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           {caseRecord.stage ? <span className={`pill pill-${statusColor}`}>{caseRecord.stage}</span> : "No status set"}
           {caseRecord.isDraft && <span className="pill pill-muted" style={{ marginLeft: 6 }}>Draft</span>}
         </p>
-        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link>{!caseRecord.isDraft && <CaseShareButton caseId={caseRecord.id} />}</div>
+        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
         <nav className="case-section-nav" aria-label="Case sections">
           <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a>
         </nav>
@@ -327,7 +339,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <p className="eyebrow">{caseRecord.caseNumber}</p>
       <h1>{caseRecord.title}</h1>
         <p className="subtitle">Assigned to {caseRecord.assignedAttorney?.displayName ?? "Unassigned"} · {accessLabel}</p>
-        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link>{!caseRecord.isDraft && <CaseShareButton caseId={caseRecord.id} />}</div>
+        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
         <ol className="status-timeline" aria-label="Case status timeline">
           <li><strong>Case opened</strong><time dateTime={caseRecord.createdAt.toISOString()}>{caseRecord.createdAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
           <li><strong>Current status: {caseRecord.stage ?? "Unassigned"}</strong><time dateTime={caseRecord.updatedAt.toISOString()}>Updated {caseRecord.updatedAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
