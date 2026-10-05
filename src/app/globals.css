@@ -1716,6 +1716,8 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .review-aopc-detail > summary { padding: 10px 2px; color: var(--link); font-weight: 700; cursor: pointer; }
 .review-aopc-form, .review-record-action { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .review-aopc-form .field { flex: 1 1 100%; }
+.review-case-decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; align-items: start; }
+.review-case-decisions .review-aopc-form { min-width: 0; padding: 12px; border: 1px solid var(--bd); border-radius: 6px; background: var(--paper); }
 .review-record-action label { font-weight: 700; }
 .review-record-action select { min-width: 160px; }
 .pdf-upload-feedback { display: block; margin-top: 4px; color: var(--ink-soft); font-size: 11px; }
