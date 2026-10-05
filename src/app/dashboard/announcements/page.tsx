@@ -85,7 +85,7 @@ export default async function AnnouncementsAdminPage() {
 
       <details className="dashboard-fold" open>
       <summary><span className="dashboard-fold-title">New Release</span></summary>
-      <form action={createAnnouncement} className="formbox" encType="multipart/form-data">
+      <form action={createAnnouncement} className="formbox">
         <div className="field">
           <label htmlFor="title">Title</label>
           <input type="text" id="title" name="title" required maxLength={200} />

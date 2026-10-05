@@ -2201,9 +2201,10 @@ body:has(.release-pdf-only) .privacy-choice-banner { display:none; }
 .document-builder-intro { margin: 0; padding: 10px 14px; border-left: 3px solid var(--teal, #078a83); background: var(--box-alt); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
 .document-builder-intro strong { color: var(--ink); }
 .document-outline-legend { display: grid; gap: 5px; padding: 12px 14px; color: var(--ink-soft); font-size: 11px; }
-.document-outline-legend span:first-child::before, .document-outline-legend span:last-child::before { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; content: ""; }
+.document-outline-legend span::before { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; content: ""; }
 .document-outline-legend span:first-child::before { background: #16a878; }
-.document-outline-legend span:last-child::before { background: #dc4b4b; }
+.document-outline-legend span:nth-child(2)::before { background: #c89122; }
+.document-outline-legend span:last-child::before { background: #8b98a8; }
 .document-printed-heading { margin-bottom: 0; }
 .document-printed-heading input { max-width: 440px; }
 .document-paragraph-list { display: grid; gap: 10px; }
@@ -2247,6 +2248,9 @@ body:has(.release-pdf-only) .privacy-choice-banner { display:none; }
 .document-outline-item:last-child { border-bottom: 0; }
 .document-outline-item > span { font-size: 13px; font-weight: 650; }
 .document-outline-item > small { color: var(--ink-soft); font-size: 11px; }
+.document-outline-item.is-complete > small { color: #16734f; }
+.document-outline-item.is-in-progress > small { color: #8a641c; }
+.document-outline-item.is-empty > small { color: var(--ink-soft); }
 .document-outline-item.is-active { border-left: 3px solid var(--teal, #078a83); background: var(--box-alt); }
 .document-guidance p, .document-instruction { color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
 .document-guidance p { margin: 9px 0; }
@@ -2260,7 +2264,7 @@ body:has(.release-pdf-only) .privacy-choice-banner { display:none; }
 .document-count-warning { background: #fff0d7; color: #704314 !important; }
 .document-compliance > p { margin: 8px 0; }
 .document-compliance > p > strong { font-size: 23px; }
-.document-missing-list { display: grid; gap: 5px; padding-left: 19px; color: #8b3b30; font-size: 12px; }
+.document-missing-list { display: grid; gap: 5px; padding-left: 19px; color: var(--ink-soft); font-size: 12px; }
 .document-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .document-preview-actions > * { min-height: 38px; }
 .document-pdf-frame { display: block; width: 100%; height: min(70vh, 690px); min-height: 410px; border: 1px solid var(--bd); background: #fff; }
@@ -2359,4 +2363,46 @@ body:has(.release-pdf-only) .privacy-choice-banner { display:none; }
   .review-aopc-detail > summary, .tip-form-section > summary, .contact-closed-list > summary { min-height: 44px; padding: 10px 12px; }
   .dashboard-fold > summary + section, .case-detail-fold-body, .roster-division-body,
   .review-aopc-detail > :not(summary) { margin-right: 12px; margin-left: 12px; }
+}
+
+/* Keep case sections visually aligned with the dashboard's shared disclosure cards. */
+.case-detail-fold {
+  margin: 16px 0;
+  border: 1px solid var(--bd);
+  border-radius: 7px;
+  background: var(--paper);
+}
+.case-detail-fold > summary {
+  min-height: 48px;
+  padding: 11px 16px;
+  gap: 10px;
+  background: var(--box-alt);
+}
+.case-detail-fold > summary h2 {
+  flex: 1 1 auto;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--heading);
+  font: 700 1.12rem/1.3 var(--serif);
+}
+.case-detail-fold > summary > span {
+  flex: 0 1 auto;
+  margin-left: auto;
+  color: var(--ink-soft);
+  font: 12px/1.4 var(--sans);
+  text-align: right;
+}
+.case-detail-fold[open] > summary { border-bottom: 1px solid var(--bd-lt); }
+.case-detail-fold-body { padding: 14px 16px; }
+.case-detail-fold-body.formbox { padding: 14px 16px; }
+.share-preview-page { max-width: 760px; margin: 48px auto; padding: 24px; border: 1px solid var(--bd); border-radius: 7px; background: var(--paper); }
+.share-preview-page h1 { margin-bottom: 8px; }
+.share-preview-title { font-size: 1.15rem; color: var(--ink); }
+@media (max-width: 600px) {
+  .case-detail-fold > summary { min-height: 44px; padding: 10px 12px; }
+  .case-detail-fold > summary > span { max-width: 42%; }
+  .case-detail-fold-body, .case-detail-fold-body.formbox { padding: 12px; }
+  .share-preview-page { margin: 20px 12px; padding: 18px; }
 }

@@ -11,11 +11,11 @@ const { auth } = NextAuth(authConfig);
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data: https:",
-    "connect-src 'self'",
+    "connect-src 'self' blob:",
     "frame-src 'self' blob:",
     "form-action 'self'",
     "frame-ancestors 'none'",
@@ -60,6 +60,21 @@ export default auth(async (req) => {
   const csp = buildCsp(nonce);
 
   const { pathname } = req.nextUrl;
+
+  // Social crawlers cannot complete the staff sign-in flow. Give them a
+  // deliberately minimal, public preview route for case links only.
+  const casePreviewMatch = pathname.match(/^\/dashboard\/cases\/([^/]+)\/?$/);
+  const userAgent = req.headers.get("user-agent") ?? "";
+  const isLinkPreviewBot = /Discordbot|Twitterbot|Slackbot|facebookexternalhit|Facebot|TelegramBot|WhatsApp/i.test(userAgent);
+  if (casePreviewMatch && isLinkPreviewBot) {
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy", csp);
+    const previewUrl = new URL(`/share/cases/${encodeURIComponent(casePreviewMatch[1]!)}`, req.nextUrl.origin);
+    const response = NextResponse.rewrite(previewUrl, { request: { headers: requestHeaders } });
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
+  }
 
   const maintenance = await getMaintenanceConfiguration(req.nextUrl.origin);
   if (shouldRedirectToMaintenance({

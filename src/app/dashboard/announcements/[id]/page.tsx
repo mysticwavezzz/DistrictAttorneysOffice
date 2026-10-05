@@ -27,7 +27,7 @@ export default async function EditAnnouncementPage({ params }: { params: Promise
     <div>
       <h1>Edit Release</h1>
 
-      <form action={updateAnnouncement} className="formbox" encType="multipart/form-data">
+      <form action={updateAnnouncement} className="formbox">
         <input type="hidden" name="id" value={post.id} />
         <div className="field">
           <label htmlFor="title">Title</label>

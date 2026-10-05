@@ -28,7 +28,7 @@ export default async function FileOnCasePage({ searchParams }: { searchParams: P
   return <div className="case-file-page">
     <p className="eyebrow">Casework</p><h1>File a Document</h1>
     <p className="lede">Upload a PDF to add it to an existing case record.</p>
-    {!cases.length ? <div className="empty-state"><h2>No cases available</h2><p>You need access to a case before filing a document.</p><Link href="/dashboard/cases/new" className="govbtn-outline">Open a Case</Link></div> : <form action={addFiling} className="formbox case-file-form" encType="multipart/form-data" noValidate>
+    {!cases.length ? <div className="empty-state"><h2>No cases available</h2><p>You need access to a case before filing a document.</p><Link href="/dashboard/cases/new" className="govbtn-outline">Open a Case</Link></div> : <form action={addFiling} className="formbox case-file-form" noValidate>
       <input type="hidden" name="returnTo" value="filings" />
       <div className="field"><label htmlFor="filing-case">Case</label><select id="filing-case" name="caseId" required defaultValue={selectedId}><option value="" disabled>Select a case</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.caseNumber} · {item.title}{item.isDraft ? " (Draft)" : ""}</option>)}</select></div>
       <div className="field"><label htmlFor="filing-title">Document name</label><input id="filing-title" name="title" required maxLength={200} placeholder="Example: Supplemental report" /></div>

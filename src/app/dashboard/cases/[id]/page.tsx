@@ -15,6 +15,7 @@ import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getOngoingObligations, getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 import { shareMetadata } from "@/lib/share-metadata";
+import { CaseFoldPersistence } from "@/components/case-fold-persistence";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -160,7 +161,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           ))}
         </ul>
       )}
-      <form action={addFiling} className="field-row case-inline-filing" style={{ marginBottom: 20 }} encType="multipart/form-data" noValidate>
+      <form action={addFiling} className="field-row case-inline-filing" style={{ marginBottom: 20 }} noValidate>
         <input type="hidden" name="caseId" value={caseRecord.id} />
         <input type="hidden" name="returnTo" value="case" />
         <div className="field" style={{ flex: "1 1 180px" }}>
@@ -221,6 +222,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   if (!canEdit) {
     return (
       <div>
+        <CaseFoldPersistence accountId={user.id} caseId={caseRecord.id} />
         <p className="eyebrow">{caseRecord.caseNumber}</p>
         <h1>{caseRecord.title}</h1>
         <p className="subtitle">
@@ -336,6 +338,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
   return (
       <div>
+      <CaseFoldPersistence accountId={user.id} caseId={caseRecord.id} />
       <p className="eyebrow">{caseRecord.caseNumber}</p>
       <h1>{caseRecord.title}</h1>
         <p className="subtitle">Assigned to {caseRecord.assignedAttorney?.displayName ?? "Unassigned"} · {accessLabel}</p>

@@ -57,7 +57,7 @@ function fieldDefaults(template: DocumentTemplate, filingUsername: string): Draf
 }
 
 function cleanPdfText(value: string) {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2013\u2014]/g, "-").replace(/[^\x20-\x7e]/g, "?");
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2013\u2014]/g, "-").replace(/[^\x20-\x7e\u00a7]/g, "?");
 }
 
 function wrapText(value: string, width: number, font: { widthOfTextAtSize: (value: string, size: number) => number }, fontSize: number) {
@@ -87,6 +87,7 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
   const [filter, setFilter] = useState("");
   const [activeSection, setActiveSection] = useState("caption");
   const [pdfUrl, setPdfUrl] = useState("");
+  const [hasRenderedPdf, setHasRenderedPdf] = useState(false);
   const [pdfName, setPdfName] = useState("completed-document.pdf");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -105,6 +106,7 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
 
   function chooseTemplate(value: DocumentTemplate) {
     invalidatePdf();
+    setHasRenderedPdf(false);
     setTemplate(value);
     setDraft(fieldDefaults(value, filingUsername));
     setActiveSection("caption");
@@ -114,13 +116,27 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
   }
 
   function applyCaseDetails(targetTemplate: DocumentTemplate, record: DocumentCase) {
-    let parties: { name?: string; role?: string }[] = [];
+    let parties: { name?: string; role?: string; robloxUserId?: string; userId?: string }[] = [];
     try { parties = JSON.parse(record.partyDetails) as { name?: string; role?: string }[]; } catch { parties = []; }
     const defendant = parties.find((party) => /defendant/i.test(party.role ?? ""))?.name ?? "";
     const plaintiff = parties.find((party) => /plaintiff/i.test(party.role ?? ""))?.name ?? "The People of Harrison County";
     setDraft((current) => {
       if (!current) return current;
-      return { ...current, values: { ...current.values, caseNumber: record.caseNumber, defendant, plaintiff } };
+      const defendantParty = parties.find((party) => /defendant/i.test(party.role ?? ""));
+      return {
+        ...current,
+        documentName: `${targetTemplate.title} - ${record.caseNumber}`,
+        values: {
+          ...current.values,
+          caseNumber: record.caseNumber,
+          defendant,
+          plaintiff,
+          ...(targetTemplate.id === "criminal-information" ? {
+            defendantUsername: defendant,
+            defendantUserId: defendantParty?.robloxUserId ?? defendantParty?.userId ?? "",
+          } : {}),
+        },
+      };
     });
     invalidatePdf();
   }
@@ -168,8 +184,11 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
       if (group.repeatable) {
         const rows = draft.repeated[group.id] ?? [];
         const requiredFields = group.fields.filter((field) => field.required !== false);
-        const complete = rows.some((row) => requiredFields.every((field) => row[field.id]?.trim()));
-        if (requiredFields.length && !complete) missing.push(`${group.label}: complete at least one entry`);
+        const activeRows = rows.map((row, index) => ({ row, index })).filter(({ row }) => Object.values(row).some((value) => value.trim()));
+        if (requiredFields.length && !activeRows.length) missing.push(`${group.id === "counts" ? "Add at least one count" : `Add at least one ${group.label.toLowerCase()} entry`}`);
+        for (const { row, index } of activeRows) {
+          for (const field of requiredFields) if (!row[field.id]?.trim()) missing.push(`${group.id === "counts" ? `Count ${index + 1}` : `${group.label} ${index + 1}`}: ${field.label}`);
+        }
       } else {
         for (const field of group.fields) if (field.required !== false && !draft.values[field.id]?.trim()) missing.push(field.label);
       }
@@ -178,14 +197,29 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
   }, [draft, groups, template]);
 
   const outline = template && draft ? [
-    { id: "caption", label: "Case details", done: commonFieldsFor(template).every((field) => !field.required || Boolean(draft.values[field.id]?.trim())) },
+    {
+      id: "caption",
+      label: "Case details",
+      done: commonFieldsFor(template).every((field) => !field.required || Boolean(draft.values[field.id]?.trim())),
+      started: commonFieldsFor(template).some((field) => Boolean(draft.values[field.id]?.trim())),
+    },
     ...template.sections.map((group) => {
       if (group.repeatable) {
         const rows = draft.repeated[group.id] ?? [];
         const requiredFields = group.fields.filter((field) => field.required !== false);
-        return { id: group.id, label: group.label, done: rows.some((row) => requiredFields.every((field) => row[field.id]?.trim())) };
+        return {
+          id: group.id,
+          label: group.id === "counts" ? "Charges" : group.label,
+          done: rows.some((row) => requiredFields.every((field) => row[field.id]?.trim())),
+          started: rows.some((row) => Object.values(row).some((value) => value.trim())),
+        };
       }
-      return { id: group.id, label: group.label, done: group.fields.every((field) => field.required === false || Boolean(draft.values[field.id]?.trim())) };
+      return {
+        id: group.id,
+        label: group.id === "signature" ? "Filing and signature" : group.label,
+        done: group.fields.every((field) => field.required === false || Boolean(draft.values[field.id]?.trim())),
+        started: group.fields.some((field) => Boolean(draft.values[field.id]?.trim())),
+      };
     }),
   ] : [];
   const activeIndex = Math.max(0, outline.findIndex((item) => item.id === activeSection));
@@ -202,7 +236,7 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
   }
 
   async function renderPdf() {
-    if (!draft || !template || requiredMissing.length) return;
+    if (!draft || !template) return;
     setBusy(true);
     setError("");
     try {
@@ -253,20 +287,99 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
       };
 
       const caseNumber = cleanPdfText(draft.values.caseNumber ?? "");
-      const captionFields = template.id === "search-warrant" ? ["caseNumber"] : ["caseNumber", "plaintiff", "defendant"];
+      // The supplied PDFs are distinct source forms. Only the CI has measured
+      // replacement fields; never paint shared guessed coordinates over other forms.
+      const captionFields = template.id === "criminal-information" ? ["caseNumber", "plaintiff", "defendant"] : [];
       for (const id of captionFields) {
         const region = template.pdfRegions[id];
         const value = cleanPdfText(draft.values[id] ?? "");
         if (!region || !value) continue;
-        const page = pageAt(region.page);
-        blankRegion(page, region, rgb(1, 1, 1));
-        const label = id === "caseNumber" ? "ACTION NO." : "";
-        const text = label ? `${label} ${value}` : value;
-        const size = region.fontSize ?? 9;
-        page.drawText(text, { x: region.x + (label ? 1 : 4), y: page.getHeight() - region.top - size - 2, size, font, color: rgb(0.08, 0.08, 0.08) });
+        const targetPages = id === "caseNumber" ? output.getPages() : [pageAt(region.page)];
+        for (const page of targetPages) {
+          blankRegion(page, region, rgb(1, 1, 1));
+          const size = region.fontSize ?? 9;
+          page.drawText(value, { x: region.x + 2, y: page.getHeight() - region.top - size - 2, size, font, color: rgb(0.08, 0.08, 0.08), maxWidth: region.width - 4 });
+        }
       }
 
-      for (const section of template.sections) {
+      if (template.id === "criminal-information") {
+        const firstPage = pageAt(0);
+        const fillSlot = (region: PdfTextRegion, value: string, size = region.fontSize ?? 9, useBold = false) => {
+          if (!value.trim()) return;
+          blankRegion(firstPage, region, rgb(1, 1, 1));
+          firstPage.drawText(cleanPdfText(value), {
+            x: region.x + 2,
+            y: firstPage.getHeight() - region.top - size - 2,
+            size,
+            font: useBold ? bold : font,
+            color: rgb(0.08, 0.08, 0.08),
+            maxWidth: region.width - 4,
+          });
+        };
+        const formatDate = (value: string) => {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+          const [year, month, day] = value.split("-");
+          return `${month}/${day}/${year}`;
+        };
+        const username = draft.values.defendantUsername?.trim() ?? "";
+        const userId = draft.values.defendantUserId?.trim() ?? "";
+        fillSlot({ page: 0, x: 247, top: 340, width: 291, height: 16, fontSize: 9 }, [username, userId ? `(${userId})` : ""].filter(Boolean).join(" "));
+
+        const counts = (draft.repeated.counts ?? []).filter((row) => Object.values(row).some((value) => value.trim()));
+        const defendant = draft.values.defendant?.trim() ?? "";
+        const firstCount = counts[0];
+        if (firstCount) {
+          const number = "01";
+          const statute = firstCount.statute?.trim() ?? "";
+          const charge = firstCount.charge?.trim() ?? "";
+          const level = firstCount.offenseLevel?.trim() ?? "";
+          const offenseDate = formatDate(firstCount.offenseDate?.trim() ?? "");
+          const chargingLanguage = firstCount.chargingLanguage?.trim() ?? "";
+          fillSlot({ page: 0, x: 250, top: 401, width: 288, height: 19, fontSize: 10 }, `${number}  § ${statute}  §  ${charge}`);
+          fillSlot({ page: 0, x: 222, top: 422, width: 178, height: 17, fontSize: 10 }, level.toUpperCase());
+
+          if (offenseDate || defendant || charge || level || chargingLanguage || statute) {
+            const allegation = `On or about ${offenseDate}, at and within Harrison County, Chesapeake, ${defendant || "the defendant"}, the above defendant is alleged to have committed ${number} § ${statute} § ${charge}, a ${level.toUpperCase()}, in that, said defendant, ${chargingLanguage} in violation of ${number} § ${statute} of the Harrison County Code, contrary to the Statute, and against the peace and dignity of the People of Harrison County.`;
+            const region = { page: 0, x: 72, top: 444, width: 468, height: 112, fontSize: 10 };
+            blankRegion(firstPage, region, rgb(1, 1, 1));
+            let top = region.top + 2;
+            for (const line of wrapText(allegation, region.width - 4, font, region.fontSize)) {
+              firstPage.drawText(line, { x: region.x + 2, y: firstPage.getHeight() - top - region.fontSize, size: region.fontSize, font, color: rgb(0.08, 0.08, 0.08) });
+              top += region.fontSize * 1.35;
+            }
+          }
+        }
+
+        for (const [index, row] of counts.slice(1).entries()) {
+          const page = output.addPage([612, 792]);
+          const lines = [
+            `COUNT ${index + 2}`,
+            `Statute: ${row.statute ?? ""}`,
+            `Offense: ${row.charge ?? ""} (${row.offenseLevel ?? ""})`,
+            `Offense date: ${formatDate(row.offenseDate ?? "")}`,
+            `Defendant: ${defendant}`,
+            `Charging language: ${row.chargingLanguage ?? ""}`,
+          ].filter((line) => line.trim().length > line.indexOf(":") + 1);
+          let y = page.getHeight() - 62;
+          for (const [lineIndex, value] of lines.entries()) {
+            const heading = lineIndex === 0;
+            const selectedFont = heading ? bold : font;
+            const size = heading ? 14 : 11;
+            for (const wrapped of wrapText(cleanPdfText(value), 468, selectedFont, size)) {
+              page.drawText(wrapped, { x: 72, y, size, font: selectedFont, color: rgb(0.08, 0.08, 0.08) });
+              y -= size * 1.5;
+            }
+            y -= 10;
+          }
+          if (caseNumber) page.drawText(`Case ${caseNumber} - Criminal Information (CI)`, { x: 72, y: 28, size: 8, font, color: rgb(0.3, 0.3, 0.3) });
+        }
+
+        const filingDate = formatDate(draft.values.filingDate ?? "");
+        fillSlot({ page: 0, x: 106, top: 630, width: 150, height: 17, fontSize: 10 }, filingDate);
+        const attorney = draft.values.attorneyName?.trim() ?? "";
+        fillSlot({ page: 0, x: 322, top: 672, width: 205, height: 27, fontSize: 14 }, attorney, 14, true);
+        fillSlot({ page: 0, x: 322, top: 699, width: 205, height: 15, fontSize: 9 }, [attorney, draft.values.barId?.trim()].filter(Boolean).join(" - "));
+      } else for (const section of template.sections) {
         const regionKey = section.pdfRegion ?? REGION_ALIASES[template.id]?.[section.id] ?? section.id;
         let rows: { label: string; value: string }[] = [];
         if (section.repeatable) {
@@ -303,9 +416,15 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
         }
       }
 
+      if (requiredMissing.length) {
+        for (const page of output.getPages()) {
+          page.drawText("DRAFT - INCOMPLETE", { x: page.getWidth() - 166, y: 22, size: 8, font: bold, color: rgb(0.56, 0.27, 0.24) });
+        }
+      }
       const bytes = await output.save();
       invalidatePdf();
       setPdfUrl(URL.createObjectURL(new Blob([Uint8Array.from(bytes)], { type: "application/pdf" })));
+      setHasRenderedPdf(true);
       const name = (draft.documentName || template.title).replace(/[^a-z0-9-_ ]/gi, "").trim().replace(/\s+/g, "-") || "completed-document";
       setPdfName(`${caseNumber ? `${caseNumber}-` : ""}${name}.pdf`);
     } catch (reason) {
@@ -353,19 +472,19 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
 
   return <div className="document-creator document-builder">
     <div className="document-builder-top">
-      <button type="button" className="document-back-link" onClick={() => { invalidatePdf(); setTemplate(null); setDraft(null); }}>‹ All templates</button>
+      <button type="button" className="document-back-link" onClick={() => { invalidatePdf(); setHasRenderedPdf(false); setTemplate(null); setDraft(null); }}>‹ All templates</button>
       <div className="field document-draft-name"><label htmlFor="draft-name">Filing title</label><input id="draft-name" value={draft.documentName} maxLength={120} onChange={(event) => { setDraft((current) => current ? { ...current, documentName: event.target.value } : current); invalidatePdf(); }} /></div>
       <span className="document-draft-status" role="status">{pdfUrl ? "PDF ready" : initialMissingLabel}</span>
       <div className="document-builder-tags"><span>{template.title}</span><span>{template.category}</span><span>DA FORM</span></div>
     </div>
-    <p className="document-builder-intro">Fill in the case details and the fields for this form. Render only after the required information is complete.</p>
+    <p className="document-builder-intro">Enter each item in its own field. You can preview a draft at any time; required fields must be complete before it can be attached to a case.</p>
     <div className="document-builder-grid">
       <aside className="document-builder-sidebar">
         <section className="document-panel document-outline"><h2>Outline</h2>
-          {outline.map((item) => <button type="button" key={item.id} className={activeSection === item.id ? "document-outline-item is-active" : "document-outline-item"} onClick={() => { setActiveSection(item.id); setError(""); }} aria-current={activeSection === item.id ? "step" : undefined}>
-            <span>{item.label}</span><small>{item.done ? "Complete" : "Needs information"}</small>
+          {outline.map((item) => <button type="button" key={item.id} className={`${activeSection === item.id ? "document-outline-item is-active" : "document-outline-item"} ${item.done ? "is-complete" : item.started ? "is-in-progress" : "is-empty"}`} onClick={() => { setActiveSection(item.id); setError(""); }} aria-current={activeSection === item.id ? "step" : undefined}>
+            <span>{item.label}</span><small>{item.done ? "Complete" : item.started ? "In progress" : "Not started"}</small>
           </button>)}
-          <div className="document-outline-legend"><span>Complete</span><span>Needs information</span></div>
+          <div className="document-outline-legend"><span>Complete</span><span>In progress</span><span>Not started</span></div>
         </section>
         <section className="document-panel document-guidance"><h2>Using this form</h2><p>The provided DA PDF is the base of your completed document. Entered values are placed in its form-specific fields.</p><a href={template.editUrl} target="_blank" rel="noopener noreferrer">View original source ↗</a></section>
       </aside>
@@ -380,11 +499,11 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
           <header className="document-panel-heading"><h2>{currentGroup.label}</h2><span>{template.title}</span></header>
           <p className="document-instruction">{currentGroup.hint}</p>
           {currentGroup.repeatable ? <div className="document-structured-list">
-            {(draft.repeated[currentGroup.id] ?? []).map((row, rowIndex) => <fieldset className="document-entry-card" key={`${currentGroup.id}-${rowIndex}`}><legend>{currentGroup.label} {rowIndex + 1}</legend>
+            {(draft.repeated[currentGroup.id] ?? []).map((row, rowIndex) => <fieldset className="document-entry-card" key={`${currentGroup.id}-${rowIndex}`}><legend>{currentGroup.id === "counts" ? `Count ${rowIndex + 1}` : `${currentGroup.label} ${rowIndex + 1}`}</legend>
               <div className="document-form-grid">{currentGroup.fields.map((field) => renderInput(field, row[field.id] ?? "", (value) => updateRepeated(currentGroup.id, rowIndex, field.id, value), `-${rowIndex}`))}</div>
               {(draft.repeated[currentGroup.id]?.length ?? 0) > 1 && <button type="button" className="govbtn-outline document-remove-paragraph" onClick={() => removeRepeated(currentGroup.id, rowIndex)}>Remove this entry</button>}
             </fieldset>)}
-            <button type="button" className="govbtn-outline" disabled={(draft.repeated[currentGroup.id]?.length ?? 0) >= 25} onClick={() => addRepeated(currentGroup)}>＋ Add {currentGroup.id === "counts" ? "count" : currentGroup.id === "witnesses" ? "witness" : currentGroup.id === "items" ? "evidence item" : currentGroup.id === "arrests" ? "arrest entry" : currentGroup.id === "statements" ? "statement" : currentGroup.id === "evidence" ? "item" : "entry"}</button>
+            <button type="button" className="govbtn-outline" disabled={(draft.repeated[currentGroup.id]?.length ?? 0) >= 25} onClick={() => addRepeated(currentGroup)}>＋ Add {currentGroup.id === "counts" ? "another count" : currentGroup.id === "witnesses" ? "another witness" : currentGroup.id === "items" ? "another evidence item" : currentGroup.id === "arrests" ? "another arrest entry" : currentGroup.id === "statements" ? "another statement" : currentGroup.id === "evidence" ? "another item" : "another entry"}</button>
           </div> : <div className="document-form-grid">{currentGroup.fields.map((field) => renderInput(field, draft.values[field.id] ?? "", (value) => updateValue(field.id, value)))}</div>}
         </section> : null}
         <nav className="document-section-nav" aria-label="Document sections">
@@ -395,16 +514,16 @@ export function DocumentCreator({ cases, initialCaseId = "", filingUsername }: P
       </main>
 
       <aside className="document-builder-aside">
-        <section className="document-panel document-compliance"><header className="document-panel-heading"><h2>Before rendering</h2><span className={requiredMissing.length ? "document-count document-count-warning" : "document-count"}>{requiredMissing.length ? `${requiredMissing.length} to complete` : "Ready"}</span></header>
-          {requiredMissing.length ? <><p>Complete these required fields first:</p><ul className="document-missing-list">{requiredMissing.slice(0, 10).map((name) => <li key={name}>{name}</li>)}</ul>{requiredMissing.length > 10 && <p>And {requiredMissing.length - 10} more.</p>}</> : <p className="message message-success">Required fields are complete.</p>}
-          <p className="document-instruction">A required field is one the supplied form needs to identify the case, party, charge, request, or signer.</p>
+        <section className="document-panel document-compliance"><header className="document-panel-heading"><h2>Document status</h2><span className={requiredMissing.length ? "document-count document-count-warning" : "document-count"}>{requiredMissing.length ? `${requiredMissing.length} left` : "Ready to file"}</span></header>
+          {requiredMissing.length ? <><p>This preview is still a draft. Complete these fields before adding it to a case:</p><ul className="document-missing-list">{requiredMissing.slice(0, 10).map((name) => <li key={name}>{name}</li>)}</ul>{requiredMissing.length > 10 && <p>And {requiredMissing.length - 10} more.</p>}</> : <p className="message message-success">All required fields are complete. You can add the rendered PDF to a case.</p>}
+          <p className="document-instruction">Fields marked * are required. Optional fields can be left blank.</p>
         </section>
-        <section className="document-panel document-preview"><header className="document-panel-heading"><h2>Completed PDF</h2><span>{pdfUrl ? "Ready" : "Not rendered"}</span></header>
-          <p className="document-instruction">Your entries are rendered onto the supplied DA PDF. Nothing is added to a case until you choose one below.</p>
-          <div className="document-preview-actions"><button className="govbtn" type="button" onClick={() => void renderPdf()} disabled={busy || requiredMissing.length > 0}>{busy ? "Rendering PDF…" : pdfUrl ? "Render PDF again" : "Render PDF"}</button>{pdfUrl && <a className="govbtn-outline" href={pdfUrl} download={pdfName}>Download PDF</a>}</div>
+        <section className="document-panel document-preview"><header className="document-panel-heading"><h2>Completed PDF</h2><span>{pdfUrl ? "Ready" : hasRenderedPdf ? "Needs update" : "Not rendered"}</span></header>
+          <p className="document-instruction">Preview your entries on the supplied DA PDF. Incomplete previews are marked “DRAFT - INCOMPLETE” and cannot be filed.</p>
+          <div className="document-preview-actions"><button className="govbtn" type="button" onClick={() => void renderPdf()} disabled={busy}>{busy ? "Rendering PDF…" : pdfUrl ? "Render PDF again" : requiredMissing.length ? "Render draft PDF" : "Render PDF"}</button>{pdfUrl && <a className="govbtn-outline" href={pdfUrl} download={pdfName}>Download PDF</a>}</div>
           {error && <p className="message message-error" role="alert">{error}</p>}
-          {pdfUrl && <div className="document-add-to-case"><h3>Add to a case</h3><div className="field"><label htmlFor="attach-case">Case docket</label><select id="attach-case" value={attachCaseId} onChange={(event) => setAttachCaseId(event.target.value)}><option value="">Choose a case…</option>{cases.map((record) => <option key={record.id} value={record.id}>{record.caseNumber} · {record.title}</option>)}</select></div><p className="document-instruction">The filing title is filled in from this document. Case access and normal filing review rules still apply.</p><button type="button" className="govbtn" disabled={!attachCaseId || isAdding} onClick={addRenderedPdfToCase}>{isAdding ? "Adding to case…" : "Add PDF to case"}</button></div>}
-          {pdfUrl ? <iframe className="document-pdf-frame" title="Completed DA form PDF" src={pdfUrl} /> : <div className="document-preview-empty">Complete the required fields, then render the PDF to preview it here.</div>}
+          {hasRenderedPdf && <div className="document-add-to-case"><h3>Add to a case</h3><div className="field"><label htmlFor="attach-case">Case docket</label><select id="attach-case" value={attachCaseId} onChange={(event) => selectCase(event.target.value)}><option value="">Choose a case…</option>{cases.map((record) => <option key={record.id} value={record.id}>{record.caseNumber} · {record.title}</option>)}</select></div><p className="document-instruction">Selecting a docket fills its case number and parties and updates the filing title. Render again after changing the case; complete required fields before attaching.</p>{!pdfUrl && <p className="message">The document changed. Render it again to preview and attach the latest version.</p>}<button type="button" className="govbtn" disabled={!pdfUrl || !attachCaseId || isAdding || requiredMissing.length > 0} onClick={addRenderedPdfToCase}>{isAdding ? "Adding to case…" : !pdfUrl ? "Render the updated PDF first" : requiredMissing.length ? "Complete required fields to add" : "Add PDF to case"}</button></div>}
+          {pdfUrl ? <iframe className="document-pdf-frame" title="Completed DA form PDF" src={pdfUrl} /> : <div className="document-preview-empty">{hasRenderedPdf ? "Your latest edits are not in the preview yet. Render again to update it." : "Complete the form or render a draft PDF to preview it here."}</div>}
         </section>
         <p className="document-disclaimer">Your unfinished entries stay in this page only. Download the rendered PDF before leaving if you need a separate copy.</p>
       </aside>

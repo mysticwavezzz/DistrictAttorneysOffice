@@ -65,9 +65,9 @@ export default async function RootLayout({
   const privacyConsentGeneration = await getPrivacyConsentGeneration();
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body>{children}<SessionProvider><MaintenanceWatcher /></SessionProvider><PrivacyChoices generation={privacyConsentGeneration} /></body>
     </html>

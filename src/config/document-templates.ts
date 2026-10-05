@@ -56,9 +56,9 @@ const commonCaptionFields = [
 ];
 
 const commonRegions: Record<string, PdfTextRegion> = {
-  caseNumber: { page: 0, x: 72, top: 37, width: 172, height: 16, fontSize: 9 },
-  plaintiff: { page: 0, x: 249, top: 151, width: 120, height: 16, fontSize: 9 },
-  defendant: { page: 0, x: 243, top: 215, width: 126, height: 16, fontSize: 9 },
+  caseNumber: { page: 0, x: 143, top: 37, width: 97, height: 15, fontSize: 9 },
+  plaintiff: { page: 0, x: 253, top: 152, width: 106, height: 15, fontSize: 9 },
+  defendant: { page: 0, x: 247, top: 215, width: 118, height: 15, fontSize: 9 },
 };
 
 const formDefinitions: Omit<DocumentTemplate, "pdfPath">[] = [
