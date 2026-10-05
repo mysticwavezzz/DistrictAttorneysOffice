@@ -43,6 +43,12 @@ describe("findRouteRule", () => {
     expect(findRouteRule("/98981/analytics")?.capabilities).toEqual([CAPABILITIES.SETTINGS_MANAGE]);
   });
 
+  it("gates the document creator to staff with case-view access", () => {
+    const rule = findRouteRule("/dashboard/templates");
+    expect(rule?.capabilities).toEqual([CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_VIEW_DIVISION]);
+    expect(findRouteRule("/dashboard/templates/anything")?.capabilities).toEqual(rule?.capabilities);
+  });
+
   it("gates the unlinked debug console to settings:manage", () => {
     const rule = findRouteRule("/debug");
     expect(rule?.capabilities).toEqual([CAPABILITIES.SETTINGS_MANAGE]);

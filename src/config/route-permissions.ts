@@ -7,6 +7,7 @@ export interface RouteRule {
 
 export const PROTECTED_ROUTES: RouteRule[] = [
   { prefix: "/dashboard/cases/requests", capabilities: [CAPABILITIES.CASES_APPROVE_EDITS, CAPABILITIES.CASES_APPROVE_DIVISION] },
+  { prefix: "/dashboard/templates", capabilities: [CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_VIEW_DIVISION] },
   { prefix: "/dashboard/cases", capabilities: [CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_VIEW_DIVISION] },
   { prefix: "/dashboard/roster", capabilities: [CAPABILITIES.ROSTER_VIEW, CAPABILITIES.ROSTER_VIEW_DIVISION] },
   { prefix: "/dashboard/announcements", capabilities: [CAPABILITIES.ANNOUNCEMENTS_MANAGE] },

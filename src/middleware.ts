@@ -16,7 +16,7 @@ function buildCsp(nonce: string): string {
     "font-src 'self'",
     "img-src 'self' data: https:",
     "connect-src 'self'",
-    "frame-src 'self'",
+    "frame-src 'self' blob:",
     "form-action 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",

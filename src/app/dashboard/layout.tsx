@@ -19,6 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ...(mayViewCases ? [
       { label: "My Cases", href: "/dashboard/cases" },
       { label: "Filing History", href: "/dashboard/filings" },
+      { label: "Document Creator", href: "/dashboard/templates" },
     ] : []),
   ];
   const staffTools: NavItem[] = [
