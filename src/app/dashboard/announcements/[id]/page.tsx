@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { updateAnnouncement, deleteAnnouncement } from "../actions";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Edit Press Release", "Edit a draft or published office announcement.", "/dashboard/announcements");
 
 export default async function EditAnnouncementPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

@@ -6,6 +6,9 @@ import { caseVisibilityWhere, localUser, canViewCases as canViewCasesInDocket } 
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { DashboardFoldPersistence } from "@/components/dashboard-fold-persistence";
 import { getPrivacyConsentGeneration } from "@/lib/site-settings";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Staff Overview", "Your assignments, reviews, deadlines, filings, and recent office activity.", "/dashboard");
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 

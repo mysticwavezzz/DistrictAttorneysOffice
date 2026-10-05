@@ -6,8 +6,10 @@ import { canRouteContactMail, canViewContactMail, canViewAllContactMail, isAssig
 import { prisma } from "@/lib/prisma";
 import { StaffContactTicket } from "@/components/staff-contact-ticket";
 import { manageContactTicket } from "@/app/contacts/actions";
+import { staffPageMetadata } from "@/lib/staff-metadata";
 
 export const dynamic = "force-dynamic";
+export const metadata = staffPageMetadata("Contact Ticket", "Private staff workspace for responding to a contact request.", "/dashboard/contact-mail");
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 export default async function ContactTicketPage({ params }: { params: Promise<{ id: string }> }) {

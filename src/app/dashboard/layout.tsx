@@ -8,7 +8,7 @@ import { RoleSyncPoller } from "@/components/role-sync-poller";
 import { canViewCases } from "@/lib/case-access";
 import { shareMetadata } from "@/lib/share-metadata";
 
-export const metadata = shareMetadata("Staff Portal", "Staff workspace for assigned cases, filings, deadlines, and office workflows.", "/dashboard");
+export const metadata = { ...shareMetadata("Staff Portal", "Staff workspace for assigned cases, filings, deadlines, and office workflows.", "/dashboard"), robots: { index: false, follow: false } };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();

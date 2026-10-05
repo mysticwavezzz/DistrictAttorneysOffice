@@ -17,6 +17,9 @@ import { prisma } from "@/lib/prisma";
 import { CRIME_TIP_FORM } from "@/config/crime-tip-form";
 import { getWebsiteVersion } from "@/lib/site-version";
 import { formatDateTimeInTimeZone } from "@/lib/time-zone";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Site Administration", "Private settings for the staff portal, permissions, integrations, and maintenance.", "/98981");
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
 import { normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
 import { SignOutButton } from "@/components/sign-out-button";

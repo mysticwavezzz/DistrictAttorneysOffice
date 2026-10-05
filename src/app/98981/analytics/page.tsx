@@ -3,8 +3,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { staffPageMetadata } from "@/lib/staff-metadata";
 
 export const dynamic = "force-dynamic";
+export const metadata = staffPageMetadata("Site Analytics", "Private usage and delivery analytics for site administrators.", "/98981/analytics");
 
 export default async function AnalyticsPage() {
   const session = await auth();

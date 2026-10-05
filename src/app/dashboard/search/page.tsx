@@ -5,6 +5,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseVisibilityWhere, localUser } from "@/lib/case-access";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Staff Search", "Search cases and records available to your assigned division.", "/dashboard/search");
 
 export default async function SearchPage({
   searchParams,

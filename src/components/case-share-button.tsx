@@ -19,19 +19,19 @@ export function CaseShareButton({ caseId }: { caseId: string }) {
       }
       try {
         await navigator.clipboard.writeText(result.url);
-        setMessage("Share preview link copied. Anyone with the link can view these basic case details.");
+        setMessage("Case preview link copied. Use it in Discord for the case-specific preview.");
       } catch {
         setFallbackUrl(result.url);
-        setMessage("Copy the link below. Anyone with it can view these basic case details.");
+        setMessage("Copy this case preview link for Discord. It shows only basic case details.");
       }
     });
   }
 
   return <div className="case-share-control" style={{ display: "grid", gap: 4, flex: "1 1 200px", maxWidth: 250 }}>
     <button type="button" className="govbtn-outline" onClick={copyShareLink} disabled={isPending}>
-      {isPending ? "Creating link…" : "Copy share preview"}
+      {isPending ? "Creating link…" : "Copy link with Discord preview"}
     </button>
-    <small style={{ color: "var(--ink-soft)", lineHeight: 1.35 }}>Anyone with the link can view the case number, title, type, and status. It expires after 7 days.</small>
+    <small style={{ color: "var(--ink-soft)", lineHeight: 1.35 }}>Use this link when sharing in Discord. It shows only the case number, title, type, and status, and expires after 7 days. The regular case link stays private.</small>
     {message && <p role="status" aria-live="polite">{message}</p>}
     {fallbackUrl && <input aria-label="Share preview link" style={{ width: "100%" }} readOnly value={fallbackUrl} onFocus={(event) => event.currentTarget.select()} />}
   </div>;

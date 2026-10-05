@@ -4,6 +4,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { createAnnouncement, deleteAnnouncement } from "./actions";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Manage Press Releases", "Create, edit, and publish office announcements and press releases.", "/dashboard/announcements");
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 

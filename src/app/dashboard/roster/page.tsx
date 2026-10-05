@@ -11,6 +11,9 @@ import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { SafeImage } from "@/components/safe-image";
 import { localUser } from "@/lib/case-access";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Staff Roster", "Review active staff, divisions, synced Roblox ranks, and manual assignments.", "/dashboard/roster");
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 

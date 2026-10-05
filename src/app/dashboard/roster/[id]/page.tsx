@@ -9,6 +9,9 @@ import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { localUser, canManageRosterInDivision } from "@/lib/case-access";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Staff Profile", "Review an employee roster entry and manage permitted roster details.", "/dashboard/roster");
 
 function toDateInputValue(date: Date | null): string {
   if (!date) return "";

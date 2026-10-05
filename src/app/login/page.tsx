@@ -5,6 +5,9 @@ import { siteConfig } from "@/config/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { SignOutButton } from "@/components/sign-out-button";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Staff Sign In", "Sign in with Roblox to access staff casework and office tools.", "/login");
 
 const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "Your account doesn't hold a staff role that grants access to that page.",

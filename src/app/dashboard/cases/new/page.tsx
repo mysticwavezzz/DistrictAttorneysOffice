@@ -5,6 +5,9 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { CaseOpeningForm } from "@/components/case-opening-form";
 import type { RevisionDraft } from "@/components/case-opening-form";
 import { localUser, canAssignCase } from "@/lib/case-access";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Open a Case", "Submit a case opening and its supporting complaint for the required review.", "/dashboard/cases/new");
 
 export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ reviseRequestId?: string }> }) {
   const session = await auth();

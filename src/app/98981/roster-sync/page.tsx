@@ -6,6 +6,9 @@ import { CAPABILITIES, hasCapability } from "@/lib/permissions";
 import { ROBLOX_DA_GROUP_ID } from "@/config/roblox-role-mappings";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { applyRobloxRosterSync, previewRobloxRosterSync } from "../roster-sync-actions";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Roblox Roster Sync", "Preview Roblox group roster changes and apply rank and active status updates.", "/98981/roster-sync");
 
 type PreviewData = {
   fetchedCount?: number;

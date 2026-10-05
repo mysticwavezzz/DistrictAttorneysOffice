@@ -7,6 +7,9 @@ import { localUser, caseVisibilityWhere, canViewCases } from "@/lib/case-access"
 import { addFiling } from "@/app/dashboard/cases/actions";
 import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("File a Document", "Submit a document to an existing case docket for review.", "/dashboard/filings/new");
 
 export default async function FileOnCasePage({ searchParams }: { searchParams: Promise<{ caseId?: string }> }) {
   const session = await auth();

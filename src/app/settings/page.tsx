@@ -13,6 +13,9 @@ import { NOTIFICATION_TYPES } from "@/lib/notifications";
 import { markAllNotificationsRead, markNotificationRead, updateNotificationPreferences } from "@/app/notifications/actions";
 import { TIER_DEFINITIONS } from "@/lib/permissions/tiers";
 import { BrowserPushSettings } from "@/components/browser-push-settings";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Settings & Notifications", "Manage account links, notification preferences, and browser alerts.", "/settings");
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 

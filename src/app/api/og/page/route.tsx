@@ -7,6 +7,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const title = (searchParams.get("title") || siteConfig.name).slice(0, 100);
   const description = (searchParams.get("description") || siteConfig.description).slice(0, 200);
+  const path = (searchParams.get("path") || "/").slice(0, 180);
+  const section = path.startsWith("/announcements/") ? "PRESS RELEASE"
+    : path === "/report-crime" ? "COMMUNITY SAFETY"
+      : path === "/contacts" ? "CONTACT THE OFFICE"
+        : path.startsWith("/dashboard/cases") ? "STAFF CASEWORK"
+          : path.startsWith("/dashboard") ? "STAFF PORTAL"
+            : path === "/bulletin" ? "LAW ENFORCEMENT BULLETIN"
+              : path === "/records-request" ? "PUBLIC RECORDS"
+                : "HARRISON COUNTY";
 
   return new ImageResponse(
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "54px 68px", color: "#f7f4ea", background: "linear-gradient(135deg, #17243a 0%, #263c60 100%)", fontFamily: "Georgia, serif" }}>
@@ -18,6 +27,7 @@ export async function GET(request: Request) {
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 18, borderTop: "3px solid #d9bd77", paddingTop: 26 }}>
+        <div style={{ color: "#e8d7a6", fontSize: 17, letterSpacing: 2 }}>{section}</div>
         <div style={{ fontSize: title.length > 54 ? 42 : 54, lineHeight: 1.15, fontWeight: 700 }}>{title}</div>
         <div style={{ fontFamily: "Arial, sans-serif", color: "#d1d9e6", fontSize: 25, lineHeight: 1.4 }}>{description}</div>
       </div>

@@ -14,6 +14,9 @@ import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { CaseShareButton } from "@/components/case-share-button";
 import { getOngoingObligations, getProceduralDeadlines } from "@/lib/procedural-deadlines";
+import { staffPageMetadata } from "@/lib/staff-metadata";
+
+export const metadata = staffPageMetadata("Case Record", "Private staff case record. Use the time-limited case preview link when sharing a basic case summary.", "/dashboard/cases");
 
 type CaseWithRelations = Prisma.CaseGetPayload<{
   include: {
