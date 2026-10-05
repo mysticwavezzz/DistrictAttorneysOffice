@@ -9,7 +9,7 @@ function createActionId(): string {
 }
 
 function safeTargetReference(actionName: string, args: unknown[]): string | null {
-  const targetFields = ["caseId", "ticketId", "requestId", "aopcId", "filingId", "recordId", "announcementId", "notificationId"];
+  const targetFields = ["caseId", "requestId", "id", "ticketId", "aopcId", "filingId", "recordId", "announcementId", "notificationId"];
   for (const arg of args) {
     if (arg instanceof FormData) {
       for (const key of targetFields) {

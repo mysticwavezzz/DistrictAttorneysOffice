@@ -206,18 +206,24 @@ async function reviewCaseRequestImpl(formData: FormData) {
     if (!result.count) throw new Error("Request has already been reviewed. Refresh the queue.");
   }
 
-  await notify({
-    userId: request.requestedById,
-    type: "case_request_reviewed",
-    title:
-      decision === "APPROVE"
-        ? "Your proposed case change was approved"
-        : "Your proposed case change was rejected",
-    body: note || undefined,
-    link: decision === "REJECT" && request.kind === "CREATE"
-      ? `/dashboard/cases/new?reviseRequestId=${encodeURIComponent(request.id)}`
-      : createdCaseId ? `/dashboard/cases/${createdCaseId}` : request.caseId ? `/dashboard/cases/${request.caseId}` : "/dashboard/cases",
-  });
+  try {
+    await notify({
+      userId: request.requestedById,
+      type: "case_request_reviewed",
+      title:
+        decision === "APPROVE"
+          ? "Your proposed case change was approved"
+          : "Your proposed case change was rejected",
+      body: note || undefined,
+      link: decision === "REJECT" && request.kind === "CREATE"
+        ? `/dashboard/cases/new?reviseRequestId=${encodeURIComponent(request.id)}`
+        : createdCaseId ? `/dashboard/cases/${createdCaseId}` : request.caseId ? `/dashboard/cases/${request.caseId}` : "/dashboard/cases",
+    });
+  } catch (error) {
+    // The review decision is already committed. A notification outage must not
+    // turn a successful approval into a failed server action the reviewer may retry.
+    console.error(`[case review ${request.id}] Decision saved, but requester notification failed`, error);
+  }
 
   revalidatePath("/dashboard/cases/requests");
   revalidatePath("/dashboard/cases");
