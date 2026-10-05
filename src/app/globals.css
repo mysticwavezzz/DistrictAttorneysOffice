@@ -2197,6 +2197,22 @@ body:has(.release-pdf-only) .privacy-choice-banner { display:none; }
 .document-template-links { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 0 13px 12px; font-size: 12px; }
 .document-disclaimer { margin: 4px 0; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
 .document-back { justify-self: start; }
+.document-back-link { justify-self: start; padding: 8px 0; border: 0; background: transparent; color: var(--link, #315db8); font: inherit; cursor: pointer; }
+.document-builder-intro { margin: 0; padding: 10px 14px; border-left: 3px solid var(--teal, #078a83); background: var(--box-alt); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
+.document-builder-intro strong { color: var(--ink); }
+.document-outline-legend { display: grid; gap: 5px; padding: 12px 14px; color: var(--ink-soft); font-size: 11px; }
+.document-outline-legend span:first-child::before, .document-outline-legend span:last-child::before { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; content: ""; }
+.document-outline-legend span:first-child::before { background: #16a878; }
+.document-outline-legend span:last-child::before { background: #dc4b4b; }
+.document-printed-heading { margin-bottom: 0; }
+.document-printed-heading input { max-width: 440px; }
+.document-paragraph-list { display: grid; gap: 10px; }
+.document-paragraph-field { display: grid; gap: 7px; }
+.document-paragraph-field > label { font-size: 13px; font-weight: 650; }
+.document-paragraph-field textarea { width: 100%; resize: vertical; }
+.document-remove-paragraph { justify-self: start; }
+.document-section-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; border-top: 1px solid var(--bd-lt); }
+.document-section-nav > span { color: var(--ink-soft); font-size: 12px; }
 .document-source-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 16px; border: 1px solid var(--bd); background: var(--box); }
 .document-source-heading h1, .document-source-heading .lede { margin: 0; }
 .document-source-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; max-width: 460px; }
