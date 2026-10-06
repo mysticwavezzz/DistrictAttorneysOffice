@@ -230,7 +230,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           {caseRecord.stage ? <span className={`pill pill-${statusColor}`}>{caseRecord.stage}</span> : "No status set"}
           {caseRecord.isDraft && <span className="pill pill-muted" style={{ marginLeft: 6 }}>Draft</span>}
         </p>
-        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
+        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link>{session.user.tiers.includes("developer_profile") && <Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link>}<Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
         <nav className="case-section-nav" aria-label="Case sections">
           <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a>
         </nav>
@@ -342,7 +342,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <p className="eyebrow">{caseRecord.caseNumber}</p>
       <h1>{caseRecord.title}</h1>
         <p className="subtitle">Assigned to {caseRecord.assignedAttorney?.displayName ?? "Unassigned"} · {accessLabel}</p>
-        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link><Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link><Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
+        <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link>{session.user.tiers.includes("developer_profile") && <Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link>}<Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
         <ol className="status-timeline" aria-label="Case status timeline">
           <li><strong>Case opened</strong><time dateTime={caseRecord.createdAt.toISOString()}>{caseRecord.createdAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
           <li><strong>Current status: {caseRecord.stage ?? "Unassigned"}</strong><time dateTime={caseRecord.updatedAt.toISOString()}>Updated {caseRecord.updatedAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
