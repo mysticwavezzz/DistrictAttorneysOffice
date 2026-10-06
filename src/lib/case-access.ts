@@ -46,6 +46,15 @@ export function canAssignCase(tiers: PermissionTier[], userDivision: string | nu
   return hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || (Boolean(userDivision) && (!caseDivision || userDivision === caseDivision) && hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION));
 }
 
+export function requiresCriminalAssigneeGroup(
+  division: string | null | undefined,
+  canAssign: boolean,
+  currentAssigneeId: string | null | undefined,
+  nextAssigneeId: string | null | undefined
+): boolean {
+  return division === "Criminal Division" && canAssign && Boolean(nextAssigneeId) && nextAssigneeId !== currentAssigneeId;
+}
+
 export function canReviewDivision(tiers: PermissionTier[], userDivision: string | null | undefined, requestDivision?: string | null, userGroup?: string | null, requestGroup?: string | null): boolean {
   if (hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS)) return true;
   if (!userDivision || !requestDivision || userDivision !== requestDivision || !hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION)) return false;

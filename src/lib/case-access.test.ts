@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAccessCase, caseVisibilityWhere, canManageRosterInDivision, canManageUnassignedRosterEntry, canManageCriminalGroupRosterEntry, canReviewDivision } from "./case-access";
+import { canAccessCase, caseVisibilityWhere, canManageRosterInDivision, canManageUnassignedRosterEntry, canManageCriminalGroupRosterEntry, canReviewDivision, requiresCriminalAssigneeGroup } from "./case-access";
 
 describe("case record access boundaries", () => {
   const record = { assignedAttorneyId: "assigned-user", createdById: "creator-user", division: "Criminal Division", divisionGroup: "1" };
@@ -39,6 +39,15 @@ describe("Criminal Division group review authority", () => {
   });
   it("keeps CADA review division-wide", () => {
     expect(canReviewDivision(["chief_assistant_district_attorney"], "Criminal Division", "Criminal Division", null, "2")).toBe(true);
+  });
+});
+
+describe("Criminal Division assignment validation", () => {
+  it("requires a group only when an authorized edit changes the assignee", () => {
+    expect(requiresCriminalAssigneeGroup("Criminal Division", true, "staff-1", "staff-2")).toBe(true);
+    expect(requiresCriminalAssigneeGroup("Criminal Division", false, "staff-1", "staff-1")).toBe(false);
+    expect(requiresCriminalAssigneeGroup("Criminal Division", true, "staff-1", "staff-1")).toBe(false);
+    expect(requiresCriminalAssigneeGroup("Civil Division", true, "staff-1", "staff-2")).toBe(false);
   });
 });
 
