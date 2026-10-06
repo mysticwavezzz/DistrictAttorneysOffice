@@ -14,19 +14,20 @@ const SECTION_KEYS: Record<string, string> = {
 
 export function DashboardFoldPersistence({ accountId }: { accountId: string }) {
   useEffect(() => {
-    const root = document.querySelector(".dashboard-overview");
-    if (!root) return;
+    const dashboard = document.querySelector(".dashboard-overview");
+    const root: ParentNode = dashboard ?? document;
 
     const preferences = readDashboardFoldPreferences(accountId);
-    const disclosures = Array.from(root.querySelectorAll<HTMLDetailsElement>("details.dashboard-fold"));
+    const disclosures = Array.from(root.querySelectorAll<HTMLDetailsElement>(dashboard ? "details.dashboard-fold" : "details[data-fold-key]"));
+    const preferenceKey = (details: HTMLDetailsElement) => details.dataset.foldKey ?? SECTION_KEYS[details.querySelector("summary")?.id ?? ""];
     const onToggle = (event: Event) => {
       const details = event.currentTarget as HTMLDetailsElement;
-      const key = SECTION_KEYS[details.querySelector("summary")?.id ?? ""];
+      const key = preferenceKey(details);
       if (key) saveDashboardFoldPreference(accountId, key, details.open);
     };
 
     for (const details of disclosures) {
-      const key = SECTION_KEYS[details.querySelector("summary")?.id ?? ""];
+      const key = preferenceKey(details);
       if (!key) continue;
       if (typeof preferences[key] === "boolean") details.open = preferences[key];
       details.addEventListener("toggle", onToggle);

@@ -2145,6 +2145,9 @@ button:disabled { cursor: wait; opacity: .7; }
 .roster-card h4, .roster-card p { margin:0; overflow-wrap:anywhere; }
 .roster-card-badges { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .roster-card-actions { margin-top:4px; }
+.roster-group-assignment { display:flex; flex-wrap:wrap; align-items:flex-end; gap:6px; margin:0; }
+.roster-group-assignment label { flex-basis:100%; margin:0; font-size:.78rem; }
+.roster-group-assignment select { min-width:120px; }
 .roster-row-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; min-width:230px; }
 .roster-row-actions form { margin:0; }
 .roster-filters > .govbtn, .roster-filters > .govbtn-outline { margin-bottom:12px; }

@@ -12,7 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const viewer = await localUser(session.user);
   const aopc = await prisma.aopc.findFirst({ where: { id, status: "PENDING" }, select: { pdfData: true, pdfFileName: true, targetUnit: true } });
-  if (!viewer || !aopc || !canReviewDivision(session.user.tiers, viewer.division, aopc.targetUnit)) return new Response("Not found", { status: 404 });
+  if (!viewer || !aopc || !canReviewDivision(session.user.tiers, viewer.division, aopc.targetUnit, viewer.divisionGroup, aopc.targetUnit === "Criminal Division" ? viewer.divisionGroup : null)) return new Response("Not found", { status: 404 });
   if (!aopc?.pdfData) return new Response("Not found", { status: 404 });
   const fileName = (aopc.pdfFileName ?? "aopc.pdf").replace(/[\r\n"\\/]/g, "_");
   const body = Uint8Array.from(decodeCasePdf(aopc.pdfData)).buffer as ArrayBuffer;

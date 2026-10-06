@@ -8,19 +8,24 @@ export async function localUser(identity: { identityProvider: "discord" | "roblo
   if (identity.identityProvider !== "roblox") return prisma.user.findUnique({ where: { discordUserId: identity.providerUserId } });
   const user = await prisma.user.findUnique({ where: { robloxUserId: identity.providerUserId } });
   if (!user) return null;
-  const rosterEntry = await prisma.rosterEntry.findUnique({ where: { robloxUserId: identity.providerUserId }, select: { unit: true } });
-  const division = rosterEntry?.unit ?? user.division;
-  if (user.division !== division) return prisma.user.update({ where: { id: user.id }, data: { division } });
+  const rosterEntry = await prisma.rosterEntry.findUnique({ where: { robloxUserId: identity.providerUserId }, select: { unit: true, divisionGroup: true } });
+  const division = rosterEntry ? rosterEntry.unit : user.division;
+  const divisionGroup = rosterEntry ? rosterEntry.divisionGroup : user.divisionGroup;
+  if (user.division !== division || user.divisionGroup !== divisionGroup) return prisma.user.update({ where: { id: user.id }, data: { division, divisionGroup } });
   return user;
 }
 
 export function canAccessCase(
   tiers: PermissionTier[],
   userId: string,
-  target: { assignedAttorneyId: string | null; createdById: string; isDraft?: boolean; division?: string | null },
-  userDivision?: string | null
+  target: { assignedAttorneyId: string | null; createdById: string; isDraft?: boolean; division?: string | null; divisionGroup?: string | null },
+  userDivision?: string | null,
+  userGroup?: string | null
 ): boolean {
   const canViewAll = hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
+  const isSada = tiers.includes("senior_assistant_district_attorney") && !canViewAll;
+  if (isSada && target.division !== userDivision) return false;
+  if (isSada && target.division === "Criminal Division" && (!userGroup || target.divisionGroup !== userGroup)) return false;
   const canViewDivision = hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION) && Boolean(userDivision) && target.division === userDivision;
   if (target.isDraft) {
     return target.createdById === userId || canViewAll || canViewDivision;
@@ -41,8 +46,11 @@ export function canAssignCase(tiers: PermissionTier[], userDivision: string | nu
   return hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || (Boolean(userDivision) && (!caseDivision || userDivision === caseDivision) && hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION));
 }
 
-export function canReviewDivision(tiers: PermissionTier[], userDivision: string | null | undefined, requestDivision?: string | null): boolean {
-  return hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || (Boolean(userDivision) && Boolean(requestDivision) && userDivision === requestDivision && hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION));
+export function canReviewDivision(tiers: PermissionTier[], userDivision: string | null | undefined, requestDivision?: string | null, userGroup?: string | null, requestGroup?: string | null): boolean {
+  if (hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS)) return true;
+  if (!userDivision || !requestDivision || userDivision !== requestDivision || !hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION)) return false;
+  if (tiers.includes("senior_assistant_district_attorney") && requestDivision === "Criminal Division") return Boolean(userGroup && requestGroup && userGroup === requestGroup);
+  return true;
 }
 
 export function canManageRosterInDivision(tiers: PermissionTier[], userDivision: string | null | undefined, targetDivision?: string | null): boolean {
@@ -58,16 +66,51 @@ export function canManageUnassignedRosterEntry(tiers: PermissionTier[], userDivi
     && !officeWideRanks.has(targetRank ?? "");
 }
 
+/** SADA group leads may only place ungrouped Criminal Division staff into their own group. */
+export function canManageCriminalGroupRosterEntry(
+  tiers: PermissionTier[],
+  userDivision: string | null | undefined,
+  userGroup: string | null | undefined,
+  targetDivision: string | null | undefined,
+  targetGroup: string | null | undefined
+): boolean {
+  if (hasCapability(tiers, CAPABILITIES.ROSTER_MANAGE) || hasCapability(tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION)) return true;
+  return tiers.includes("senior_assistant_district_attorney")
+    && hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION)
+    && userDivision === "Criminal Division"
+    && Boolean(userGroup)
+    && targetDivision === "Criminal Division"
+    && (!targetGroup || targetGroup === userGroup);
+}
+
 /** Build a safe list scope. A missing local identity must never become an unscoped docket query. */
 export function caseVisibilityWhere(
   tiers: PermissionTier[],
   userId: string | null | undefined,
-  userDivision?: string | null
+  userDivision?: string | null,
+  userGroup?: string | null
 ): Prisma.CaseWhereInput | null {
   if (hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL)) return {};
   if (!userId) return null;
-  const scopes: Prisma.CaseWhereInput[] = [{ assignedAttorneyId: userId }, { createdById: userId }];
-  if (userDivision && hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) scopes.push({ division: userDivision });
+  const ownershipScopes: Prisma.CaseWhereInput[] = [{ assignedAttorneyId: userId }, { createdById: userId }];
+  const ownership: Prisma.CaseWhereInput = { OR: ownershipScopes };
+  const isSada = tiers.includes("senior_assistant_district_attorney") && !hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
+  const scopes: Prisma.CaseWhereInput[] = isSada ? [{
+    AND: [ownership, { division: userDivision ?? "__no_division__" }, ...(userDivision === "Criminal Division" ? [{ OR: [
+      ...(userGroup ? [{ divisionGroup: userGroup }, { divisionGroup: null, assignedAttorney: { divisionGroup: userGroup } }, { divisionGroup: null, createdBy: { divisionGroup: userGroup } }] : []),
+    ] }] : [])],
+  }] : [...ownershipScopes];
+  if (userDivision && hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) {
+    if (tiers.includes("senior_assistant_district_attorney") && userDivision === "Criminal Division") {
+      if (userGroup) scopes.push({ division: userDivision, OR: [
+        { divisionGroup: userGroup },
+        { divisionGroup: null, assignedAttorney: { divisionGroup: userGroup } },
+        { divisionGroup: null, createdBy: { divisionGroup: userGroup } },
+      ] });
+    } else {
+      scopes.push({ division: userDivision });
+    }
+  }
   return { OR: scopes };
 }
 

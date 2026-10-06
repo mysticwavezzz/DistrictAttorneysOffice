@@ -36,7 +36,7 @@ export default async function SearchPage({
       const where: Prisma.CaseWhereInput = {
         OR: [{ title: { contains: q } }, { caseNumber: { contains: q } }],
       };
-      const visibility = caseVisibilityWhere(tiers, user?.id, user?.division);
+      const visibility = caseVisibilityWhere(tiers, user?.id, user?.division, user?.divisionGroup);
       if (visibility) {
         where.AND = [visibility];
         cases = await prisma.case.findMany({

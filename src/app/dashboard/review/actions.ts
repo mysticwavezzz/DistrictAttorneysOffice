@@ -20,7 +20,7 @@ async function reviewAopcImpl(formData: FormData) {
   if (!id || !["ACCEPTED", "REJECTED"].includes(decision) || (decision === "REJECTED" && !note)) throw new Error("Choose a decision and provide a reason when rejecting.");
 
   const existing = await prisma.aopc.findUnique({ where: { id }, select: { targetUnit: true, submittedById: true } });
-  if (!existing || !canReviewDivision(session.user.tiers, user.division, existing.targetUnit) || existing.submittedById === user.id) throw new Error("This AOPC is outside your review authority.");
+  if (!existing || !canReviewDivision(session.user.tiers, user.division, existing.targetUnit, user.divisionGroup, existing.targetUnit === "Criminal Division" ? user.divisionGroup : null) || existing.submittedById === user.id) throw new Error("This AOPC is outside your review authority.");
 
   const result = await prisma.aopc.updateMany({
     where: { id, status: "PENDING" },
@@ -51,9 +51,10 @@ async function reviewFilingImpl(formData: FormData) {
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   if (!id || !["ACCEPTED", "REJECTED"].includes(decision) || (decision === "REJECTED" && !note)) throw new Error("Choose a decision and provide a reason when rejecting.");
 
-  const filing = await prisma.caseFiling.findUnique({ where: { id }, include: { case: true } });
+  const filing = await prisma.caseFiling.findUnique({ where: { id }, include: { case: { include: { assignedAttorney: { select: { divisionGroup: true } }, createdBy: { select: { divisionGroup: true } } } } } });
   const isDeveloper = session.user.tiers.includes(DEVELOPER_PROFILE_TIER);
-  if (!filing || !canReviewDivision(session.user.tiers, user.division, filing.case.division) || (filing.addedById === user.id && !isDeveloper)) throw new Error("This filing is outside your review authority.");
+  const filingGroup = filing ? filing.case.divisionGroup ?? filing.case.assignedAttorney?.divisionGroup ?? filing.case.createdBy.divisionGroup : null;
+  if (!filing || !canReviewDivision(session.user.tiers, user.division, filing.case.division, user.divisionGroup, filingGroup) || (filing.addedById === user.id && !isDeveloper)) throw new Error("This filing is outside your review authority.");
 
   await prisma.$transaction(async (tx) => {
     const claimed = await tx.caseFiling.updateMany({

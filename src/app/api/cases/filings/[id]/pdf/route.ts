@@ -14,11 +14,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const filing = await prisma.caseFiling.findUnique({
     where: { id },
-    select: { pdfData: true, pdfFileName: true, status: true, addedById: true, case: { select: { id: true, assignedAttorneyId: true, createdById: true, isDraft: true, division: true } } },
+    select: { pdfData: true, pdfFileName: true, status: true, addedById: true, case: { select: { id: true, assignedAttorneyId: true, createdById: true, isDraft: true, division: true, divisionGroup: true, assignedAttorney: { select: { divisionGroup: true } }, createdBy: { select: { divisionGroup: true } } } } },
   });
-  const canReviewPending = filing && canReviewDivision(session.user.tiers, user.division, filing.case.division);
+  const filingGroup = filing ? filing.case.divisionGroup ?? filing.case.assignedAttorney?.divisionGroup ?? filing.case.createdBy.divisionGroup : null;
+  const canReviewPending = filing && canReviewDivision(session.user.tiers, user.division, filing.case.division, user.divisionGroup, filingGroup);
   const canSeePending = filing && filing.status !== "ACCEPTED" && (filing.addedById === user.id || canReviewPending);
-  const canSeeAccepted = filing && filing.status === "ACCEPTED" && canAccessCase(session.user.tiers, user.id, filing.case, user.division);
+  const canSeeAccepted = filing && filing.status === "ACCEPTED" && canAccessCase(session.user.tiers, user.id, filing.case, user.division, user.divisionGroup);
   if (!filing || !filing.pdfData || (!canSeePending && !canSeeAccepted)) {
     return new Response("Not found", { status: 404 });
   }

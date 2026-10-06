@@ -4,6 +4,7 @@ export const rosterEntrySchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   rank: z.string().trim().min(1, "Rank is required").max(100),
   unit: z.string().trim().max(100).optional().or(z.literal("")),
+  divisionGroup: z.enum(["1", "2"]).optional().or(z.literal("")),
   discordUserId: z.string().trim().max(50).optional().or(z.literal("")),
   robloxUserId: z.string().trim().regex(/^\d*$/, "Roblox user ID must be numeric").max(30).optional().or(z.literal("")),
   startDate: z.string().optional().or(z.literal("")),

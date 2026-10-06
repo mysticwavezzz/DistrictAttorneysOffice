@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const q = (searchParams.get("q") ?? "").trim();
   const status = (searchParams.get("status") ?? "").trim();
 
-  const visibility = caseVisibilityWhere(session.user.tiers, user?.id, user?.division);
+  const visibility = caseVisibilityWhere(session.user.tiers, user?.id, user?.division, user?.divisionGroup);
   if (!visibility) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const where: Prisma.CaseWhereInput = { archived: tab === "archived", ...visibility };
   if (q) {

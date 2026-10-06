@@ -79,7 +79,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
   if (!caseRecord) notFound();
   const caseStatuses = await getSiteConfiguration("caseStatuses", CASE_STATUSES);
-  if (!canAccessCase(session.user.tiers, user.id, caseRecord, user.division)) {
+  if (!canAccessCase(session.user.tiers, user.id, caseRecord, user.division, user.divisionGroup)) {
     redirect("/login?error=forbidden");
   }
 
@@ -88,14 +88,14 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const canDelete = hasCapability(session.user.tiers, CAPABILITIES.CASES_DELETE);
   const canAssign = canAssignCase(session.user.tiers, user.division, caseRecord.division);
   const canPropose = !canEdit && hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
-  const canReviewThisDivision = canReviewDivision(session.user.tiers, user.division, caseRecord.division);
+  const canReviewThisDivision = canReviewDivision(session.user.tiers, user.division, caseRecord.division, user.divisionGroup, caseRecord.divisionGroup ?? caseRecord.assignedAttorney?.divisionGroup ?? caseRecord.createdBy.divisionGroup);
   const visibleFilings = caseRecord.filings.filter((filing) => filing.status === "ACCEPTED" || filing.addedById === user.id || canReviewThisDivision);
 
   if (canEdit && canAssign) {
     try {
       attorneys = await prisma.user.findMany({
         select: { id: true, displayName: true },
-        where: { ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }) },
+        where: { ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }), ...(session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) ? { divisionGroup: user.divisionGroup ?? "__no_group__" } : {}) },
         orderBy: { displayName: "asc" },
       });
     } catch (error) {

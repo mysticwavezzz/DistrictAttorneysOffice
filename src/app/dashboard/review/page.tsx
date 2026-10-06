@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
-import { localUser } from "@/lib/case-access";
+import { localUser, canReviewDivision } from "@/lib/case-access";
 import { markRecordsRequestStatus } from "../records-requests/actions";
 import { reviewCaseRequest } from "../cases/requests/actions";
 import { reviewAopc, reviewFiling } from "./actions";
@@ -21,7 +21,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   const canReviewAllCases = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
   const canReviewDivisionCases = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION);
   const viewer = await localUser(session.user);
-  const canReviewCases = canReviewAllCases || (canReviewDivisionCases && Boolean(viewer?.division));
+  const canReviewCases = canReviewAllCases || (canReviewDivisionCases && Boolean(viewer?.division) && (!session.user.tiers.includes("senior_assistant_district_attorney") || viewer?.division !== "Criminal Division" || Boolean(viewer.divisionGroup)));
   const canReviewRecords = hasCapability(session.user.tiers, CAPABILITIES.REQUESTS_VIEW);
   const canReviewAllContact = canViewAllContactMail(session.user.tiers);
   const assignedMailCount = viewer ? await prisma.contactTicket.count({ where: { assigneeId: viewer.id, status: { not: "CLOSED" } } }).catch(() => 0) : 0;
@@ -45,13 +45,28 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   }
 
   if (canReviewCases && (selectedType === "all" || selectedType === "case")) {
-    const rows = await prisma.caseActionRequest.findMany({ where: { status: "PENDING", ...(canReviewAllCases ? {} : { division: viewer!.division }) }, include: { requestedBy: { select: { displayName: true } }, case: { select: { id: true, caseNumber: true, type: true, division: true } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
+    const isCriminalSada = session.user.tiers.includes("senior_assistant_district_attorney") && !canReviewAllCases && viewer?.division === "Criminal Division";
+    const group = viewer?.divisionGroup;
+    const groupRequestScope = isCriminalSada && group ? { OR: [
+      { divisionGroup: group },
+      { divisionGroup: null, requestedBy: { divisionGroup: group } },
+      { divisionGroup: null, case: { divisionGroup: group } },
+      { divisionGroup: null, case: { divisionGroup: null, assignedAttorney: { divisionGroup: group } } },
+      { divisionGroup: null, case: { divisionGroup: null, createdBy: { divisionGroup: group } } },
+      { divisionGroup: null, proposedData: { contains: `"divisionGroup":"${group}"` } },
+    ] } : {};
+    const requestScope = canReviewAllCases ? {} : {
+      division: viewer!.division!,
+      ...groupRequestScope,
+    };
+    const rows = await prisma.caseActionRequest.findMany({ where: { status: "PENDING", ...requestScope }, include: { requestedBy: { select: { id: true, displayName: true, divisionGroup: true } }, case: { select: { id: true, caseNumber: true, type: true, division: true, divisionGroup: true, assignedAttorney: { select: { divisionGroup: true } }, createdBy: { select: { divisionGroup: true } } } } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);
     for (const row of rows) {
       let data: Record<string, unknown> = {};
       try { const parsed: unknown = JSON.parse(row.proposedData); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) data = parsed as Record<string, unknown>; } catch { /* Preserve malformed requests in the queue so reviewers can investigate. */ }
       const title = typeof data.title === "string" ? data.title : row.case?.caseNumber ?? "Case request";
       const division = typeof data.division === "string" ? data.division : typeof data.targetUnit === "string" ? data.targetUnit : row.division ?? row.case?.division ?? "Unassigned";
-      if (!canReviewAllCases && division !== viewer?.division) continue;
+      const requestGroup = row.divisionGroup ?? (typeof data.divisionGroup === "string" ? data.divisionGroup : null) ?? row.case?.divisionGroup ?? row.case?.assignedAttorney?.divisionGroup ?? row.case?.createdBy?.divisionGroup ?? row.requestedBy.divisionGroup;
+      if (!canReviewDivision(session.user.tiers, viewer?.division, division, viewer?.divisionGroup, requestGroup) || (row.requestedBy.id === viewer?.id && !session.user.tiers.includes("developer_profile"))) continue;
       const detailFields = ["type", "stage", "assignedJudge", "assignedAttorneyName", "summary"];
       let parties = "";
       if (typeof data.partyDetails === "string") {
@@ -66,12 +81,25 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
     }
   }
   if (canReviewCases && (selectedType === "all" || selectedType === "filing")) {
+    const isCriminalSada = session.user.tiers.includes("senior_assistant_district_attorney") && !canReviewAllCases && viewer?.division === "Criminal Division";
+    const filingCaseScope = canReviewAllCases ? undefined : {
+      division: viewer!.division!,
+      ...(isCriminalSada ? { OR: [
+        { divisionGroup: viewer!.divisionGroup! },
+        { divisionGroup: null, assignedAttorney: { divisionGroup: viewer!.divisionGroup! } },
+        { divisionGroup: null, createdBy: { divisionGroup: viewer!.divisionGroup! } },
+      ] } : {})
+    };
     const rows = await prisma.caseFiling.findMany({
-      where: { status: "PENDING", ...(canReviewAllCases ? {} : { case: { division: viewer!.division! } }) },
-      select: { id: true, title: true, pdfFileName: true, isInitial: true, createdAt: true, caseId: true, case: { select: { caseNumber: true, title: true, division: true } }, addedBy: { select: { displayName: true } } },
+      where: { status: "PENDING", ...(filingCaseScope ? { case: filingCaseScope } : {}) },
+      select: { id: true, title: true, pdfFileName: true, isInitial: true, createdAt: true, caseId: true, case: { select: { caseNumber: true, title: true, division: true, divisionGroup: true, assignedAttorney: { select: { divisionGroup: true } }, createdBy: { select: { divisionGroup: true } } } }, addedBy: { select: { displayName: true } } },
       orderBy: { createdAt: "asc" }, take: 100,
     });
-    for (const row of rows) items.push({ id: row.id, kind: "filing", title: row.title, summary: `${row.isInitial ? "Initial complaint · " : ""}${row.case.caseNumber} · ${row.case.title}`, submittedBy: row.addedBy.displayName, division: row.case.division ?? "Unassigned", createdAt: row.createdAt, href: `/dashboard/cases/${row.caseId}#filings`, details: row.pdfFileName ? `PDF: ${row.pdfFileName}` : undefined, documentHref: `/api/cases/filings/${row.id}/pdf`, documentName: row.pdfFileName ?? undefined });
+    for (const row of rows) {
+      const filingGroup = row.case.divisionGroup ?? row.case.assignedAttorney?.divisionGroup ?? row.case.createdBy.divisionGroup;
+      if (!canReviewDivision(session.user.tiers, viewer?.division, row.case.division, viewer?.divisionGroup, filingGroup)) continue;
+      items.push({ id: row.id, kind: "filing", title: row.title, summary: `${row.isInitial ? "Initial complaint · " : ""}${row.case.caseNumber} · ${row.case.title}`, submittedBy: row.addedBy.displayName, division: row.case.division ?? "Unassigned", createdAt: row.createdAt, href: `/dashboard/cases/${row.caseId}#filings`, details: row.pdfFileName ? `PDF: ${row.pdfFileName}` : undefined, documentHref: `/api/cases/filings/${row.id}/pdf`, documentName: row.pdfFileName ?? undefined });
+    }
   }
   if (canReviewRecords && (selectedType === "all" || selectedType === "records")) {
     const rows = await prisma.recordsRequest.findMany({ where: { status: { in: ["NEW", "IN_PROGRESS"] } }, orderBy: { createdAt: "asc" }, take: 100 }).catch(() => []);

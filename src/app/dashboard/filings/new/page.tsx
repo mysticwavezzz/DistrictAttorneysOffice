@@ -18,7 +18,7 @@ export default async function FileOnCasePage({ searchParams }: { searchParams: P
   if (!user) redirect("/login?error=forbidden");
   const query = await searchParams;
   const cases = await prisma.case.findMany({
-    where: caseVisibilityWhere(session.user.tiers, user.id, user.division) ?? { id: "__no-access__" },
+    where: caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup) ?? { id: "__no-access__" },
     select: { id: true, caseNumber: true, title: true, isDraft: true },
     orderBy: { updatedAt: "desc" },
     take: 200,

@@ -49,6 +49,12 @@ async function createCaseImpl(formData: FormData) {
   const data = parsed.data;
   const canAssign = canAssignCase(session.user.tiers, user.division);
   const canCreate = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
+  const assignedAttorneyId = canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id;
+  const assignedAttorney = await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { id: true, division: true, divisionGroup: true } });
+  if (!assignedAttorney || (assignedAttorneyId !== user.id && assignedAttorney.division !== user.division)) throw new Error("Choose an attorney in your division.");
+  if (session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assignedAttorney.divisionGroup !== user.divisionGroup) throw new Error("You can only assign cases to attorneys in your Criminal Division group.");
+  const caseGroup = user.division === "Criminal Division" ? assignedAttorney.divisionGroup ?? user.divisionGroup : null;
+  if (user.division === "Criminal Division" && !caseGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN)) throw new Error("Assign the submitting attorney or selected attorney to Criminal Division Group 1 or 2 first.");
   const partyRows = formData.getAll("partyName").map((value, index) => ({ name: String(value).trim(), role: String(formData.getAll("partyRole")[index] ?? "") })).filter((party) => party.name);
   if (!partyRows.length || partyRows.length > 20) throw new Error("Add at least one party and no more than 20.");
   const allowedPartyRoles = new Set(["Defendant", "Co-defendant", "Witness", "Reporting officer", "Other"]);
@@ -85,8 +91,9 @@ async function createCaseImpl(formData: FormData) {
   const proposedData = {
     ...data,
     assignedJudge: data.assignedJudge ?? "",
-    assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id,
+    assignedAttorneyId,
     division: user.division,
+    divisionGroup: caseGroup,
     partyDetails: JSON.stringify(parties),
     initialFiling,
     relatedCaseNumbers: String(formData.get("relatedCaseNumbers") ?? ""),
@@ -96,19 +103,19 @@ async function createCaseImpl(formData: FormData) {
     if (reviseRequestId) {
       const updated = await prisma.caseActionRequest.updateMany({
         where: { id: reviseRequestId, kind: "CREATE", status: "REJECTED", requestedById: user.id },
-        data: { proposedData: JSON.stringify(proposedData), division: user.division, status: "PENDING", reviewedById: null, reviewNote: null, reviewedAt: null, createdAt: new Date() },
+        data: { proposedData: JSON.stringify(proposedData), division: user.division, divisionGroup: caseGroup, status: "PENDING", reviewedById: null, reviewNote: null, reviewedAt: null, createdAt: new Date() },
       });
       if (updated.count !== 1) throw new Error("This submission was already revised or is no longer available.");
     } else {
       await prisma.caseActionRequest.create({
-        data: { kind: "CREATE", division: user.division, proposedData: JSON.stringify(proposedData), requestedById: user.id },
+        data: { kind: "CREATE", division: user.division, divisionGroup: caseGroup, proposedData: JSON.stringify(proposedData), requestedById: user.id },
       });
     }
     const [globalReviewerIds, divisionReviewerIds] = await Promise.all([
       userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS),
       userIdsWithCapability(CAPABILITIES.CASES_APPROVE_DIVISION),
     ]);
-    const divisionReviewers = user.division ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: user.division }, select: { id: true } }) : [];
+    const divisionReviewers = user.division ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: user.division, ...(user.division === "Criminal Division" ? { OR: [{ divisionGroup: caseGroup }, { tiers: { contains: "chief_assistant_district_attorney" } }] } : {}) }, select: { id: true } }) : [];
     const reviewerIds = Array.from(new Set([...globalReviewerIds, ...divisionReviewers.map((reviewer) => reviewer.id)]));
     await notifyMany(reviewerIds.filter((id) => id !== user.id), {
       type: "case_request",
@@ -155,8 +162,9 @@ async function createCaseImpl(formData: FormData) {
       sentenceAt: toDate(data.sentenceAt),
       finalJudgmentAt: toDate(data.finalJudgmentAt),
       summary: emptyToNull(data.summary) ?? "",
-      assignedAttorneyId: canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id,
+      assignedAttorneyId,
       division: user.division,
+      divisionGroup: caseGroup,
       createdById: user.id,
       relatedTo: relatedIds.length > 0 ? { connect: relatedIds.map((id) => ({ id })) } : undefined,
       },
@@ -192,7 +200,7 @@ async function fileCaseImpl(formData: FormData) {
   const caseRecord = await prisma.case.findUnique({ where: { id }, include: { filings: { where: { isInitial: true }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, pdfFileName: true, status: true, isInitial: true } } } });
   const canFileThisCase = Boolean(caseRecord && canEditCase(session.user.tiers, user.division, caseRecord.division))
     || Boolean(caseRecord && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && caseRecord.createdById === user.id);
-  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division) || !canFileThisCase) throw new Error("Case not accessible");
+  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division, user.divisionGroup) || !canFileThisCase) throw new Error("Case not accessible");
   const legacyWindowStart = new Date(caseRecord.createdAt.getTime() - 120_000);
   const legacyWindowEnd = new Date(caseRecord.createdAt.getTime() + 120_000);
   const legacyInitialAccepted = !caseRecord.filings.some((filing) => filing.isInitial)
@@ -237,7 +245,7 @@ async function fileCaseImpl(formData: FormData) {
         userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS),
         userIdsWithCapability(CAPABILITIES.CASES_APPROVE_DIVISION),
       ]);
-      const divisionReviewers = caseRecord.division ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: caseRecord.division }, select: { id: true } }) : [];
+      const divisionReviewers = caseRecord.division ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: caseRecord.division, ...(caseRecord.division === "Criminal Division" ? { OR: [{ divisionGroup: caseRecord.divisionGroup }, { tiers: { contains: "chief_assistant_district_attorney" } }] } : {}) }, select: { id: true } }) : [];
       await notifyMany(Array.from(new Set([...globalReviewerIds, ...divisionReviewers.map((reviewer) => reviewer.id)])).filter((reviewerId) => reviewerId !== user.id), {
         type: "case_filing",
         title: "Initial case filing needs review",
@@ -266,7 +274,7 @@ async function updateCaseImpl(formData: FormData) {
 
   const existing = await prisma.case.findUnique({ where: { id } });
   if (!existing) throw new Error("Case not found");
-  if (!canAccessCase(session.user.tiers, user.id, existing, user.division) || !canEditCase(session.user.tiers, user.division, existing.division)) {
+  if (!canAccessCase(session.user.tiers, user.id, existing, user.division, user.divisionGroup) || !canEditCase(session.user.tiers, user.division, existing.division)) {
     throw new Error("Forbidden");
   }
 
@@ -276,8 +284,10 @@ async function updateCaseImpl(formData: FormData) {
 
   const canAssign = canAssignCase(session.user.tiers, user.division, existing.division);
   const requestedAssigneeId = canAssign ? emptyToNull(data.assignedAttorneyId) : existing.assignedAttorneyId;
-  const requestedAssignee = requestedAssigneeId ? await prisma.user.findUnique({ where: { id: requestedAssigneeId }, select: { id: true, division: true } }) : null;
+  const requestedAssignee = requestedAssigneeId ? await prisma.user.findUnique({ where: { id: requestedAssigneeId }, select: { id: true, division: true, divisionGroup: true } }) : null;
   if (requestedAssigneeId && (!requestedAssignee || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && requestedAssignee.division !== user.division))) throw new Error("Invalid assignee");
+  if (requestedAssigneeId && session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && requestedAssignee?.divisionGroup !== user.divisionGroup) throw new Error("You can only assign cases to attorneys in your Criminal Division group.");
+  if (existing.division === "Criminal Division" && requestedAssigneeId && !requestedAssignee?.divisionGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN)) throw new Error("Assign the selected attorney to Criminal Division Group 1 or 2 before assigning this case.");
   const nextAssignee = requestedAssigneeId;
   const caseNumber = emptyToNull(data.caseNumber) ?? existing.caseNumber;
   const relatedIds = await resolveRelatedCaseIds(formData.get("relatedCaseNumbers"), id);
@@ -309,6 +319,7 @@ async function updateCaseImpl(formData: FormData) {
       finalJudgmentAt: toDate(data.finalJudgmentAt),
       summary: existing.summary,
       assignedAttorneyId: nextAssignee,
+      divisionGroup: existing.division === "Criminal Division" ? requestedAssignee?.divisionGroup ?? (nextAssignee ? existing.divisionGroup : existing.divisionGroup) : null,
       archived: formData.get("archived") === "on",
       isDraft: nextIsDraft,
       relatedTo: { set: relatedIds.map((rid) => ({ id: rid })) },
@@ -361,7 +372,7 @@ async function deleteCaseImpl(formData: FormData) {
   if (!id) throw new Error("Missing case id");
 
   const existing = await prisma.case.findUnique({ where: { id } });
-  if (!existing || !canAccessCase(session.user.tiers, user.id, existing, user.division)) throw new Error("Case not found or not accessible");
+  if (!existing || !canAccessCase(session.user.tiers, user.id, existing, user.division, user.divisionGroup)) throw new Error("Case not found or not accessible");
   await prisma.case.delete({ where: { id } });
 
   revalidatePath("/dashboard/cases");
@@ -380,21 +391,26 @@ async function bulkUpdateCasesImpl(formData: FormData) {
     throw new Error("Forbidden");
   }
   const cases = await prisma.case.findMany({ where: { id: { in: ids } }, include: { assignedAttorney: { select: { displayName: true } } } });
-  if (cases.length !== ids.length || cases.some((c) => !canAccessCase(session.user.tiers, user.id, c, user.division) || (operation === "assign" && !canAssignCase(session.user.tiers, user.division, c.division)) || (operation === "archive" && !canEditCase(session.user.tiers, user.division, c.division)))) {
+  if (cases.length !== ids.length || cases.some((c) => !canAccessCase(session.user.tiers, user.id, c, user.division, user.divisionGroup) || (operation === "assign" && !canAssignCase(session.user.tiers, user.division, c.division)) || (operation === "archive" && !canEditCase(session.user.tiers, user.division, c.division)))) {
     throw new Error("One or more cases are not accessible");
   }
 
   if (operation === "assign") {
     const assigneeId = emptyToNull(String(formData.get("assigneeId") ?? ""));
-    const assigneeTarget = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true, division: true } }) : null;
+    const assigneeTarget = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true, division: true, divisionGroup: true } }) : null;
     if (assigneeId && (!assigneeTarget || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assigneeTarget.division !== user.division))) {
       throw new Error("Invalid assignee");
     }
+    if (assigneeId && session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assigneeTarget?.divisionGroup !== user.divisionGroup) throw new Error("You can only assign cases to attorneys in your Criminal Division group.");
+    if (assigneeId && cases.some((item) => item.division === "Criminal Division") && !assigneeTarget?.divisionGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN)) throw new Error("Assign the selected attorney to Criminal Division Group 1 or 2 before assigning criminal cases.");
     const assignee = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { displayName: true } }) : null;
-    await prisma.$transaction([
-      prisma.case.updateMany({ where: { id: { in: ids } }, data: { assignedAttorneyId: assigneeId } }),
-      prisma.caseComment.createMany({ data: cases.map((item) => ({ caseId: item.id, body: `Assignment changed from ${item.assignedAttorney?.displayName ?? "Unassigned"} to ${assignee?.displayName ?? "Unassigned"} by ${session.user.displayName}.`, isSystem: true })) }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      for (const item of cases) await tx.case.update({ where: { id: item.id }, data: {
+        assignedAttorneyId: assigneeId,
+        divisionGroup: item.division === "Criminal Division" ? (assigneeTarget?.divisionGroup ?? item.divisionGroup) : null,
+      } });
+      await tx.caseComment.createMany({ data: cases.map((item) => ({ caseId: item.id, body: `Assignment changed from ${item.assignedAttorney?.displayName ?? "Unassigned"} to ${assignee?.displayName ?? "Unassigned"} by ${session.user.displayName}.`, isSystem: true })) });
+    });
   } else if (operation === "archive") {
     await prisma.case.updateMany({ where: { id: { in: ids } }, data: { archived: true } });
   } else {
@@ -409,7 +425,7 @@ async function saveCaseFilterImpl(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim().slice(0, 60);
   const raw = String(formData.get("query") ?? "");
   const params = new URLSearchParams(raw.startsWith("?") ? raw.slice(1) : raw);
-  for (const key of Array.from(params.keys())) if (!["tab", "q", "status", "mine", "deadline", "review"].includes(key)) params.delete(key);
+  for (const key of Array.from(params.keys())) if (!["tab", "q", "status", "mine", "staff", "deadline", "review"].includes(key)) params.delete(key);
   const existing = JSON.parse(user.savedCaseFilters || "[]") as { id: string; name: string; query: string }[];
   if (!name || existing.length >= 20) throw new Error("Filter name is required; up to 20 filters may be saved.");
   existing.push({ id: crypto.randomUUID(), name, query: params.toString() });
@@ -436,7 +452,7 @@ async function updateDeadlineReminderStateImpl(formData: FormData) {
   const dueDate = new Date(dueDateRaw);
   if (!Number.isFinite(dueDate.getTime())) throw new Error("Invalid due date");
   const caseRecord = await prisma.case.findUnique({ where: { id: caseId } });
-  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division)) throw new Error("Case not accessible");
+  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division, user.divisionGroup)) throw new Error("Case not accessible");
   const currentDeadline = getProceduralDeadlines(caseRecord).find((deadline) => deadline.key === deadlineType);
   if (currentDeadline?.dueDate.getTime() !== dueDate.getTime()) throw new Error("That deadline has changed. Refresh the calendar and try again.");
 
@@ -470,7 +486,7 @@ async function addFilingImpl(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   const existing = await prisma.case.findUnique({ where: { id: caseId } });
   if (!existing) throw new Error("Case not found");
-  if (!canAccessCase(session.user.tiers, user.id, existing, user.division) || !canEditCase(session.user.tiers, user.division, existing.division)) throw new Error("Forbidden");
+  if (!canAccessCase(session.user.tiers, user.id, existing, user.division, user.divisionGroup) || !canEditCase(session.user.tiers, user.division, existing.division)) throw new Error("Forbidden");
 
   const parsed = caseFilingSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid filing");
@@ -490,7 +506,7 @@ async function addFilingImpl(formData: FormData) {
         userIdsWithCapability(CAPABILITIES.CASES_APPROVE_DIVISION),
       ]);
       const divisionReviewers = existing.division
-        ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: existing.division }, select: { id: true } })
+        ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: existing.division, ...(existing.division === "Criminal Division" ? { OR: [{ divisionGroup: existing.divisionGroup }, { tiers: { contains: "chief_assistant_district_attorney" } }] } : {}) }, select: { id: true } })
         : [];
       const reviewerIds = Array.from(new Set([...globalReviewerIds, ...divisionReviewers.map((reviewer) => reviewer.id)]));
       await notifyMany(reviewerIds.filter((id) => id !== user.id), {
@@ -524,7 +540,7 @@ async function deleteFilingImpl(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const filing = await prisma.caseFiling.findUnique({ where: { id }, include: { case: true } });
   if (!filing) throw new Error("Filing not found");
-  if (!canAccessCase(session.user.tiers, user.id, filing.case, user.division)) throw new Error("Forbidden");
+  if (!canAccessCase(session.user.tiers, user.id, filing.case, user.division, user.divisionGroup)) throw new Error("Forbidden");
   if (filing.status === "PENDING" && filing.addedById !== user.id) throw new Error("Only the submitter can withdraw a filing while it is awaiting review.");
   if (filing.status !== "PENDING" && !canEditCase(session.user.tiers, user.division, filing.case.division)) throw new Error("Forbidden");
 
@@ -538,7 +554,7 @@ async function addCommentImpl(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "");
   const existing = await prisma.case.findUnique({ where: { id: caseId } });
   if (!existing) throw new Error("Case not found");
-  if (!canAccessCase(session.user.tiers, user.id, existing, user.division)) throw new Error("Forbidden");
+  if (!canAccessCase(session.user.tiers, user.id, existing, user.division, user.divisionGroup)) throw new Error("Forbidden");
 
   const parsed = caseCommentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid comment");

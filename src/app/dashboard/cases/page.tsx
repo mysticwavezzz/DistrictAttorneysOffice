@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { caseVisibilityWhere, localUser, canViewCases, canAssignCase } from "@/lib/case-access";
+import { localUser, canViewCases, canAssignCase } from "@/lib/case-access";
 import { caseStatusColor } from "@/config/case-statuses";
 import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
@@ -22,7 +22,7 @@ function fmt(date: Date | null): string {
 export default async function CasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string; status?: string; page?: string; sort?: string; dir?: string; mine?: string; deadline?: string; review?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; status?: string; page?: string; sort?: string; dir?: string; mine?: string; staff?: string; deadline?: string; review?: string }>;
 }) {
   const session = await auth();
   if (!session?.user || !canViewCases(session.user.tiers)) {
@@ -35,6 +35,7 @@ export default async function CasesPage({
   const canCreate = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
   const canPropose = hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
   const viewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL);
+  const canFilterStaff = viewAll || hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION);
   const canBulkAssign = canAssignCase(session.user.tiers, user.division);
   const canBulkArchive = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT) || hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT_DIVISION);
   const tab = filters.tab === "archived" ? "archived" : "ongoing";
@@ -49,10 +50,19 @@ export default async function CasesPage({
   const pageSize = 25;
 
   const mineOnly = filters.mine === "1";
+  const staffOptions = canFilterStaff ? await prisma.user.findMany({
+    where: viewAll ? { tiers: { not: "" } } : {
+      division: user.division ?? "__no_division__",
+      ...(session.user.tiers.includes("senior_assistant_district_attorney") && !viewAll && user.division === "Criminal Division" ? { divisionGroup: user.divisionGroup ?? "__no_group__" } : {}),
+    },
+    select: { id: true, displayName: true, division: true, divisionGroup: true },
+    orderBy: { displayName: "asc" },
+  }).catch(() => []) : [];
+  const selectedStaff = staffOptions.find((person) => person.id === filters.staff);
   const overdueOnly = filters.deadline === "overdue";
   const reviewOnly = filters.review === "1";
   const assignableUsers = canBulkAssign ? await prisma.user.findMany({
-    where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }) },
+    where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }), ...(session.user.tiers.includes("senior_assistant_district_attorney") && !viewAll ? { divisionGroup: user.divisionGroup ?? "__no_group__" } : {}) },
     select: { id: true, displayName: true },
     orderBy: { displayName: "asc" },
   }).catch((error) => {
@@ -61,9 +71,19 @@ export default async function CasesPage({
   }) : [];
 
   const where: Prisma.CaseWhereInput = { archived: tab === "archived" };
-  const visibility = mineOnly
-    ? { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] }
-    : caseVisibilityWhere(session.user.tiers, user.id, user.division);
+  // My Cases is personal by default for every role. Supervisors opt into a
+  // specific employee's docket; the options above are bounded to their scope.
+  const ownerId = selectedStaff?.id ?? user.id;
+  const ownership: Prisma.CaseWhereInput = { OR: [{ assignedAttorneyId: ownerId }, { createdById: ownerId }] };
+  const isSada = session.user.tiers.includes("senior_assistant_district_attorney") && !viewAll;
+  const restrictToDivision = isSada || Boolean(user.division && hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION));
+  const visibility: Prisma.CaseWhereInput | null = restrictToDivision ? {
+    AND: [ownership, { division: user.division ?? "__no_division__" }, ...(isSada && user.division === "Criminal Division" ? [{ OR: user.divisionGroup ? [
+      { divisionGroup: user.divisionGroup },
+      { divisionGroup: null, assignedAttorney: { divisionGroup: user.divisionGroup } },
+      { divisionGroup: null, createdBy: { divisionGroup: user.divisionGroup } },
+    ] : [] }] : [])],
+  } : ownership;
   if (!visibility) redirect("/login?error=forbidden");
   Object.assign(where, visibility);
   if (q) {
@@ -104,7 +124,7 @@ export default async function CasesPage({
   }
 
   const qs = (overrides: Record<string, string>) => {
-    const params = new URLSearchParams({ tab, q, status: statusFilter, page: String(page), sort, dir: direction, ...(mineOnly ? { mine: "1" } : {}), ...(overdueOnly ? { deadline: "overdue" } : {}), ...(reviewOnly ? { review: "1" } : {}), ...overrides });
+    const params = new URLSearchParams({ tab, q, status: statusFilter, page: String(page), sort, dir: direction, ...(mineOnly ? { mine: "1" } : {}), ...(selectedStaff ? { staff: selectedStaff.id } : {}), ...(overdueOnly ? { deadline: "overdue" } : {}), ...(reviewOnly ? { review: "1" } : {}), ...overrides });
     for (const [key, value] of Array.from(params.entries())) {
       if (!value) params.delete(key);
     }
@@ -123,7 +143,17 @@ export default async function CasesPage({
         </div>
       </header>
 
-      {!viewAll && <p className="case-scope-note">Showing cases assigned to or filed by you.</p>}
+      <p className="case-scope-note">{selectedStaff ? `Showing cases assigned to or filed by ${selectedStaff.displayName}.` : "Showing cases assigned to or filed by you. Supervisors can select an employee to view their docket."}</p>
+
+      {canFilterStaff && <form method="get" className="case-staff-filter">
+        <input type="hidden" name="tab" value={tab} />
+        <label htmlFor="case-staff">Employee docket</label>
+        <select id="case-staff" name="staff" defaultValue={selectedStaff?.id ?? ""}>
+          <option value="">My cases</option>
+          {staffOptions.map((person) => <option key={person.id} value={person.id}>{person.displayName}{person.divisionGroup ? ` · Group ${person.divisionGroup}` : ""}</option>)}
+        </select>
+        <button type="submit" className="govbtn-outline">View docket</button>
+      </form>}
 
       <nav className="tabs-row cases-tabs" aria-label="Case status">
         <Link href={`/dashboard/cases${qs({ tab: "ongoing" })}`} className={tab === "ongoing" ? "on" : undefined}>Ongoing / Pending</Link>

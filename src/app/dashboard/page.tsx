@@ -27,7 +27,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   const [user, preferenceGeneration] = await Promise.all([localUser(session!.user), getPrivacyConsentGeneration()]);
   const preferenceAccountId = `${user?.id ?? session!.user.providerUserId}:${preferenceGeneration}`;
   const personalScope = user ? { OR: [{ assignedAttorneyId: user.id }, { createdById: user.id }] } : null;
-  const caseScope = caseVisibilityWhere(tiers, user?.id, user?.division);
+  const caseScope = caseVisibilityWhere(tiers, user?.id, user?.division, user?.divisionGroup);
 
   const [myActiveCount, pendingRequestCount, newRecordsRequests, pendingAopcCount, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
     canViewCases && personalScope ? prisma.case.count({ where: { archived: false, ...personalScope } }).catch(() => 0) : Promise.resolve(0),

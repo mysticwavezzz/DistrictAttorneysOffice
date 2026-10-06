@@ -14,8 +14,9 @@ model User {
   username         String
   displayName      String
   avatarUrl        String?
-  tiers            String   @default("")
-  division         String?
+    tiers            String   @default("")
+    division         String?
+    divisionGroup    String?
   mutedTypes       String   @default("")
   pushMutedTypes   String   @default("")
   savedCaseFilters String   @default("[]")
@@ -104,8 +105,9 @@ model Case {
   finalJudgmentAt    DateTime?
   archived           Boolean   @default(false)
   isDraft            Boolean   @default(false)
-  summary            String
-  division           String?
+    summary            String
+    division           String?
+    divisionGroup      String?
   assignedAttorneyId String?
   createdById        String
   createdAt          DateTime  @default(now())
@@ -162,8 +164,9 @@ model CaseActionRequest {
   kind          String
   caseId        String?
   status        String    @default("PENDING")
-  proposedData  String
-  division      String?
+    proposedData  String
+    division      String?
+    divisionGroup String?
   requestedById String
   reviewedById  String?
   reviewNote    String?
@@ -285,8 +288,9 @@ model RosterEntry {
   robloxRoleId  String?
   robloxRank    Int?
   lastRobloxSyncAt DateTime?
-  rank          String?
-  unit          String?
+    rank          String?
+    unit          String?
+    divisionGroup String?
   imageUrl      String?
   about         String?
   startDate     DateTime?

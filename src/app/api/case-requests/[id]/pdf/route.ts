@@ -11,9 +11,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
   const { id } = await params;
   const viewer = await localUser(session.user);
-  const request = await prisma.caseActionRequest.findUnique({ where: { id }, select: { status: true, kind: true, proposedData: true, division: true, requestedById: true } });
+  const request = await prisma.caseActionRequest.findUnique({ where: { id }, include: { requestedBy: { select: { divisionGroup: true } } } });
   if (!request || request.status !== "PENDING" || request.kind !== "CREATE") return new Response("Not found", { status: 404 });
-  if (!viewer || request.requestedById === viewer.id || !canReviewDivision(session.user.tiers, viewer.division, request.division)) return new Response("Not found", { status: 404 });
+  let proposedGroup: string | null = null;
+  try { const data: unknown = JSON.parse(request.proposedData); if (data && typeof data === "object" && "divisionGroup" in data && typeof data.divisionGroup === "string") proposedGroup = data.divisionGroup; } catch { /* Invalid request data is not exposed as a PDF. */ }
+  if (!viewer || request.requestedById === viewer.id || !canReviewDivision(session.user.tiers, viewer.division, request.division, viewer.divisionGroup, request.divisionGroup ?? proposedGroup ?? request.requestedBy.divisionGroup)) return new Response("Not found", { status: 404 });
   let filing: { pdfData?: string; pdfFileName?: string } | null = null;
   try {
     filing = JSON.parse(request.proposedData).initialFiling ?? null;

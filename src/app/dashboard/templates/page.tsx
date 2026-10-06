@@ -15,7 +15,7 @@ export default async function DocumentCreatorPage({ searchParams }: { searchPara
   if (!session?.user || !await hasActiveDeveloperProfile(session.user) || !canViewCases(session.user.tiers)) redirect("/login?error=forbidden");
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
-  const where = caseVisibilityWhere(session.user.tiers, user.id, user.division);
+  const where = caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup);
   const cases = where ? await prisma.case.findMany({ where, select: { id: true, caseNumber: true, title: true, type: true, partyDetails: true }, orderBy: { updatedAt: "desc" }, take: 200 }) : [];
   const query = await searchParams;
   const initialCaseId = cases.some((item) => item.id === query.caseId) ? query.caseId : "";

@@ -29,7 +29,7 @@ export default async function CaseCalendarPage({ searchParams }: { searchParams:
   const month = match ? Math.min(11, Math.max(0, Number(match[2]) - 1)) : now.getUTCMonth();
   const start = new Date(Date.UTC(year, month, 1));
   const end = new Date(Date.UTC(year, month + 1, 1));
-  const visibility = caseVisibilityWhere(session.user.tiers, viewer.id, viewer.division);
+  const visibility = caseVisibilityWhere(session.user.tiers, viewer.id, viewer.division, viewer.divisionGroup);
   if (!visibility) redirect("/login?error=forbidden");
   const where: Prisma.CaseWhereInput = { AND: [visibility, { archived: false, isDraft: false }] };
   let cases: CalendarCase[] = [];

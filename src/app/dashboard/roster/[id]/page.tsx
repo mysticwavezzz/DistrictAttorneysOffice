@@ -83,6 +83,14 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
               ))}
             </select>
           </div>
+          <div className="field">
+            <label htmlFor="divisionGroup">Criminal Division group <span className="hint">(Group 1 or 2; sets the employee’s case-review team)</span></label>
+            <select id="divisionGroup" name="divisionGroup" defaultValue={entry.divisionGroup ?? ""}>
+              <option value="">No group assigned</option>
+              <option value="1">Group 1</option>
+              <option value="2">Group 2</option>
+            </select>
+          </div>
         </div>
         <div className="field-row">
           <div className="field">

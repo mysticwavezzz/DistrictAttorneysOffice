@@ -175,11 +175,11 @@ async function applyRobloxRosterSyncImpl(formData: FormData) {
         const roster = change.kind === "add"
           ? await tx.rosterEntry.create({ data: { ...syncedFields, unit: null } })
           : await tx.rosterEntry.update({ where: { id: change.item.entryId }, data: syncedFields });
-        await tx.user.updateMany({ where: { robloxUserId: item.userId }, data: { division: roster.unit } });
+        await tx.user.updateMany({ where: { robloxUserId: item.userId }, data: { division: roster.unit, divisionGroup: roster.divisionGroup } });
       }
       for (const change of data.unchanged) {
         const roster = await tx.rosterEntry.update({ where: { id: change.entryId }, data: { lastRobloxSyncAt: now } });
-        await tx.user.updateMany({ where: { robloxUserId: change.userId }, data: { division: roster.unit } });
+        await tx.user.updateMany({ where: { robloxUserId: change.userId }, data: { division: roster.unit, divisionGroup: roster.divisionGroup } });
       }
       for (const change of data.inactivations) {
         await tx.rosterEntry.update({ where: { id: change.entryId }, data: { isActive: false, rank: change.newRank === "Not in group" ? undefined : change.newRank, lastRobloxSyncAt: now, robloxRoleId: change.newRoleId === null ? null : String(change.newRoleId), robloxRank: change.rankNumber } });

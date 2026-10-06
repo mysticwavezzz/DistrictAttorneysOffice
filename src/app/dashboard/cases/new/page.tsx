@@ -21,7 +21,7 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
   const canAssign = canAssignCase(session.user.tiers, user.division);
   const reviewersCanAutoApprove = !shouldRequireFilingApproval(session.user.tiers, user.division);
   const attorneys = canAssign ? await prisma.user.findMany({
-    where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }) },
+    where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }), ...(session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) ? { divisionGroup: user.divisionGroup ?? "__no_group__" } : {}) },
     select: { id: true, displayName: true },
     orderBy: { displayName: "asc" },
   }).catch((error) => {

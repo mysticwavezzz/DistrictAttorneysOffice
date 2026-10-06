@@ -40,13 +40,26 @@ async function submitCaseRequestImpl(formData: FormData) {
   const caseId = emptyToNull(String(formData.get("caseId") ?? ""));
   const kind = caseId ? "EDIT" : "CREATE";
   const targetCase = caseId ? await prisma.case.findUnique({ where: { id: caseId } }) : null;
-  if (caseId && (!targetCase || !canAccessCase(session.user.tiers, user.id, targetCase, user.division))) throw new Error("Case not found or not accessible");
+  if (caseId && (!targetCase || !canAccessCase(session.user.tiers, user.id, targetCase, user.division, user.divisionGroup))) throw new Error("Case not found or not accessible");
+
+  let requestGroup = targetCase?.divisionGroup ?? null;
+  if (kind === "CREATE" && user.division === "Criminal Division") {
+    const assignedId = emptyToNull(parsed.data.assignedAttorneyId) ?? user.id;
+    const assigned = await prisma.user.findUnique({ where: { id: assignedId }, select: { division: true, divisionGroup: true } });
+    if (!assigned || assigned.division !== user.division || (!assigned.divisionGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN))) throw new Error("Choose an attorney assigned to Criminal Division Group 1 or 2.");
+    if (session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assigned.divisionGroup !== user.divisionGroup) throw new Error("You can only submit cases for your assigned Criminal Division group.");
+    requestGroup = assigned.divisionGroup;
+  } else if (user.division === "Criminal Division") {
+    requestGroup ??= user.divisionGroup;
+    if (!requestGroup) throw new Error("You must be assigned to Criminal Division Group 1 or 2 before submitting this change.");
+  }
 
   await prisma.caseActionRequest.create({
     data: {
       kind,
       caseId,
       division: targetCase?.division ?? user.division,
+      divisionGroup: requestGroup,
       proposedData: JSON.stringify(parsed.data),
       requestedById: user.id,
     },
@@ -54,7 +67,7 @@ async function submitCaseRequestImpl(formData: FormData) {
 
   const [globalReviewers, divisionReviewers] = await Promise.all([userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS), userIdsWithCapability(CAPABILITIES.CASES_APPROVE_DIVISION)]);
   const reviewDivision = targetCase?.division ?? user.division;
-  const scopedReviewers = reviewDivision ? await prisma.user.findMany({ where: { id: { in: divisionReviewers }, division: reviewDivision }, select: { id: true } }) : [];
+  const scopedReviewers = reviewDivision ? await prisma.user.findMany({ where: { id: { in: divisionReviewers }, division: reviewDivision, ...(reviewDivision === "Criminal Division" ? { OR: [{ divisionGroup: requestGroup }, { tiers: { contains: "chief_assistant_district_attorney" } }] } : {}) }, select: { id: true } }) : [];
   const reviewerIds = Array.from(new Set([...globalReviewers, ...scopedReviewers.map((reviewer) => reviewer.id)]));
   await notifyMany(
     reviewerIds.filter((id) => id !== user.id),
@@ -81,14 +94,15 @@ async function reviewCaseRequestImpl(formData: FormData) {
   }
   if (decision === "REJECT" && !note.trim()) throw new Error("A review note is required when rejecting a request");
 
-  const request = await prisma.caseActionRequest.findUnique({ where: { id } });
+  const request = await prisma.caseActionRequest.findUnique({ where: { id }, include: { requestedBy: { select: { divisionGroup: true } } } });
   if (!request || request.status !== "PENDING") {
     throw new Error("Request not found or already reviewed");
   }
-  const targetCase = request.caseId ? await prisma.case.findUnique({ where: { id: request.caseId }, select: { division: true } }) : null;
+  const targetCase = request.caseId ? await prisma.case.findUnique({ where: { id: request.caseId }, select: { division: true, divisionGroup: true, assignedAttorney: { select: { divisionGroup: true } }, createdBy: { select: { divisionGroup: true } } } }) : null;
   const requestDivision = request.division ?? targetCase?.division;
+  const requestGroup = request.divisionGroup ?? targetCase?.divisionGroup ?? targetCase?.assignedAttorney?.divisionGroup ?? targetCase?.createdBy?.divisionGroup ?? request.requestedBy.divisionGroup;
   const isDeveloperProfile = session.user.tiers.includes(DEVELOPER_PROFILE_TIER);
-  if (!canReviewDivision(session.user.tiers, user.division, requestDivision) || (request.requestedById === user.id && !isDeveloperProfile)) throw new Error("This request is outside your review authority.");
+  if (!canReviewDivision(session.user.tiers, user.division, requestDivision, user.divisionGroup, requestGroup) || (request.requestedById === user.id && !isDeveloperProfile)) throw new Error("This request is outside your review authority.");
 
   let createdCaseId: string | null = null;
   let reviewAppliedInTransaction = false;
@@ -101,6 +115,9 @@ async function reviewCaseRequestImpl(formData: FormData) {
       const caseData = parsed.data;
       const parties = typeof data.partyDetails === "string" ? data.partyDetails : "[]";
       const assignedAttorneyId = typeof data.assignedAttorneyId === "string" ? data.assignedAttorneyId : request.requestedById;
+      const assignedAttorney = await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { division: true, divisionGroup: true } });
+      const caseGroup = requestDivision === "Criminal Division" ? requestGroup ?? assignedAttorney?.divisionGroup : null;
+      if (requestDivision === "Criminal Division" && requestGroup && caseGroup !== assignedAttorney?.divisionGroup) throw new Error("The selected attorney must be assigned to the same Criminal Division group as this case request.");
       const filing = data.initialFiling && typeof data.initialFiling === "object"
         ? data.initialFiling as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string }
         : null;
@@ -139,6 +156,7 @@ async function reviewCaseRequestImpl(formData: FormData) {
             summary: emptyToNull(caseData.summary) ?? "",
             assignedAttorneyId,
             division: typeof data.division === "string" ? data.division : request.division ?? user.division,
+            divisionGroup: caseGroup,
             createdById: request.requestedById,
           },
         });

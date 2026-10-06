@@ -16,7 +16,7 @@ export default async function FilingHistoryPage({ searchParams }: { searchParams
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
   const query = (await searchParams).q?.trim() ?? "";
-  const visibility = caseVisibilityWhere(session.user.tiers, user.id, user.division);
+  const visibility = caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup);
   if (!visibility) redirect("/login?error=forbidden");
   const canReviewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
   const canReviewDivisionFilings = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION) && Boolean(user.division);
