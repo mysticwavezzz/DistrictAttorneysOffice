@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { runWithActionDebug } from "@/lib/action-debug";
-import { localUser, canManageRosterInDivision } from "@/lib/case-access";
+import { localUser, canManageRosterInDivision, canManageUnassignedRosterEntry } from "@/lib/case-access";
 import { rosterEntrySchema } from "@/lib/validation/roster";
 import { emptyToNull, toDate } from "@/lib/validation/case";
 import { logActivity } from "@/lib/activity-log";
@@ -69,7 +69,9 @@ async function updateRosterEntryImpl(formData: FormData) {
   const data = parsed.data;
   const previous = await prisma.rosterEntry.findUnique({ where: { id }, select: { robloxUserId: true, unit: true, robloxSynced: true, name: true, rank: true } });
   const current = previous;
-  if (!current || !canManageRosterInDivision(session.user.tiers, user.division, current.unit) || !canManageRosterInDivision(session.user.tiers, user.division, data.unit)) throw new Error("You can only edit roster entries in your assigned division.");
+  const mayManageCurrent = Boolean(current && (canManageRosterInDivision(session.user.tiers, user.division, current.unit)
+    || canManageUnassignedRosterEntry(session.user.tiers, user.division, current.unit, current.rank)));
+  if (!current || !mayManageCurrent || !canManageRosterInDivision(session.user.tiers, user.division, data.unit)) throw new Error("You can only assign unassigned staff to your division or edit entries already in your division.");
   const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", []), getSiteConfiguration<UnitOption[]>("divisions", [])]);
   if (!ranks.some((rank) => rank.value === data.rank) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
 

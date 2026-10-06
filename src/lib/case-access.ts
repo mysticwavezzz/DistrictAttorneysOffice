@@ -49,6 +49,15 @@ export function canManageRosterInDivision(tiers: PermissionTier[], userDivision:
   return hasCapability(tiers, CAPABILITIES.ROSTER_MANAGE) || (Boolean(userDivision) && userDivision === targetDivision && hasCapability(tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION));
 }
 
+export function canManageUnassignedRosterEntry(tiers: PermissionTier[], userDivision: string | null | undefined, targetDivision: string | null | undefined, targetRank: string | null | undefined): boolean {
+  const officeWideRanks = new Set(["District Attorney", "Deputy District Attorney", "Chief of Staff"]);
+  return !hasCapability(tiers, CAPABILITIES.ROSTER_MANAGE)
+    && hasCapability(tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION)
+    && Boolean(userDivision)
+    && !targetDivision
+    && !officeWideRanks.has(targetRank ?? "");
+}
+
 /** Build a safe list scope. A missing local identity must never become an unscoped docket query. */
 export function caseVisibilityWhere(
   tiers: PermissionTier[],

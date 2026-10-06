@@ -8,7 +8,7 @@ import { updateRosterEntry, removeRosterEntry } from "../actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { getSiteConfiguration } from "@/lib/site-settings";
-import { localUser, canManageRosterInDivision } from "@/lib/case-access";
+import { localUser, canManageRosterInDivision, canManageUnassignedRosterEntry } from "@/lib/case-access";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 
 export const metadata = staffPageMetadata("Staff Profile", "Review an employee roster entry and manage permitted roster details.", "/dashboard/roster");
@@ -28,7 +28,9 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
   const entry = await prisma.rosterEntry.findUnique({ where: { id } });
   if (!entry) notFound();
   const user = await localUser(session.user);
-  if (!user || !canManageRosterInDivision(session.user.tiers, user.division, entry.unit)) notFound();
+  const mayManageEntry = canManageRosterInDivision(session.user.tiers, user?.division, entry.unit)
+    || canManageUnassignedRosterEntry(session.user.tiers, user?.division, entry.unit, entry.rank);
+  if (!user || !mayManageEntry) notFound();
   const [ranks, divisions] = await Promise.all([
     getSiteConfiguration("ranks", RANKS),
     getSiteConfiguration("divisions", UNITS),
@@ -70,10 +72,10 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
           </div>
           <div className="field">
             <label htmlFor="unit">
-              Unit / Bureau <span className="hint">(optional. Determines which leadership position a leadership rank fills)</span>
+              Unit / Bureau <span className="hint">{!canManageRosterInDivision(session.user.tiers, user.division, entry.unit) ? "(select your division to assign this unassigned staff member)" : "(optional. Determines which leadership position a leadership rank fills)"}</span>
             </label>
-            <select id="unit" name="unit" defaultValue={entry.unit ?? ""}>
-              <option value="">No unit set</option>
+            <select id="unit" name="unit" defaultValue={entry.unit ?? ""} required={!canManageRosterInDivision(session.user.tiers, user.division, entry.unit)}>
+              <option value="" disabled={!canManageRosterInDivision(session.user.tiers, user.division, entry.unit)}>{entry.unit ? "No unit set" : "Choose your division"}</option>
               {visibleDivisions.map((u) => (
                 <option key={u.value} value={u.value}>
                   {u.label}
@@ -127,7 +129,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
         </div>
       </FormWithPendingSubmit>
 
-      {!entry.robloxSynced && <RemoveButton
+      {!entry.robloxSynced && canManageRosterInDivision(session.user.tiers, user.division, entry.unit) && <RemoveButton
         id={entry.id}
         action={removeRosterEntry}
         label="Remove from Roster"

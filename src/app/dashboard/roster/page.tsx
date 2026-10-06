@@ -28,7 +28,8 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
   const canManageAll = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE);
-  const canManage = canManageAll || (Boolean(user.division) && hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION));
+  const canManageDivision = Boolean(user.division) && hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION);
+  const canManage = canManageAll || canManageDivision;
   const allDivisions = await getSiteConfiguration("divisions", UNITS);
   const divisions = canManageAll || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) ? allDivisions : allDivisions.filter((division) => division.value === user.division);
   const ranks = await getSiteConfiguration("ranks", RANKS);
@@ -36,7 +37,14 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
 
   let entries: RosterEntry[] = [];
   try {
-    entries = await prisma.rosterEntry.findMany({ where: canManageAll || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) ? {} : { unit: user.division ?? "__unassigned__" }, orderBy: { name: "asc" } });
+    entries = await prisma.rosterEntry.findMany({
+      where: canManageAll || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW)
+        ? {}
+        : canManageDivision
+          ? { OR: [{ unit: user.division }, { unit: null }] }
+          : { unit: user.division ?? "__unassigned__" },
+      orderBy: { name: "asc" },
+    });
   } catch (error) {
     console.error("Failed to load roster", error);
   }
@@ -51,6 +59,11 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   );
   const vacantUnits = new Set(divisions.filter((division) => !entries.some((entry) => entry.unit === division.value)).map((division) => division.value));
   const officeRanks = new Set(["District Attorney", "Deputy District Attorney", "Chief of Staff"]);
+  if (!canManageAll && canManageDivision) {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (!entries[i]!.unit && officeRanks.has(entries[i]!.rank ?? "")) entries.splice(i, 1);
+    }
+  }
 
   const groups: { key: string; label: string; description?: string; entries: RosterEntry[] }[] = [
     { key: "__office__", label: "Office of the District Attorney", description: "District Attorney, Deputy District Attorney, and Chief of Staff.", entries: [] as RosterEntry[] },
@@ -81,7 +94,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
               {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
               <span className={`pill ${linkedDiscordId(entry) ? "pill-green" : "pill-muted"}`}>{linkedDiscordId(entry) ? "Discord linked" : "No Discord linked"}</span>
             </div>
-            {canManage && <div className="roster-card-actions"><Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>Edit profile</Link></div>}
+            {canManage && <div className="roster-card-actions"><Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>{!entry.unit && !canManageAll ? "Assign to my division" : "Edit profile"}</Link></div>}
           </article>)}
         </div>
         <div className="tablewrap">
@@ -111,11 +124,11 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                     <td data-label="Roster status"><span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Active" : "Inactive"}</span></td>
                     {canManage && (
                       <td data-label="Actions" className="roster-row-actions">
-                        <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>Edit</Link>
-                        {entry.robloxSynced ? <span className="hint">Membership managed by Roblox</span> : <>
+                        <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>{!entry.unit && !canManageAll ? "Assign to my division" : "Edit"}</Link>
+                        {(canManageAll || entry.unit === (user?.division ?? null)) && (entry.robloxSynced ? <span className="hint">Membership managed by Roblox</span> : <>
                           <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>
                           <RemoveButton id={entry.id} action={removeRosterEntry} />
-                        </>}
+                        </>)}
                       </td>
                     )}
                   </tr>
