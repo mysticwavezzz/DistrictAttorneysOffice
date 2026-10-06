@@ -500,6 +500,45 @@ img {
   background: var(--box);
 }
 
+.debug-error-report {
+  display: inline-block;
+  margin: 8px 0;
+  vertical-align: top;
+}
+
+.debug-error-report__details {
+  display: grid;
+  gap: 8px;
+  width: min(560px, calc(100vw - 48px));
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--bd);
+  border-left: 4px solid var(--navy);
+  background: var(--box-alt);
+}
+
+.debug-error-report__details label {
+  color: var(--heading);
+  font-weight: 700;
+}
+
+.debug-error-report__details textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 9px;
+  border: 1px solid var(--bd-lt);
+  background: var(--box);
+  color: var(--ink);
+  font: 12px/1.5 ui-monospace, Consolas, monospace;
+  resize: vertical;
+}
+
+.debug-error-report__details .govbtn,
+.debug-error-report__details .note-inline {
+  justify-self: start;
+  margin: 0;
+}
+
 .sbox {
   margin-bottom: 16px;
 }
