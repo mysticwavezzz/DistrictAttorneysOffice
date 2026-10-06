@@ -6,13 +6,13 @@ import { localUser, caseVisibilityWhere } from "@/lib/case-access";
 import { prisma } from "@/lib/prisma";
 import { DocumentCreator } from "@/components/document-creator";
 import { staffPageMetadata } from "@/lib/staff-metadata";
-import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
+import { hasActiveDeveloperProfile } from "@/lib/developer-profile-access";
 
 export const metadata: Metadata = staffPageMetadata("Document Creator", "Prepare a DA form using document-specific fields and render it into the supplied template.", "/dashboard/templates");
 
 export default async function DocumentCreatorPage({ searchParams }: { searchParams: Promise<{ caseId?: string }> }) {
   const session = await auth();
-  if (!session?.user || !canViewCases(session.user.tiers) || !session.user.tiers.includes(DEVELOPER_PROFILE_TIER)) redirect("/login?error=forbidden");
+  if (!session?.user || !await hasActiveDeveloperProfile(session.user) || !canViewCases(session.user.tiers)) redirect("/login?error=forbidden");
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
   const where = caseVisibilityWhere(session.user.tiers, user.id, user.division);

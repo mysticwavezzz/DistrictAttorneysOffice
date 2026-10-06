@@ -5,7 +5,8 @@ import { fetchRobloxGroupRoles } from "./roblox/groups";
 import { ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
 import { capabilityMarkersForTiers, resolveTiersFromRobloxRoles } from "./permissions/resolve";
 import type { PermissionTier } from "./permissions/tiers";
-import { developerProfileSettingKey, isDeveloperProfileIdentity, withDeveloperProfile } from "@/config/developer-profiles";
+import { withDeveloperProfile } from "@/config/developer-profiles";
+import { hasActiveDeveloperProfile } from "./developer-profile-access";
 import { normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
 import { mayUseCachedRoles } from "./role-refresh-policy";
 import { migrateSavedAttorneyPermissions } from "./permissions/migrate-saved-config";
@@ -57,17 +58,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.robloxUserId && (params.account || params.trigger === "update" || needsPermissionRefresh)) {
         try {
           await migrateSavedAttorneyPermissions();
-          const [roles, mappingRow, capabilityRow, developerProfileSetting] = await Promise.all([
+          const [roles, mappingRow, capabilityRow] = await Promise.all([
             fetchRobloxGroupRoles(token.robloxUserId),
             prisma.siteConfiguration.findUnique({ where: { key: "robloxTierRoleMappings" } }),
             prisma.siteConfiguration.findUnique({ where: { key: "tierCapabilities" } }),
-            isDeveloperProfileIdentity(token.identityProvider, token.username)
-              ? prisma.siteConfiguration.findUnique({ where: { key: developerProfileSettingKey(token.robloxUserId) } })
-              : Promise.resolve(null),
           ]);
           const mappings = normalizeRobloxTierRoleMappings(mappingRow ? JSON.parse(mappingRow.value) as typeof ROBLOX_TIER_ROLE_MAPPINGS : ROBLOX_TIER_ROLE_MAPPINGS);
           const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
-          const tiers = withDeveloperProfile(token.identityProvider, token.username, resolveTiersFromRobloxRoles(roles, mappings), developerProfileSetting?.value === "true");
+          const tiers = resolveTiersFromRobloxRoles(roles, mappings);
           token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, tierCapabilities)] as PermissionTier[];
           custom.permissionModelVersion = "release-1.1.1";
           custom.configuredRobloxRoleMappings = mappings;
@@ -77,6 +75,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.error("Failed to resolve configured Roblox group permissions", error);
           if (needsPermissionRefresh || !mayUseCachedRoles(token.tiersFetchedAt, Date.now())) token.tiers = [];
         }
+      }
+
+      // The Developer Profile toggle is mutable while a JWT session remains
+      // active, so never trust its cached tier. Rebuild the effective tiers
+      // from the current persisted toggle on every server auth request.
+      if (token.identityProvider === "roblox" && token.robloxUserId) {
+        const custom = token as typeof token & { configuredTierCapabilities?: Record<string, string[]> };
+        const baseTiers = (token.tiers ?? []).filter((tier) =>
+          tier !== "developer_profile" && !tier.startsWith("cap:") && !tier.startsWith("denycap:")
+        );
+        const developerEnabled = await hasActiveDeveloperProfile({
+          identityProvider: token.identityProvider,
+          username: token.username,
+          robloxUserId: token.robloxUserId,
+        });
+        const tiers = withDeveloperProfile(token.identityProvider, token.username, baseTiers, developerEnabled);
+        token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, custom.configuredTierCapabilities ?? {})] as PermissionTier[];
       }
 
       if (params.account && params.profile) {

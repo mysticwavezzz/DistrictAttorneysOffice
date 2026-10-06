@@ -7,7 +7,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { RoleSyncPoller } from "@/components/role-sync-poller";
 import { canViewCases } from "@/lib/case-access";
 import { shareMetadata } from "@/lib/share-metadata";
-import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
+import { hasActiveDeveloperProfile } from "@/lib/developer-profile-access";
 
 export const metadata = { ...shareMetadata("Staff Portal", "Staff workspace for assigned cases, filings, deadlines, and office workflows.", "/dashboard"), robots: { index: false, follow: false } };
 
@@ -18,7 +18,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const tiers = session.user.tiers;
   const mayViewCases = canViewCases(tiers);
-  const hasDeveloperProfile = tiers.includes(DEVELOPER_PROFILE_TIER);
+  const hasDeveloperProfile = await hasActiveDeveloperProfile(session.user);
   const primaryNav: NavItem[] = [
     { label: "Overview", href: "/dashboard" },
     ...(mayViewCases ? [
