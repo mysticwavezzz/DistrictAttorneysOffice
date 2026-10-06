@@ -48,7 +48,7 @@ async function createCaseImpl(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid case data");
   const data = parsed.data;
   const canAssign = canAssignCase(session.user.tiers, user.division);
-  const canApproveOpening = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const canCreate = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
   const partyRows = formData.getAll("partyName").map((value, index) => ({ name: String(value).trim(), role: String(formData.getAll("partyRole")[index] ?? "") })).filter((party) => party.name);
   if (!partyRows.length || partyRows.length > 20) throw new Error("Add at least one party and no more than 20.");
   const allowedPartyRoles = new Set(["Defendant", "Co-defendant", "Witness", "Reporting officer", "Other"]);
@@ -92,7 +92,7 @@ async function createCaseImpl(formData: FormData) {
     relatedCaseNumbers: String(formData.get("relatedCaseNumbers") ?? ""),
   };
 
-  if (!canApproveOpening || reviseRequestId) {
+  if (!canCreate || reviseRequestId) {
     if (reviseRequestId) {
       const updated = await prisma.caseActionRequest.updateMany({
         where: { id: reviseRequestId, kind: "CREATE", status: "REJECTED", requestedById: user.id },
@@ -163,9 +163,10 @@ async function createCaseImpl(formData: FormData) {
     });
     if (initialFiling) {
       await tx.caseFiling.create({
-        data: { caseId: caseRecord.id, title: initialFiling.title, url: initialFiling.url, pdfData: initialFiling.pdfData, pdfFileName: initialFiling.pdfFileName, addedById: user.id },
+        data: { caseId: caseRecord.id, title: initialFiling.title, url: initialFiling.url, pdfData: initialFiling.pdfData, pdfFileName: initialFiling.pdfFileName, addedById: user.id, status: "DRAFT", isInitial: true },
       });
     }
+    await tx.caseComment.create({ data: { caseId: caseRecord.id, body: `Case opened as an unfiled staff record by ${session.user.displayName}.`, isSystem: true } });
     return caseRecord;
   });
 
@@ -182,6 +183,79 @@ async function createCaseImpl(formData: FormData) {
   revalidatePath("/dashboard/cases");
   revalidatePath("/dashboard/filings");
   redirect(`/dashboard/cases/${created.id}`);
+}
+
+async function fileCaseImpl(formData: FormData) {
+  const { session, user } = await requireStaff();
+  const id = String(formData.get("caseId") ?? "");
+  if (!id) throw new Error("Missing case id");
+  const caseRecord = await prisma.case.findUnique({ where: { id }, include: { filings: { where: { isInitial: true }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, pdfFileName: true, status: true, isInitial: true } } } });
+  const canFileThisCase = Boolean(caseRecord && canEditCase(session.user.tiers, user.division, caseRecord.division))
+    || Boolean(caseRecord && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && caseRecord.createdById === user.id);
+  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division) || !canFileThisCase) throw new Error("Case not accessible");
+  const legacyWindowStart = new Date(caseRecord.createdAt.getTime() - 120_000);
+  const legacyWindowEnd = new Date(caseRecord.createdAt.getTime() + 120_000);
+  const legacyInitialAccepted = !caseRecord.filings.some((filing) => filing.isInitial)
+    ? await prisma.caseFiling.findFirst({ where: { caseId: id, status: "ACCEPTED", isInitial: false, createdAt: { gte: legacyWindowStart, lte: legacyWindowEnd } }, select: { id: true } })
+    : null;
+  if (caseRecord.courtFiledAt || caseRecord.filings.some((filing) => filing.status === "ACCEPTED") || legacyInitialAccepted) throw new Error("This case has already been filed with the court.");
+  if (caseRecord.filings.some((filing) => filing.status === "PENDING")) throw new Error("The initial filing is already awaiting review.");
+
+  const pdf = await readCasePdf(formData.get("initialPdf"));
+  const draftFiling = caseRecord.filings.find((filing) => filing.status === "DRAFT");
+  if (!draftFiling && !pdf) throw new Error("Attach the initial complaint as a PDF before filing this case.");
+  const title = String(formData.get("initialFilingTitle") ?? "").trim().slice(0, 200);
+  const needsApproval = shouldRequireFilingApproval(session.user.tiers, caseRecord.division);
+  const nextStatus = needsApproval ? "PENDING" : "ACCEPTED";
+  const filedAt = needsApproval ? null : new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const activeInitial = await tx.caseFiling.findFirst({ where: { caseId: id, isInitial: true, status: { in: ["PENDING", "ACCEPTED"] } }, select: { id: true } });
+    if (activeInitial) throw new Error("The initial case filing was already submitted or filed. Refresh the case before retrying.");
+    if (draftFiling) {
+      const claimed = await tx.caseFiling.updateMany({
+        where: { id: draftFiling.id, status: "DRAFT" },
+        data: { ...(pdf ? { pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName } : {}), title: title || (pdf?.pdfFileName ?? draftFiling.title), status: nextStatus, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt },
+      });
+      if (!claimed.count) throw new Error("This complaint was already submitted. Refresh the case before retrying.");
+    } else if (pdf) {
+      await tx.caseFiling.create({
+        data: { caseId: id, title: title || pdf.pdfFileName, pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName, addedById: user.id, status: nextStatus, isInitial: true, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt },
+      });
+    }
+    await tx.case.update({ where: { id }, data: { ...(filedAt ? { courtFiledAt: filedAt } : {}), updatedAt: new Date() } });
+    await tx.caseComment.create({ data: {
+      caseId: id,
+      body: needsApproval ? `Initial complaint submitted for court-filing review by ${session.user.displayName}.` : `Case filed with the court by ${session.user.displayName}.`,
+      isSystem: true,
+    } });
+  });
+
+  try {
+    if (needsApproval) {
+      const [globalReviewerIds, divisionReviewerIds] = await Promise.all([
+        userIdsWithCapability(CAPABILITIES.CASES_APPROVE_EDITS),
+        userIdsWithCapability(CAPABILITIES.CASES_APPROVE_DIVISION),
+      ]);
+      const divisionReviewers = caseRecord.division ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: caseRecord.division }, select: { id: true } }) : [];
+      await notifyMany(Array.from(new Set([...globalReviewerIds, ...divisionReviewers.map((reviewer) => reviewer.id)])).filter((reviewerId) => reviewerId !== user.id), {
+        type: "case_filing",
+        title: "Initial case filing needs review",
+        body: `${caseRecord.caseNumber} · ${caseRecord.title}`,
+        link: "/dashboard/review?type=filing",
+      });
+      await notify({ userId: user.id, type: "case_filing", title: "Case filing submitted for review", body: `${caseRecord.caseNumber} · ${caseRecord.title}`, link: `/dashboard/cases/${id}#court-filing` });
+    } else if (caseRecord.assignedAttorneyId && caseRecord.assignedAttorneyId !== user.id) {
+      await notify({ userId: caseRecord.assignedAttorneyId, type: "case_filing", title: `Case filed with the court: ${caseRecord.caseNumber}`, body: caseRecord.title, link: `/dashboard/cases/${id}#court-filing` });
+    }
+  } catch (error) {
+    console.error(`[case filing ${id}] Filing saved, but notification delivery failed`, error);
+  }
+
+  revalidatePath("/dashboard/review");
+  revalidatePath("/dashboard/cases");
+  revalidatePath(`/dashboard/cases/${id}`);
+  redirect(`/dashboard/cases/${id}#court-filing`);
 }
 
 async function updateCaseImpl(formData: FormData) {
@@ -380,6 +454,7 @@ async function updateDeadlineReminderStateImpl(formData: FormData) {
 }
 
 export async function createCase(formData: FormData) { return runWithActionDebug("createCase", [formData], () => createCaseImpl(formData)); }
+export async function fileCase(formData: FormData) { return runWithActionDebug("fileCase", [formData], () => fileCaseImpl(formData)); }
 export async function updateCase(formData: FormData) { return runWithActionDebug("updateCase", [formData], () => updateCaseImpl(formData)); }
 export async function deleteCase(formData: FormData) { return runWithActionDebug("deleteCase", [formData], () => deleteCaseImpl(formData)); }
 export async function bulkUpdateCases(formData: FormData) { return runWithActionDebug("bulkUpdateCases", [formData], () => bulkUpdateCasesImpl(formData)); }

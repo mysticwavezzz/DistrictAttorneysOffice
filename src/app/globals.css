@@ -1635,6 +1635,7 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .case-card-heading { display: flex; align-items: flex-start; gap: 12px; }
 .case-card-heading > div { flex: 1; min-width: 0; }
 .case-card-heading > div > a { font-size: 16px; }
+.case-card-statuses { display: flex; flex: 0 0 auto !important; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .case-select { padding-top: 4px; }
 .case-card-subtitle { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 4px; color: var(--ink-dim); }
 .case-card-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 15px; padding: 11px 0; border-top: 1px solid var(--bd-lt); border-bottom: 1px solid var(--bd-lt); }
@@ -1670,6 +1671,20 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .empty-state { padding: 24px; border: 1px dashed var(--bd); background: var(--box-alt); text-align: center; }
 .empty-state h2 { margin-top: 0; }
 .case-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.case-court-filing { display: grid; gap: 8px; margin: 12px 0 16px; padding: 15px; border: 1px solid var(--bd); border-left: 4px solid var(--navy); background: var(--box); }
+.case-court-filing > p { margin: 0; }
+.case-court-filing-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.case-court-filing-heading .eyebrow, .case-court-filing-heading h2 { margin: 0; }
+.case-court-filing-heading h2 { font: bold 18px var(--serif); }
+.case-court-filing-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 10px 14px; margin-top: 4px; }
+.case-court-filing-form .note-inline, .case-court-filing-form button { grid-column: 1 / -1; }
+.case-docket-tools, .case-bulk-details { margin: 10px 0 14px; border: 1px solid var(--bd); background: var(--box); }
+.case-docket-tools > summary, .case-bulk-details > summary { padding: 11px 14px; background: var(--box-alt); color: var(--heading); font-weight: 700; cursor: pointer; }
+.case-bulk-details > summary span { margin-left: 8px; color: var(--ink-soft); font-size: 12px; font-weight: 400; }
+.case-docket-tools[open] > summary, .case-bulk-details[open] > summary { border-bottom: 1px solid var(--bd-lt); }
+.case-docket-tools > .case-filter-panel, .case-docket-tools > .case-tools-panel { margin: 12px 14px; }
+.case-bulk-details .case-bulk-toolbar { margin: 0; border: 0; }
+.case-card-statuses .pill { white-space: nowrap; }
 .case-detail-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 10px 0 14px; padding: 12px; border: 1px solid var(--bd-lt); background: var(--box-alt); }
 .case-parties { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 8px 0; padding: 0; list-style: none; }
 .case-parties li { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--bd-lt); background: var(--stripe); }
@@ -1743,7 +1758,8 @@ button:disabled { cursor: wait; opacity: .7; }
   .case-party-row { grid-template-columns: 1fr; }
   .case-detail-summary { grid-template-columns: 1fr; }
   .case-card-heading { flex-wrap: wrap; }
-  .case-card-heading > .pill { margin-left: auto; }
+  .case-card-statuses { margin-left: auto; }
+  .case-court-filing-form { grid-template-columns: 1fr; }
   .case-card-filings li, .recent-filings-list li { align-items: flex-start; flex-direction: column; gap: 3px; }
   .case-edit-heading { align-items: flex-start; }
   .case-filing-row { align-items: flex-start; flex-direction: column; }

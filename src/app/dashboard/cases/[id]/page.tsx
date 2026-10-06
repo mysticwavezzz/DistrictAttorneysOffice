@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser, canAccessCase, canViewCases, canEditCase, canAssignCase, canReviewDivision } from "@/lib/case-access";
 import { CASE_STATUSES, caseStatusColor } from "@/config/case-statuses";
-import { updateCase, deleteCase, addFiling, deleteFiling, addComment } from "../actions";
+import { updateCase, deleteCase, addFiling, deleteFiling, addComment, fileCase } from "../actions";
 import { submitCaseRequest } from "../requests/actions";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { RemoveButton } from "@/components/remove-button";
@@ -16,6 +16,7 @@ import { getOngoingObligations, getProceduralDeadlines } from "@/lib/procedural-
 import { staffPageMetadata } from "@/lib/staff-metadata";
 import { shareMetadata } from "@/lib/share-metadata";
 import { CaseFoldPersistence } from "@/components/case-fold-persistence";
+import { shouldRequireFilingApproval } from "@/lib/filing-approval";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,7 +36,7 @@ type CaseWithRelations = Prisma.CaseGetPayload<{
   include: {
     assignedAttorney: true;
     createdBy: true;
-    filings: { select: { id: true; title: true; url: true; pdfFileName: true; status: true; reviewNote: true; addedById: true; createdAt: true; addedBy: { select: { displayName: true } } } };
+    filings: { select: { id: true; title: true; url: true; pdfFileName: true; status: true; isInitial: true; reviewNote: true; addedById: true; createdAt: true; addedBy: { select: { displayName: true } } } };
     comments: { include: { author: true } };
     relatedTo: true;
     relatedFrom: true;
@@ -55,7 +56,6 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   if (!session?.user || !canViewCases(session.user.tiers)) {
     redirect("/login?error=forbidden");
   }
-
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
 
@@ -67,7 +67,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       include: {
         assignedAttorney: true,
         createdBy: true,
-        filings: { select: { id: true, title: true, url: true, pdfFileName: true, status: true, reviewNote: true, addedById: true, createdAt: true, addedBy: { select: { displayName: true } } }, orderBy: { createdAt: "desc" } },
+        filings: { select: { id: true, title: true, url: true, pdfFileName: true, status: true, isInitial: true, reviewNote: true, addedById: true, createdAt: true, addedBy: { select: { displayName: true } } }, orderBy: { createdAt: "desc" } },
         comments: { include: { author: true }, orderBy: { createdAt: "asc" } },
         relatedTo: true,
         relatedFrom: true,
@@ -84,6 +84,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   }
 
   const canEdit = canEditCase(session.user.tiers, user.division, caseRecord.division);
+  const canFileCourt = canEdit || (hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && caseRecord.createdById === user.id);
   const canDelete = hasCapability(session.user.tiers, CAPABILITIES.CASES_DELETE);
   const canAssign = canAssignCase(session.user.tiers, user.division, caseRecord.division);
   const canPropose = !canEdit && hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
@@ -114,7 +115,19 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     : hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION)
       ? `${user.division ?? "Unassigned"} division access`
     : canEdit ? "Edit access" : canPropose ? "Read and propose edits" : "Read access";
-  const activeDeadlines = getProceduralDeadlines(caseRecord);
+  const legacyInitialFiling = !caseRecord.filings.some((filing) => filing.isInitial)
+    ? [...caseRecord.filings].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()).find((filing) => filing.status === "ACCEPTED" && Math.abs(filing.createdAt.getTime() - caseRecord.createdAt.getTime()) <= 120_000)
+    : undefined;
+  const initialFilings = caseRecord.filings.filter((filing) => filing.isInitial);
+  if (initialFilings.length === 0 && legacyInitialFiling) initialFilings.push(legacyInitialFiling);
+  const pendingInitial = initialFilings.some((filing) => filing.status === "PENDING");
+  const acceptedInitial = initialFilings.some((filing) => filing.status === "ACCEPTED");
+  const draftInitial = initialFilings.find((filing) => filing.status === "DRAFT");
+  const returnedInitial = initialFilings.find((filing) => filing.status === "REJECTED");
+  const effectiveCourtFiledAt = caseRecord.courtFiledAt ?? legacyInitialFiling?.createdAt ?? null;
+  const courtFilingLabel = effectiveCourtFiledAt || acceptedInitial ? "Filed with court" : pendingInitial ? "Awaiting review" : returnedInitial ? "Returned for correction" : "Unfiled in court";
+  const courtFilingColor = caseRecord.courtFiledAt || acceptedInitial ? "green" : pendingInitial ? "gold" : returnedInitial ? "red" : "muted";
+  const activeDeadlines = getProceduralDeadlines({ ...caseRecord, courtFiledAt: effectiveCourtFiledAt });
   const ongoingObligations = getOngoingObligations(caseRecord);
   let parties: { name: string; role: string }[] = [];
   try {
@@ -151,7 +164,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         <ul className="case-filings-list">
           {visibleFilings.map((f) => (
             <li className="case-filing-row" key={f.id}>
-              <div className="case-filing-info"><strong>{f.title} <span className={`pill ${f.status === "ACCEPTED" ? "pill-green" : f.status === "PENDING" ? "pill-gold" : "pill-red"}`}>{f.status === "ACCEPTED" ? "Approved" : f.status === "PENDING" ? "Pending approval" : "Returned"}</span></strong><span>{f.pdfFileName ?? "Document"} · Submitted by {f.addedBy.displayName} · {dateTimeFormatter.format(f.createdAt)}</span>{f.reviewNote && f.status !== "ACCEPTED" && <span className="note-inline">Review note: {f.reviewNote}</span>}</div>
+              <div className="case-filing-info"><strong>{f.title} <span className={`pill ${f.status === "ACCEPTED" ? "pill-green" : f.status === "PENDING" ? "pill-gold" : f.status === "DRAFT" ? "pill-muted" : "pill-red"}`}>{f.status === "ACCEPTED" ? "Approved" : f.status === "PENDING" ? "Pending approval" : f.status === "DRAFT" ? "Draft complaint" : "Returned"}</span>{f.isInitial && <span className="pill pill-navy">Initial</span>}</strong><span>{f.pdfFileName ?? "Document"} · Submitted by {f.addedBy.displayName} · {dateTimeFormatter.format(f.createdAt)}</span>{f.reviewNote && f.status !== "ACCEPTED" && <span className="note-inline">Review note: {f.reviewNote}</span>}</div>
               <div className="case-filing-actions">
                 {f.pdfFileName && <a href={`/api/cases/filings/${f.id}/pdf`} target="_blank" rel="noreferrer noopener" className="govbtn-outline">View PDF</a>}
                 {f.url && <a href={f.url} target="_blank" rel="noreferrer noopener" className="govbtn-outline">Open link</a>}
@@ -219,6 +232,23 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     </details>
   );
 
+  const courtFilingSection = (
+    <section className="case-court-filing" id="court-filing" aria-labelledby="court-filing-title">
+      <div className="case-court-filing-heading"><div><p className="eyebrow">Court status</p><h2 id="court-filing-title">Initial case filing</h2></div><span className={`pill pill-${courtFilingColor}`}>{courtFilingLabel}</span></div>
+      {effectiveCourtFiledAt ? <p>Filed {dateTimeFormatter.format(effectiveCourtFiledAt)}{caseRecord.assignedJudge ? "" : " · Assign a judge to calculate the arraignment schedule."}</p>
+        : pendingInitial ? <p>The initial complaint is in the Review Inbox. The case will become court-filed when it is approved.</p>
+          : returnedInitial ? <p className="note-inline">The initial complaint was returned{returnedInitial.reviewNote ? `: ${returnedInitial.reviewNote}` : ". Replace the PDF and submit it for review again."}</p>
+            : <p>This staff case record has not been filed with the court. {caseRecord.assignedJudge ? "The arraignment predictor will start after filing." : "Assign a judge to start the arraignment predictor after filing."}</p>}
+      {!effectiveCourtFiledAt && !pendingInitial && canFileCourt && <form action={fileCase} className="case-court-filing-form" encType="multipart/form-data">
+        <input type="hidden" name="caseId" value={caseRecord.id} />
+        <div className="field"><label htmlFor="court-filing-title">Complaint / initial filing title</label><input id="court-filing-title" name="initialFilingTitle" maxLength={200} defaultValue={returnedInitial?.title ?? draftInitial?.title ?? ""} placeholder="Initial complaint" /></div>
+        <div className="field"><label htmlFor="court-filing-pdf">{draftInitial ? "Replace initial complaint PDF (optional)" : "Initial complaint PDF (max 5 MB)"}</label><PdfUploadInput id="court-filing-pdf" name="initialPdf" required={!draftInitial} /></div>
+        {draftInitial && <p className="note-inline">Ready to file: {draftInitial.pdfFileName ?? draftInitial.title}. Leave the PDF empty to use this saved complaint.</p>}
+        <PendingSubmitButton label={shouldRequireFilingApproval(session.user.tiers, caseRecord.division) ? "Submit for filing review" : "File with court"} pendingLabel="Submitting…" className="govbtn" />
+      </form>}
+    </section>
+  );
+
   if (!canEdit) {
     return (
       <div>
@@ -231,6 +261,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           {caseRecord.isDraft && <span className="pill pill-muted" style={{ marginLeft: 6 }}>Draft</span>}
         </p>
         <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link>{session.user.tiers.includes("developer_profile") && <Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link>}<Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
+        {courtFilingSection}
         <nav className="case-section-nav" aria-label="Case sections">
           <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a>
         </nav>
@@ -345,8 +376,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         <div className="case-detail-actions"><Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a Document</Link>{session.user.tiers.includes("developer_profile") && <Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link>}<Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link></div>
         <ol className="status-timeline" aria-label="Case status timeline">
           <li><strong>Case opened</strong><time dateTime={caseRecord.createdAt.toISOString()}>{caseRecord.createdAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
-          <li><strong>Current status: {caseRecord.stage ?? "Unassigned"}</strong><time dateTime={caseRecord.updatedAt.toISOString()}>Updated {caseRecord.updatedAt.toLocaleDateString("en-US", { dateStyle: "medium" })}</time></li>
+          <li><strong>Court filing: {courtFilingLabel}</strong><time dateTime={(effectiveCourtFiledAt ?? caseRecord.updatedAt).toISOString()}>{effectiveCourtFiledAt ? `Filed ${effectiveCourtFiledAt.toLocaleDateString("en-US", { dateStyle: "medium" })}` : `Updated ${caseRecord.updatedAt.toLocaleDateString("en-US", { dateStyle: "medium" })}`}</time></li>
         </ol>
+      {courtFilingSection}
       <nav className="case-section-nav" aria-label="Case sections">
         <a href="#overview">Overview</a><a href="#filings">Filings</a><a href="#activity">Activity</a><a href="#deadlines">Deadlines</a>
       </nav>

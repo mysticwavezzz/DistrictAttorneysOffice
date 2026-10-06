@@ -86,6 +86,7 @@ model Case {
   disclosures        String?
   partyDetails       String    @default("[]")
   assignedJudge      String?
+  courtFiledAt       DateTime?
   discGiven          DateTime?
   discDue            DateTime?
   pretrial           DateTime?
@@ -132,6 +133,7 @@ model CaseFiling {
   pdfFileName String?
   addedById String
   status    String   @default("ACCEPTED")
+  isInitial Boolean  @default(false)
   reviewedById String?
   reviewNote String?
   reviewedAt DateTime?

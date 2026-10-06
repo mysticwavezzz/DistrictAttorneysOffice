@@ -1,6 +1,8 @@
 export type ProceduralDeadlineCase = {
   type: string | null;
   createdAt: Date;
+  assignedJudge?: string | null;
+  courtFiledAt?: Date | null;
   discDue: Date | null;
   pretrial: Date | null;
   appealBy: Date | null;
@@ -35,20 +37,24 @@ export function getProceduralDeadlines(item: ProceduralDeadlineCase): Procedural
   add("manual-pretrial", "Pretrial", item.pretrial, "Manually entered", false);
   add("manual-appealBy", "Appeal by", item.appealBy, "Manually entered", false);
   if (criminal) {
-    add("criminal-arraignment", "Arraignment", addCalendarDays(item.createdAt, 7), "Ches. R. Crim. P. Rule 9(d)");
-    add("criminal-particulars", "Bill of particulars", item.arraignmentAt ? addCalendarDays(item.arraignmentAt, 7) : null, "Ches. R. Crim. P. Rule 5(e)");
-    add("criminal-discovery-cutoff", "Discovery motions cutoff", item.pretrial, "Ches. R. Crim. P. Rule 12(d)(1), 12(e)(1)");
-    add("criminal-motion-response", "Motion response", item.motionServedAt ? addCalendarDays(item.motionServedAt, 3) : null, "Ches. R. Crim. P. Rule 12(a)(3)");
-    add("criminal-post-trial", "Post-trial motions", item.verdictAt ? addCalendarDays(item.verdictAt, 5) : null, "Ches. R. Crim. P. Rules 16(b), 16(c), 16(d)");
-    add("criminal-sentence-correction", "Sentence correction", item.sentenceAt ? addCalendarDays(item.sentenceAt, 2) : null, "Ches. R. Crim. P. Rule 16(e)(1)");
+    if (item.assignedJudge) {
+      add("criminal-arraignment", "Arraignment", item.courtFiledAt ? addCalendarDays(item.courtFiledAt, 7) : null, "Ches. R. Crim. P. Rule 9(d)");
+      add("criminal-particulars", "Bill of particulars", item.arraignmentAt ? addCalendarDays(item.arraignmentAt, 7) : null, "Ches. R. Crim. P. Rule 5(e)");
+      add("criminal-discovery-cutoff", "Discovery motions cutoff", item.pretrial, "Ches. R. Crim. P. Rule 12(d)(1), 12(e)(1)");
+      add("criminal-motion-response", "Motion response", item.motionServedAt ? addCalendarDays(item.motionServedAt, 3) : null, "Ches. R. Crim. P. Rule 12(a)(3)");
+      add("criminal-post-trial", "Post-trial motions", item.verdictAt ? addCalendarDays(item.verdictAt, 5) : null, "Ches. R. Crim. P. Rules 16(b), 16(c), 16(d)");
+      add("criminal-sentence-correction", "Sentence correction", item.sentenceAt ? addCalendarDays(item.sentenceAt, 2) : null, "Ches. R. Crim. P. Rule 16(e)(1)");
+    }
   }
   if (civil) {
-    add("civil-service", "Service of summons and complaint", addCalendarDays(item.createdAt, 7), "Ches. R. Civ. P. Rule 5(d)");
-    add("civil-answer", "Answer to complaint", item.proofOfServiceAt ? addCalendarDays(item.proofOfServiceAt, 7) : null, "Ches. R. Civ. P. Rules 5(b), 13");
-    add("civil-discovery-window", "Discovery request window", item.discoveryOrderAt ? addCalendarDays(item.discoveryOrderAt, 4) : null, "Ches. R. Civ. P. Rule 25(b)");
-    add("civil-discovery-response", "Discovery response", item.discoveryRequestedAt ? addCalendarDays(item.discoveryRequestedAt, 3) : null, "Ches. R. Civ. P. Rule 25(b)");
+    if (item.assignedJudge) {
+      add("civil-service", "Service of summons and complaint", item.courtFiledAt ? addCalendarDays(item.courtFiledAt, 7) : null, "Ches. R. Civ. P. Rule 5(d)");
+      add("civil-answer", "Answer to complaint", item.proofOfServiceAt ? addCalendarDays(item.proofOfServiceAt, 7) : null, "Ches. R. Civ. P. Rules 5(b), 13");
+      add("civil-discovery-window", "Discovery request window", item.discoveryOrderAt ? addCalendarDays(item.discoveryOrderAt, 4) : null, "Ches. R. Civ. P. Rule 25(b)");
+      add("civil-discovery-response", "Discovery response", item.discoveryRequestedAt ? addCalendarDays(item.discoveryRequestedAt, 3) : null, "Ches. R. Civ. P. Rule 25(b)");
+    }
   }
-  if (appellate) add("appellate-certiorari", "Certiorari petition", item.finalJudgmentAt ? addCalendarDays(item.finalJudgmentAt, 30) : null, "Ches. Cir. Ct. Rule 13.2");
+  if (appellate && item.assignedJudge) add("appellate-certiorari", "Certiorari petition", item.finalJudgmentAt ? addCalendarDays(item.finalJudgmentAt, 30) : null, "Ches. Cir. Ct. Rule 13.2");
 
   return deadlines.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 }

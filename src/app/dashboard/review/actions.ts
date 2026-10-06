@@ -61,9 +61,12 @@ async function reviewFilingImpl(formData: FormData) {
       data: { status: decision, reviewedById: user.id, reviewedAt: new Date(), reviewNote: note || null },
     });
     if (!claimed.count) throw new Error("This filing has already been reviewed. Refresh the queue.");
+    await tx.case.update({ where: { id: filing.caseId }, data: { ...(decision === "ACCEPTED" && filing.isInitial ? { courtFiledAt: new Date() } : {}), updatedAt: new Date() } });
     await tx.caseComment.create({ data: {
       caseId: filing.caseId,
-      body: `Filing “${filing.title}” ${decision === "ACCEPTED" ? "approved" : "returned"} by ${session.user.displayName}.${note ? ` Review note: ${note}` : ""}`,
+      body: filing.isInitial && decision === "ACCEPTED"
+        ? `Initial complaint approved and case filed with the court by ${session.user.displayName}.${note ? ` Review note: ${note}` : ""}`
+        : `Filing “${filing.title}” ${decision === "ACCEPTED" ? "approved" : "returned"} by ${session.user.displayName}.${note ? ` Review note: ${note}` : ""}`,
       isSystem: true,
     } });
   });

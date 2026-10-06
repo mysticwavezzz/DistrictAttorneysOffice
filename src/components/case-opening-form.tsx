@@ -28,12 +28,14 @@ export type RevisionDraft = {
 
 export function CaseOpeningForm({
   officerName,
+  canCreate,
   canAssign,
   reviewersCanAutoApprove,
   attorneys,
   revision,
 }: {
   officerName: string;
+  canCreate: boolean;
   canAssign: boolean;
   reviewersCanAutoApprove: boolean;
   attorneys: { id: string; displayName: string }[];
@@ -55,17 +57,18 @@ export function CaseOpeningForm({
       <header className="case-opening-heading">
         <p className="eyebrow">Casework</p>
         <h1>{revision ? "Revise Case Submission" : "Open a Case"}</h1>
-        <p className="lede">{revision ? "Update the case details or replace the complaint, then send this same submission back for review." : "Enter the case information, list the people involved, attach an initial filing if available, and review before submitting."}</p>
+        <p className="lede">{revision ? "Update the case details or replace the complaint, then send this same submission back for review." : "Enter the case information and parties to create an unfiled staff case record. Filing with the court is a separate action."}</p>
       </header>
 
       {revision && <p className="message" role="status"><strong>Returned for revision.</strong> {revision.rejectionNote || "Update the submission and resubmit it for review."}</p>}
       {revision && <p className="message" role="note">Resubmitting returns this request to the leadership review queue.</p>}
-      {!revision && !reviewersCanAutoApprove && (
-        <p className="message" role="note">This submission will remain private until a Senior Assistant District Attorney or the District Attorney reviews it.</p>
+      {!revision && canCreate && !reviewersCanAutoApprove && (
+        <p className="message" role="note">Opening the case creates an unfiled record. When you press File on the case page, the initial complaint will go to your division’s review inbox.</p>
       )}
-      {!revision && reviewersCanAutoApprove && (
-        <p className="message message-success" role="note">As a Senior Assistant District Attorney or District Attorney, your submission is added to the docket immediately.</p>
+      {!revision && canCreate && reviewersCanAutoApprove && (
+        <p className="message message-success" role="note">Opening the case creates an unfiled record. You can file it directly with the court from its case page.</p>
       )}
+      {!revision && !canCreate && <p className="message" role="note">This case-opening request will remain private until an authorized reviewer approves it.</p>}
 
       <ol className="case-opening-steps" aria-label="Case submission steps">
         {steps.map((label, index) => (
@@ -130,8 +133,8 @@ export function CaseOpeningForm({
             <p><strong>Parties</strong><span>{parties.filter((party) => party.name.trim()).map((party) => `${party.name.trim()} (${party.role})`).join(", ") || "None listed"}</span></p>
             <p><strong>Initial filing</strong><span>{documentName || revision?.filingName || "No PDF attached"}</span></p>
             <p><strong>Submitting officer</strong><span>{officerName}</span></p>
-            <p><strong>Review path</strong><span>{reviewersCanAutoApprove ? "Immediate docket entry" : "Supervisory review before docket entry"}</span></p>
-            <p className="note-inline">{revision ? "Check your changes, then resubmit this request for another review." : "Check the case information and parties before submitting to the docket."}</p>
+            <p><strong>Next step</strong><span>{revision ? "Resubmission for review" : canCreate ? "Save unfiled case, then file the complaint" : "Reviewer approval before the case record is created"}</span></p>
+            <p className="note-inline">{revision ? "Check your changes, then resubmit this request for another review." : canCreate ? "No court filing or arraignment schedule is created until you use File on the case page." : "Check the case information and parties before submitting."}</p>
           </div>
         </fieldset>
 
@@ -140,7 +143,7 @@ export function CaseOpeningForm({
           {step < steps.length - 1 ? (
             <button type="button" className="govbtn" onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}>Continue</button>
           ) : (
-            <PendingSubmitButton label={revision ? "Resubmit for Review" : reviewersCanAutoApprove ? "Open Case" : "Submit for Review"} pendingLabel="Submitting…" />
+            <PendingSubmitButton label={revision ? "Resubmit for Review" : canCreate ? "Save Unfiled Case" : "Submit for Review"} pendingLabel="Saving…" />
           )}
         </div>
       </form>

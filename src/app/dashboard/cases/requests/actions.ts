@@ -118,6 +118,7 @@ async function reviewCaseRequestImpl(formData: FormData) {
             type: emptyToNull(caseData.type),
             stage: emptyToNull(caseData.stage),
             assignedJudge: emptyToNull(caseData.assignedJudge),
+            courtFiledAt: filing?.pdfData || filing?.url ? new Date() : null,
             partyDetails: parties,
             disclosures: emptyToNull(caseData.disclosures),
             discGiven: toDate(caseData.discGiven),
@@ -143,7 +144,7 @@ async function reviewCaseRequestImpl(formData: FormData) {
         });
         if (filing?.title && (filing.url || filing.pdfData)) {
           await tx.caseFiling.create({
-            data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById },
+            data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById, isInitial: true },
           });
         }
         return caseRecord;
@@ -212,10 +213,9 @@ async function reviewCaseRequestImpl(formData: FormData) {
     await notify({
       userId: request.requestedById,
       type: "case_request_reviewed",
-      title:
-        decision === "APPROVE"
-          ? "Your proposed case change was approved"
-          : "Your proposed case change was rejected",
+      title: request.kind === "CREATE"
+        ? decision === "APPROVE" ? "Your case opening was approved" : "Your case opening was returned"
+        : decision === "APPROVE" ? "Your proposed case change was approved" : "Your proposed case change was rejected",
       body: note || undefined,
       link: decision === "REJECT" && request.kind === "CREATE"
         ? `/dashboard/cases/new?reviseRequestId=${encodeURIComponent(request.id)}`

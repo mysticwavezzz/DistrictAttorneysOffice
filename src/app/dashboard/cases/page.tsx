@@ -12,7 +12,7 @@ import { shareMetadata } from "@/lib/share-metadata";
 
 export const metadata = shareMetadata("My Cases", "Search assigned and accessible cases, review their status, and continue casework.", "/dashboard/cases");
 
-type CaseWithAttorney = Prisma.CaseGetPayload<{ include: { assignedAttorney: true; filings: { select: { id: true; title: true; url: true; pdfFileName: true; createdAt: true } } } }>;
+type CaseWithAttorney = Prisma.CaseGetPayload<{ include: { assignedAttorney: true; filings: { select: { id: true; title: true; url: true; pdfFileName: true; status: true; isInitial: true; createdAt: true } } } }>;
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "short" });
 function fmt(date: Date | null): string {
@@ -87,11 +87,20 @@ export default async function CasesPage({
   let totalCases = 0;
   try {
     [cases, totalCases] = await Promise.all([
-      prisma.case.findMany({ where, orderBy: { [sort]: direction }, include: { assignedAttorney: true, filings: { select: { id: true, title: true, url: true, pdfFileName: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 3 } }, skip: (page - 1) * pageSize, take: pageSize }),
+      prisma.case.findMany({ where, orderBy: { [sort]: direction }, include: { assignedAttorney: true, filings: { select: { id: true, title: true, url: true, pdfFileName: true, status: true, isInitial: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 3 } }, skip: (page - 1) * pageSize, take: pageSize }),
       prisma.case.count({ where }),
     ]);
   } catch (error) {
     console.error("Failed to load cases", error);
+  }
+  const legacyFiledAt = new Map<string, Date>();
+  if (cases.length) {
+    const legacyFilings = await prisma.caseFiling.findMany({ where: { caseId: { in: cases.map((item) => item.id) }, status: "ACCEPTED", isInitial: false }, select: { caseId: true, createdAt: true }, orderBy: { createdAt: "asc" } }).catch(() => []);
+    const createdAtByCase = new Map(cases.map((item) => [item.id, item.createdAt]));
+    for (const filing of legacyFilings) {
+      const openedAt = createdAtByCase.get(filing.caseId);
+      if (openedAt && Math.abs(filing.createdAt.getTime() - openedAt.getTime()) <= 120_000 && !legacyFiledAt.has(filing.caseId)) legacyFiledAt.set(filing.caseId, filing.createdAt);
+    }
   }
 
   const qs = (overrides: Record<string, string>) => {
@@ -121,6 +130,8 @@ export default async function CasesPage({
         <Link href={`/dashboard/cases${qs({ tab: "archived" })}`} className={tab === "archived" ? "on" : undefined}>Archived</Link>
       </nav>
 
+      <details className="case-docket-tools">
+      <summary>Search, saved views, and quick filters</summary>
       <form className="case-filter-panel">
         <input type="hidden" name="tab" value={tab} />
         <div className="case-filter-grid">
@@ -143,16 +154,22 @@ export default async function CasesPage({
           {(() => { let saved: {id:string;name:string;query:string}[]=[]; try { saved=JSON.parse(user.savedCaseFilters || "[]"); } catch {} return saved.length > 0 && <nav className="case-saved-links" aria-label="Saved case filters">{saved.map((item)=><span className="case-saved-chip" key={item.id}><Link href={`/dashboard/cases?${item.query}`}>{item.name}</Link><form action={deleteCaseFilter}><input type="hidden" name="id" value={item.id}/><button className="linklike" type="submit" aria-label={`Delete saved filter ${item.name}`}>×</button></form></span>)}</nav>; })()}
         </div>}
       </section>
+      </details>
 
       <section className="case-results" aria-label="Case results">
         <div className="case-results-heading"><h2>{tab === "archived" ? "Archived cases" : "Case docket"}</h2>{totalCases > 0 && <p aria-live="polite">Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCases)} of {totalCases} cases</p>}</div>
         {cases.length ? <form action={bulkUpdateCases} className="case-bulk-form">
-          <div className="case-bulk-toolbar"><div><strong>Bulk actions</strong><span>Select cases below, then choose an action.</span></div><div className="case-bulk-controls">
+          <details className="case-bulk-details"><summary>Manage selected cases <span>Select case cards below to assign or archive multiple records.</span></summary><div className="case-bulk-toolbar"><div><strong>Bulk actions</strong><span>Select cases below, then choose an action.</span></div><div className="case-bulk-controls">
             {canBulkAssign && <div className="field"><label htmlFor="bulkAssignee">Assign selected to</label><select id="bulkAssignee" name="assigneeId" defaultValue=""><option value="">Unassigned</option>{assignableUsers.map((a) => <option key={a.id} value={a.id}>{a.displayName}</option>)}</select><button className="govbtn-outline" name="operation" value="assign" type="submit">Assign selected</button></div>}
             {canBulkArchive && tab !== "archived" && <button className="govbtn-outline" name="operation" value="archive" type="submit">Archive selected</button>}
-          </div></div>
+          </div></div></details>
           <div className="case-card-list">{cases.map((c) => {
-            const deadlineOptions = getProceduralDeadlines(c);
+            const initialFiling = c.filings.find((filing) => filing.isInitial);
+            const courtFiledAt = c.courtFiledAt ?? (initialFiling?.status === "ACCEPTED" ? initialFiling.createdAt : legacyFiledAt.get(c.id) ?? null);
+            const initialPending = initialFiling?.status === "PENDING";
+            const initialRejected = initialFiling?.status === "REJECTED";
+            const courtStatus = courtFiledAt ? "Filed with court" : initialPending ? "Awaiting review" : initialRejected ? "Returned for correction" : "Unfiled in court";
+            const deadlineOptions = getProceduralDeadlines({ ...c, courtFiledAt });
             const today = new Date(); today.setHours(0, 0, 0, 0);
             const nextDeadline = deadlineOptions.find((item) => item.dueDate >= today) ?? deadlineOptions.at(-1) ?? null;
             const color = caseStatusColor(c.stage);
@@ -164,12 +181,12 @@ export default async function CasesPage({
             } catch { partyRole = ""; }
             const yourRole = partyRole || (user && c.assignedAttorneyId === user.id ? "Assigned attorney" : user && c.createdById === user.id ? "Submitting officer" : "Office staff");
             return <article className="case-card" key={c.id}>
-              <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Draft</span>}</div></div><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "Open"}</span></header>
-              <div className="case-card-meta"><span><small>Filed</small><strong>{fmt(c.createdAt)}</strong></span><span><small>Judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Your role</small><strong>{yourRole}</strong></span><span><small>{nextDeadline?.label ?? "Next deadline"}</small><strong className={nextDeadline && nextDeadline.dueDate < today ? "deadline-overdue" : undefined}>{fmt(nextDeadline?.dueDate ?? null)}</strong></span></div>
+              <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Internal draft</span>}</div></div><div className="case-card-statuses"><span className={`pill ${courtFiledAt ? "pill-green" : initialPending ? "pill-gold" : initialRejected ? "pill-red" : "pill-muted"}`}>{courtStatus}</span><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "No case status"}</span></div></header>
+              <div className="case-card-meta"><span><small>Court filing</small><strong>{fmt(courtFiledAt)}</strong></span><span><small>Assigned judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Your role</small><strong>{yourRole}</strong></span><span><small>{nextDeadline?.label ?? "Next deadline"}</small><strong className={nextDeadline && nextDeadline.dueDate < today ? "deadline-overdue" : undefined}>{fmt(nextDeadline?.dueDate ?? null)}</strong></span></div>
               <details className="case-card-expand">
                 <summary aria-label={`Toggle details for ${c.caseNumber}`}><span className="case-card-expand-open">Hide case details</span><span className="case-card-expand-closed">Show recent filings and actions</span></summary>
                 {c.filings.length > 0 && <div className="case-card-filings"><strong>Recent filings</strong><ul>{c.filings.map((filing) => <li key={filing.id}><span>{filing.title}{filing.pdfFileName && <> <a href={`/api/cases/filings/${filing.id}/pdf`} target="_blank" rel="noreferrer noopener">View PDF</a></>}</span><time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></li>)}</ul></div>}
-                <footer className="case-card-actions"><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}`}>View Case Details</Link><Link className="govbtn-outline" href={`/dashboard/filings/new?caseId=${c.id}`}>File Document</Link><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}#filings`}>View All Filings</Link></footer>
+                <footer className="case-card-actions"><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}`}>Open case</Link>{!courtFiledAt && <Link className="govbtn-outline" href={`/dashboard/cases/${c.id}#court-filing`}>{initialPending ? "Filing awaiting review" : "File with court"}</Link>}<Link className="govbtn-outline" href={`/dashboard/filings/new?caseId=${c.id}`}>File a document</Link></footer>
               </details>
             </article>;
           })}</div>

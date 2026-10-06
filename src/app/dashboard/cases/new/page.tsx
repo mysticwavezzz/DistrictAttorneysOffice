@@ -6,8 +6,9 @@ import { CaseOpeningForm } from "@/components/case-opening-form";
 import type { RevisionDraft } from "@/components/case-opening-form";
 import { localUser, canAssignCase } from "@/lib/case-access";
 import { staffPageMetadata } from "@/lib/staff-metadata";
+import { shouldRequireFilingApproval } from "@/lib/filing-approval";
 
-export const metadata = staffPageMetadata("Open a Case", "Submit a case opening and its supporting complaint for the required review.", "/dashboard/cases/new");
+export const metadata = staffPageMetadata("Open a Case", "Create an unfiled case record and submit its initial complaint to the court.", "/dashboard/cases/new");
 
 export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ reviseRequestId?: string }> }) {
   const session = await auth();
@@ -18,7 +19,7 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
   const canAssign = canAssignCase(session.user.tiers, user.division);
-  const reviewersCanAutoApprove = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const reviewersCanAutoApprove = !shouldRequireFilingApproval(session.user.tiers, user.division);
   const attorneys = canAssign ? await prisma.user.findMany({
     where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }) },
     select: { id: true, displayName: true },
@@ -77,5 +78,5 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
     };
   }
 
-  return <CaseOpeningForm officerName={session.user.displayName} canAssign={canAssign} reviewersCanAutoApprove={reviewersCanAutoApprove} attorneys={attorneys} revision={revision} />;
+  return <CaseOpeningForm officerName={session.user.displayName} canCreate={hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE)} canAssign={canAssign} reviewersCanAutoApprove={reviewersCanAutoApprove} attorneys={attorneys} revision={revision} />;
 }
