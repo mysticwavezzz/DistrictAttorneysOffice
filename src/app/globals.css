@@ -2406,3 +2406,18 @@ body:has(.release-pdf-only) .privacy-choice-banner { display:none; }
   .case-detail-fold-body, .case-detail-fold-body.formbox { padding: 12px; }
   .share-preview-page { margin: 20px 12px; padding: 18px; }
 }
+
+/* Keep disclosure controls clean and consistent across every page. */
+details > summary {
+  list-style: none;
+}
+details > summary::marker,
+details > summary::-webkit-details-marker {
+  display: none;
+  content: "";
+}
+details > summary::before,
+details > summary::after {
+  display: none !important;
+  content: none !important;
+}
