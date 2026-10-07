@@ -12,6 +12,7 @@ import { getSiteConfiguration } from "@/lib/site-settings";
 import { RemoveButton } from "@/components/remove-button";
 import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 import { getOngoingObligations, getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 import { shareMetadata } from "@/lib/share-metadata";
@@ -93,11 +94,10 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
   if (canEdit && canAssign) {
     try {
-      attorneys = await prisma.user.findMany({
-        select: { id: true, displayName: true },
-        where: { ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }), ...(session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) ? { divisionGroup: user.divisionGroup ?? "__no_group__" } : {}) },
-        orderBy: { displayName: "asc" },
-      });
+      attorneys = await getDivisionCaseAssignees(
+        hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? null : caseRecord.division,
+        { divisionGroup: user.divisionGroup, restrictToGroup: session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) },
+      );
     } catch (error) {
       console.error("Failed to load attorneys", error);
     }

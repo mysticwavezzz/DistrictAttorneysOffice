@@ -10,6 +10,7 @@ import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { shareMetadata } from "@/lib/share-metadata";
 import { normalizeExactCaseNumber } from "@/lib/case-number-search";
+import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 
 export const metadata = shareMetadata("My Cases", "Search assigned and accessible cases, review their status, and continue casework.", "/dashboard/cases");
 
@@ -63,11 +64,10 @@ export default async function CasesPage({
   const selectedStaff = staffOptions.find((person) => person.id === filters.staff);
   const overdueOnly = filters.deadline === "overdue";
   const reviewOnly = filters.review === "1";
-  const assignableUsers = canBulkAssign ? await prisma.user.findMany({
-    where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }), ...(session.user.tiers.includes("senior_assistant_district_attorney") && !viewAll ? { divisionGroup: user.divisionGroup ?? "__no_group__" } : {}) },
-    select: { id: true, displayName: true },
-    orderBy: { displayName: "asc" },
-  }).catch((error) => {
+  const assignableUsers = canBulkAssign ? await getDivisionCaseAssignees(
+    hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? null : user.division,
+    { divisionGroup: user.divisionGroup, restrictToGroup: session.user.tiers.includes("senior_assistant_district_attorney") && !viewAll },
+  ).catch((error) => {
     console.error("Failed to load case assignees", error);
     return [];
   }) : [];

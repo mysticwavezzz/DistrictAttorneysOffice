@@ -7,6 +7,7 @@ import type { RevisionDraft } from "@/components/case-opening-form";
 import { localUser, canAssignCase } from "@/lib/case-access";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
+import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 
 export const metadata = staffPageMetadata("Open a Case", "Create an unfiled case record and submit its initial complaint to the court.", "/dashboard/cases/new");
 
@@ -20,11 +21,10 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
   if (!user) redirect("/login?error=forbidden");
   const canAssign = canAssignCase(session.user.tiers, user.division);
   const reviewersCanAutoApprove = !shouldRequireFilingApproval(session.user.tiers, user.division);
-  const attorneys = canAssign ? await prisma.user.findMany({
-    where: { tiers: { not: "" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) ? {} : { division: user.division }), ...(session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) ? { divisionGroup: user.divisionGroup ?? "__no_group__" } : {}) },
-    select: { id: true, displayName: true },
-    orderBy: { displayName: "asc" },
-  }).catch((error) => {
+  const attorneys = canAssign ? await getDivisionCaseAssignees(
+    user.division,
+    { divisionGroup: user.divisionGroup, restrictToGroup: session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) },
+  ).catch((error) => {
     console.error("Failed to load case assignees", error);
     return [];
   }) : [];
