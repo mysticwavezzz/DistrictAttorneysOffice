@@ -67,7 +67,14 @@ export async function updateSiteSettings(data: Partial<Omit<SiteSettingsData, "u
 export async function getSiteConfiguration<T>(key: string, fallback: T): Promise<T> {
   try {
     const row = await prisma.siteConfiguration.findUnique({ where: { key }, select: { value: true } });
-    return row ? (JSON.parse(row.value) as T) : fallback;
+    if (!row) return fallback;
+    try {
+      return JSON.parse(row.value) as T;
+    } catch {
+      // Older releases stored websiteVersion as a raw string. Keep that value
+      // readable while all new configuration writes use JSON serialization.
+      return key === "websiteVersion" && typeof fallback === "string" ? row.value as T : fallback;
+    }
   } catch (error) {
     console.error(`Failed to load site configuration: ${key}`, error);
     return fallback;

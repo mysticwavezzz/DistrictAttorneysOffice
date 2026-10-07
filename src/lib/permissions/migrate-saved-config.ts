@@ -44,7 +44,7 @@ export async function migrateSavedAttorneyPermissions() {
         await tx.siteConfiguration.update({ where: { key: "robloxTierRoleMappings" }, data: { value: JSON.stringify(mergeRetiredSupervisingAdaMappings(parsedMappings)) } });
       } catch { /* Keep the backed-up raw mapping if it is malformed; auth config validation will fail closed. */ }
     }
-    await tx.siteConfiguration.upsert({ where: { key: "websiteVersion" }, create: { key: "websiteVersion", value: "1.1.1" }, update: { value: "1.1.1" } });
+    await tx.siteConfiguration.upsert({ where: { key: "websiteVersion" }, create: { key: "websiteVersion", value: JSON.stringify("1.1.1") }, update: { value: JSON.stringify("1.1.1") } });
     const legacyCases = await tx.case.findMany({
       where: { division: null },
       select: { id: true, assignedAttorney: { select: { division: true } }, createdBy: { select: { division: true } } },

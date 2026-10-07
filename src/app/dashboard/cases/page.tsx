@@ -9,6 +9,7 @@ import { caseStatusColor } from "@/config/case-statuses";
 import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { shareMetadata } from "@/lib/share-metadata";
+import { normalizeExactCaseNumber } from "@/lib/case-number-search";
 
 export const metadata = shareMetadata("My Cases", "Search assigned and accessible cases, review their status, and continue casework.", "/dashboard/cases");
 
@@ -40,6 +41,7 @@ export default async function CasesPage({
   const canBulkArchive = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT) || hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT_DIVISION);
   const tab = filters.tab === "archived" ? "archived" : "ongoing";
   const q = (filters.q ?? "").trim();
+  const exactCaseNumber = normalizeExactCaseNumber(q);
   const statusFilter = (filters.status ?? "").trim();
   const page = Math.max(1, Number.parseInt(filters.page ?? "1", 10) || 1);
   const sortable = ["caseNumber", "title", "stage", "updatedAt"] as const;
@@ -70,7 +72,9 @@ export default async function CasesPage({
     return [];
   }) : [];
 
-  const where: Prisma.CaseWhereInput = { archived: tab === "archived" };
+  const where: Prisma.CaseWhereInput = exactCaseNumber
+    ? {}
+    : { archived: tab === "archived" };
   // My Cases is personal by default for every role. Supervisors opt into a
   // specific employee's docket; the options above are bounded to their scope.
   const ownerId = selectedStaff?.id ?? user.id;
@@ -86,7 +90,9 @@ export default async function CasesPage({
   } : ownership;
   if (!visibility) redirect("/login?error=forbidden");
   Object.assign(where, visibility);
-  if (q) {
+  if (exactCaseNumber) {
+    where.caseNumber = exactCaseNumber;
+  } else if (q) {
     where.AND = [
       {
         OR: [
@@ -187,7 +193,7 @@ export default async function CasesPage({
       </details>
 
       <section className="case-results" aria-label="Case results">
-        <div className="case-results-heading"><h2>{tab === "archived" ? "Archived cases" : "Case docket"}</h2>{totalCases > 0 && <p aria-live="polite">Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCases)} of {totalCases} cases</p>}</div>
+        <div className="case-results-heading"><h2>{exactCaseNumber ? "Case number lookup" : tab === "archived" ? "Archived cases" : "Case docket"}</h2>{totalCases > 0 && <p aria-live="polite">Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCases)} of {totalCases} cases</p>}</div>
         {cases.length ? <form action={bulkUpdateCases} className="case-bulk-form">
           <details className="case-bulk-details"><summary>Manage selected cases <span>Select case cards below to assign or archive multiple records.</span></summary><div className="case-bulk-toolbar"><div><strong>Bulk actions</strong><span>Select cases below, then choose an action.</span></div><div className="case-bulk-controls">
             {canBulkAssign && <div className="field"><label htmlFor="bulkAssignee">Assign selected to</label><select id="bulkAssignee" name="assigneeId" defaultValue=""><option value="">Unassigned</option>{assignableUsers.map((a) => <option key={a.id} value={a.id}>{a.displayName}</option>)}</select><button className="govbtn-outline" name="operation" value="assign" type="submit">Assign selected</button></div>}

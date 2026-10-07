@@ -10,15 +10,17 @@ export function RoleSyncPoller() {
   const { data: session, update } = useSession();
   const router = useRouter();
   const prevKeyRef = useRef<string | null>(null);
+  const updateRef = useRef(update);
+  updateRef.current = update;
 
   useEffect(() => {
     // Refresh Roblox group roles immediately when the dashboard mounts.
-    update();
+    void updateRef.current();
     const interval = setInterval(() => {
-      update();
+      void updateRef.current();
     }, SYNC_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [update]);
+  }, []);
 
   useEffect(() => {
     const key = session?.user
