@@ -4,7 +4,8 @@ import { siteConfig } from "@/config/site";
 const siteName = `${siteConfig.county} ${siteConfig.name}`;
 
 export function shareMetadata(title: string, description: string, path: string): Metadata {
-  const image = `/api/og/page?v=2&path=${encodeURIComponent(path)}`;
+  const imageParams = new URLSearchParams({ v: "3", path, title, description });
+  const image = `/api/og/page?${imageParams.toString()}`;
   return {
     title,
     description,
