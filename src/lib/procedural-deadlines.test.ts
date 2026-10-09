@@ -26,6 +26,26 @@ describe("automatic court deadlines", () => {
     const deadline = getProceduralDeadlines({ ...base, type: "Appellate", assignedJudge: "Judge Example", finalJudgmentAt: new Date("2026-09-01Z") }).find((item) => item.key === "appellate-certiorari");
     expect(courtDeadlineDate(deadline!.dueDate)).toBe("2026-10-01");
   });
+  it("uses a manually entered discovery deadline instead of the calculated response date", () => {
+    const deadlines = getProceduralDeadlines({ ...base, type: "Civil", assignedJudge: "Judge Example", discoveryRequestedAt: new Date("2026-09-05Z"), discDue: new Date("2026-09-12Z") });
+    expect(deadlines.find((item) => item.key === "manual-discDue")).toMatchObject({ automatic: false });
+    expect(deadlines.some((item) => item.key === "civil-discovery-response")).toBe(false);
+  });
+  it("uses a manually entered appeal date instead of the calculated certiorari date", () => {
+    const deadlines = getProceduralDeadlines({ ...base, type: "Appellate", assignedJudge: "Judge Example", finalJudgmentAt: new Date("2026-09-01Z"), appealBy: new Date("2026-10-15Z") });
+    expect(deadlines.find((item) => item.key === "manual-appealBy")).toMatchObject({ automatic: false });
+    expect(deadlines.some((item) => item.key === "appellate-certiorari")).toBe(false);
+  });
+  it("stops showing the arraignment due date once the actual arraignment is recorded", () => {
+    const deadlines = getProceduralDeadlines({ ...base, assignedJudge: "Judge Example", courtFiledAt: new Date("2026-09-01Z"), arraignmentAt: new Date("2026-09-04Z") });
+    expect(deadlines.some((item) => item.key === "criminal-arraignment")).toBe(false);
+    expect(deadlines.some((item) => item.key === "criminal-particulars")).toBe(true);
+  });
+  it("stops showing the service due date once proof of service is recorded", () => {
+    const deadlines = getProceduralDeadlines({ ...base, type: "Civil", assignedJudge: "Judge Example", courtFiledAt: new Date("2026-09-01Z"), proofOfServiceAt: new Date("2026-09-04Z") });
+    expect(deadlines.some((item) => item.key === "civil-service")).toBe(false);
+    expect(deadlines.some((item) => item.key === "civil-answer")).toBe(true);
+  });
   it("honors the Eastern cutoff across daylight-saving changes", () => {
     const deadline = getProceduralDeadlines({ ...base, assignedJudge: "Judge Example", courtFiledAt: new Date("2026-10-26T23:00:00Z") }).find((item) => item.key === "criminal-arraignment")!;
     expect(courtDeadlineDate(deadline.dueDate)).toBe("2026-11-02");
