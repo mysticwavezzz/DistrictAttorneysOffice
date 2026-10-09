@@ -13,7 +13,7 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  serverExternalPackages: ["web-push"],
+  serverExternalPackages: ["web-push", "pdfjs-dist"],
   experimental: {
     serverActions: { bodySizeLimit: "7mb" },
   },

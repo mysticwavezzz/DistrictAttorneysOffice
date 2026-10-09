@@ -29,6 +29,7 @@ model User {
   createdCases         Case[]              @relation("CreatedBy")
   createdAnnouncements Announcement[]      @relation("CreatedAnnouncements")
   filingsAdded         CaseFiling[]        @relation("FilingsAdded")
+  aiFilingReviews      FilingAiReview[]    @relation("FilingAiReviewActor")
   commentsAuthored     CaseComment[]       @relation("CommentsAuthored")
   requestsSubmitted    CaseActionRequest[] @relation("RequestsSubmitted")
   requestsReviewed     CaseActionRequest[] @relation("RequestsReviewed")
@@ -143,8 +144,31 @@ model CaseFiling {
 
   case    Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
   addedBy User @relation("FilingsAdded", fields: [addedById], references: [id])
+  aiReviews FilingAiReview[]
 
   @@index([status, createdAt])
+}
+
+model FilingAiReview {
+  id                  String   @id @default(cuid())
+  filingId            String
+  activeFilingId      String?  @unique
+  requestedById       String
+  status              String   @default("RUNNING")
+  modelId             String
+  promptVersion       String
+  sourceBundleVersion String
+  documentSha256      String
+  resultJson          String?
+  failureCode         String?
+  createdAt           DateTime @default(now())
+  completedAt         DateTime?
+
+  filing      CaseFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  requestedBy User       @relation("FilingAiReviewActor", fields: [requestedById], references: [id])
+
+  @@index([filingId, createdAt])
+  @@index([requestedById, createdAt])
 }
 
 model CaseComment {
