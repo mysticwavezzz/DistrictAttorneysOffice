@@ -5,7 +5,7 @@ import { readDashboardFoldPreferences, saveDashboardFoldPreference } from "@/lib
 
 export function CaseFoldPersistence({ accountId, caseId }: { accountId: string; caseId: string }) {
   useEffect(() => {
-    const folds = Array.from(document.querySelectorAll<HTMLDetailsElement>("details.case-detail-fold[id]"));
+    const folds = Array.from(document.querySelectorAll<HTMLDetailsElement>("details.case-detail-fold[id], details.case-edit-subfold[id]"));
     const keys = new Map(folds.map((fold) => [fold, `case:${caseId}:${fold.id}`]));
     const preferences = readDashboardFoldPreferences(accountId);
     const onToggle = (event: Event) => {
