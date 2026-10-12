@@ -23,6 +23,8 @@ export function canAccessCase(
   userGroup?: string | null
 ): boolean {
   const canViewAll = hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
+  const isExecutiveSecretary = tiers.includes("executive_secretary");
+  if (!canViewAll && isExecutiveSecretary && (!userDivision || target.division !== userDivision)) return false;
   const isSada = tiers.includes("senior_assistant_district_attorney") && !canViewAll;
   if (isSada && target.division !== userDivision) return false;
   if (isSada && target.division === "Criminal Division" && (!userGroup || target.divisionGroup !== userGroup)) return false;
@@ -103,6 +105,12 @@ export function caseVisibilityWhere(
   if (!userId) return null;
   const ownershipScopes: Prisma.CaseWhereInput[] = [{ assignedAttorneyId: userId }, { createdById: userId }];
   const ownership: Prisma.CaseWhereInput = { OR: ownershipScopes };
+  if (tiers.includes("executive_secretary") && !hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL)) {
+    if (!userDivision) return { id: "__no_division__" };
+    return hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)
+      ? { division: userDivision }
+      : { AND: [{ division: userDivision }, ownership] };
+  }
   const isSada = tiers.includes("senior_assistant_district_attorney") && !hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
   const scopes: Prisma.CaseWhereInput[] = isSada ? [{
     AND: [ownership, { division: userDivision ?? "__no_division__" }, ...(userDivision === "Criminal Division" ? [{ OR: [

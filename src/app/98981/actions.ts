@@ -161,7 +161,16 @@ async function saveApplicationConfigurationImpl(formData: FormData) {
     requiredGroupIds: z.array(z.number().int().positive()).max(20).optional(),
   })).max(100);
   const robloxRoleMappings = robloxRoleMappingsSchema.parse(parseJsonField(formData, "robloxTierRoleMappings"));
-  const tierCapabilities = tierCapabilitiesSchema.parse(parseJsonField(formData, "tierCapabilities")) as Record<string, string[]>;
+  const rawTierCapabilities = parseJsonField(formData, "tierCapabilities");
+  // AOPC-specific capabilities were retired when that workflow moved into case filing.
+  // Ignore these legacy values so an older saved/exported permission map remains saveable.
+  const normalizedTierCapabilities = rawTierCapabilities && typeof rawTierCapabilities === "object" && !Array.isArray(rawTierCapabilities)
+    ? Object.fromEntries(Object.entries(rawTierCapabilities).map(([tier, permissions]) => [
+      tier,
+      Array.isArray(permissions) ? permissions.filter((permission) => permission !== "aopc:submit" && permission !== "aopc:review") : permissions,
+    ]))
+    : rawTierCapabilities;
+  const tierCapabilities = tierCapabilitiesSchema.parse(normalizedTierCapabilities) as Record<string, string[]>;
   const divisions = divisionsSchema.parse(parseJsonField(formData, "divisions"));
   const ranks = ranksSchema.parse(parseJsonField(formData, "ranks"));
   const caseStatuses = statusesSchema.parse(parseJsonField(formData, "caseStatuses"));

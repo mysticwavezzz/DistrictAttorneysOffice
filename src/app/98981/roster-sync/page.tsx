@@ -43,7 +43,7 @@ export default async function RobloxRosterSyncPage({ searchParams }: { searchPar
     <p><Link href="/98981">← Site settings</Link></p>
     <h1>Roblox Roster Sync</h1>
     <p className="lede">Compare the group roster before applying changes. Roblox controls usernames, rank, and active group membership. Division and bureau assignments are preserved and remain editable in the staff roster.</p>
-    <p className="note-inline">Group ID {ROBLOX_DA_GROUP_ID}. Only configured ADA, SADA, CADA, DDA, and DA role IDs are added or updated. DDA and DA entries start in the Office of the District Attorney group with no division assignment. Other new entries also start unassigned until staff place them.</p>
+    <p className="note-inline">Group ID {ROBLOX_DA_GROUP_ID}. Only configured ADA, SADA, CADA, Executive Secretary, DDA, and DA role IDs are added or updated. DDA and DA entries start in the Office of the District Attorney group with no division assignment. Other new entries also start unassigned until staff place them.</p>
 
     {query.applied === "1" && <div className="message message-success" role="status">Roster sync applied. Roblox rank and membership status were updated; manual divisions were kept.</div>}
     <FormWithPendingSubmit action={previewRobloxRosterSync} submitLabel="Check Roblox group and preview" pendingLabel="Loading complete group roster…" className="formbox">

@@ -147,6 +147,13 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(cada.has(CAPABILITIES.ROSTER_MANAGE_DIVISION)).toBe(true);
   });
 
+  it("gives Executive Secretary the same default capabilities as CADA", async () => {
+    const { capabilitiesForTiers, PERMISSION_TIERS } = await freshResolveModule();
+    const cada = capabilitiesForTiers([PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY]);
+    const executiveSecretary = capabilitiesForTiers([PERMISSION_TIERS.EXECUTIVE_SECRETARY]);
+    expect([...executiveSecretary].sort()).toEqual([...cada].sort());
+  });
+
   it("paralegal can view all cases and propose edits, but not delete or assign", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     const tiers = [PERMISSION_TIERS.DA_PARALEGAL];

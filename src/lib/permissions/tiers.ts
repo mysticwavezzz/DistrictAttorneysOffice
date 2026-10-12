@@ -98,7 +98,7 @@ export const TIER_DEFINITIONS: Record<PermissionTier, TierDefinition> = {
     id: PERMISSION_TIERS.SPECIAL_INVESTIGATOR, label: "Special Investigator", description: "Special Investigator role with existing investigation case-submission permissions.", capabilities: [CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_CREATE],
   },
   [PERMISSION_TIERS.EXECUTIVE_SECRETARY]: {
-    id: PERMISSION_TIERS.EXECUTIVE_SECRETARY, label: "Executive Secretary", description: "Executive Secretary role with the existing paralegal-level portal permissions.", capabilities: [...PARALEGAL_CAPABILITIES],
+    id: PERMISSION_TIERS.EXECUTIVE_SECRETARY, label: "Executive Secretary", description: "Executive Secretary role with the same division-level case and roster permissions as a Chief Assistant District Attorney.", capabilities: [...DIVISION_SUPERVISOR_CAPABILITIES, CAPABILITIES.ROSTER_VIEW_DIVISION, CAPABILITIES.ROSTER_MANAGE_DIVISION],
   },
   [PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY]: {
     id: PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY, label: "Assistant District Attorney", description: "Division attorney access for assigned casework, filings, and proposed case changes.", capabilities: [...ADA_CASEWORK_CAPABILITIES],
