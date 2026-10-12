@@ -11,8 +11,8 @@ import { rosterEntrySchema } from "@/lib/validation/roster";
 import { emptyToNull, toDate } from "@/lib/validation/case";
 import { logActivity } from "@/lib/activity-log";
 import { getSiteConfiguration } from "@/lib/site-settings";
-import type { RankOption } from "@/config/ranks";
-import type { UnitOption } from "@/config/units";
+import { RANKS, type RankOption } from "@/config/ranks";
+import { UNITS, type UnitOption } from "@/config/units";
 
 async function requireManager() {
   const session = await auth();
@@ -38,7 +38,7 @@ async function addRosterEntryImpl(formData: FormData) {
   if (!data.rank) throw new Error("Select a configured rank.");
   if (!canManageRosterInDivision(session.user.tiers, user.division, data.unit)) throw new Error("You can only add roster entries to your assigned division.");
   if (data.divisionGroup && data.unit !== "Criminal Division") throw new Error("Groups 1 and 2 are only available in the Criminal Division.");
-  const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", []), getSiteConfiguration<UnitOption[]>("divisions", [])]);
+  const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
   if (!ranks.some((rank) => rank.value === data.rank) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
 
   await prisma.rosterEntry.create({
@@ -83,8 +83,10 @@ async function updateRosterEntryImpl(formData: FormData) {
     || canManageUnassignedRosterEntry(session.user.tiers, user.division, current.unit, current.rank)));
   if (!current || !mayManageCurrent || !canManageRosterInDivision(session.user.tiers, user.division, data.unit)) throw new Error("You can only assign unassigned staff to your division or edit entries already in your division.");
   if (data.divisionGroup && data.unit !== "Criminal Division") throw new Error("Groups 1 and 2 are only available in the Criminal Division.");
-  const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", []), getSiteConfiguration<UnitOption[]>("divisions", [])]);
-  if ((!current.robloxSynced && !ranks.some((rank) => rank.value === data.rank)) || (current.robloxSynced && current.rank && !ranks.some((rank) => rank.value === current.rank)) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
+  const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
+  // Roblox-synced ranks are read-only and can contain source labels that are
+  // no longer present in the editable rank list. Validate only mutable ranks.
+  if ((!current.robloxSynced && !ranks.some((rank) => rank.value === data.rank)) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
 
   await prisma.rosterEntry.update({
     where: { id },

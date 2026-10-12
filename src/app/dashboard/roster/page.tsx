@@ -103,22 +103,6 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
         <summary><span>{group.label}</span><span className="roster-division-count">{group.entries.length} staff</span></summary>
         <div className="roster-division-body">
         {group.description && <p className="note-inline">{group.description}</p>}
-        <div className="roster-cards">
-          {group.entries.map((entry) => <article className="roster-card" key={`card-${entry.id}`}>
-            {entry.imageUrl && <SafeImage src={entry.imageUrl} alt="" width={54} height={54} />}
-            <h4>{entry.name}</h4><p>{entry.rank ?? "Rank not set"}</p><p className="roster-case-load">Assigned active cases: <strong>{caseLoad(entry)}</strong></p>
-            <div className="roster-card-badges">
-              <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
-            {entry.divisionGroup && <span className="pill pill-navy">Group {entry.divisionGroup}</span>}
-              {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
-              <span className={`pill ${linkedDiscordId(entry) ? "pill-green" : "pill-muted"}`}>{linkedDiscordId(entry) ? "Discord linked" : "No Discord linked"}</span>
-            </div>
-            {(canManage || (canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup))) && <div className="roster-card-actions">
-              {canManage && <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>{!entry.unit && !canManageAll ? "Assign to my division" : "Edit profile"}</Link>}
-              {canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup) && <form action={updateCriminalGroupAssignment} className="roster-group-assignment"><input type="hidden" name="id" value={entry.id} /><label htmlFor={`group-card-${entry.id}`}>Group</label><select id={`group-card-${entry.id}`} name="divisionGroup" defaultValue={entry.divisionGroup ?? ""}><option value="">Unassigned</option><option value={viewerGroup!}>Group {viewerGroup}</option></select><button className="govbtn-outline" type="submit">Save</button></form>}
-            </div>}
-          </article>)}
-        </div>
         <div className="tablewrap">
           <table className="stat mobile-cards">
             <thead>
