@@ -103,49 +103,28 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
         <summary><span>{group.label}</span><span className="roster-division-count">{group.entries.length} staff</span></summary>
         <div className="roster-division-body">
         {group.description && <p className="note-inline">{group.description}</p>}
-        <div className="tablewrap">
-          <table className="stat mobile-cards">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Rank</th>
-                <th>Criminal group</th>
-                <th>Discord</th>
-                <th>Start Date</th>
-                <th>Roster status</th>
-                <th>Assigned active cases</th>
-                {(canManage || canManageOwnGroup) && <th />}
-              </tr>
-            </thead>
-            <tbody>
-              {group.entries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td data-label="Name">{entry.name}</td>
-                    <td data-label="Rank">
-                      {entry.rank ?? "Not assigned"}{" "}
-                      {isLeadershipRank(entry.rank) && <span className="pill pill-gold">Leadership</span>}
-                    </td>
-                    <td data-label="Criminal group">{entry.divisionGroup ? `Group ${entry.divisionGroup}` : "—"}</td>
-                    <td data-label="Discord" className="mono">
-                      {linkedDiscordId(entry) ?? "Not linked"}{" "}
-                    </td>
-                    <td data-label="Start date">{entry.startDate ? dateFormatter.format(entry.startDate) : "Not set"}</td>
-                    <td data-label="Roster status"><span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Active" : "Inactive"}</span></td>
-                    <td data-label="Assigned active cases">{caseLoad(entry)}</td>
-                    {(canManage || canManageOwnGroup) && (
-                      <td data-label="Actions" className="roster-row-actions">
-                        {canManage && <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>{!entry.unit && !canManageAll ? "Assign to my division" : "Edit"}</Link>}
-                        {canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup) && <form action={updateCriminalGroupAssignment} className="roster-group-assignment"><input type="hidden" name="id" value={entry.id} /><label htmlFor={`group-row-${entry.id}`}>Criminal group</label><select id={`group-row-${entry.id}`} name="divisionGroup" defaultValue={entry.divisionGroup ?? ""}><option value="">Unassigned</option><option value={viewerGroup!}>Group {viewerGroup}</option></select><button className="govbtn-outline" type="submit">Save</button></form>}
-                        {canManage && (canManageAll || entry.unit === (user?.division ?? null)) && (entry.robloxSynced ? <span className="hint">Membership managed by Roblox</span> : <>
-                          <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>
-                          <RemoveButton id={entry.id} action={removeRosterEntry} />
-                        </>)}
-                      </td>
-                    )}
-                  </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="roster-cards">
+          {group.entries.map((entry) => <article className="roster-card" key={entry.id}>
+            {entry.imageUrl && <SafeImage src={entry.imageUrl} alt="" width={54} height={54} />}
+            <h4>{entry.name}</h4>
+            <p>{entry.rank ?? "Rank not set"} {isLeadershipRank(entry.rank) && <span className="pill pill-gold">Leadership</span>}</p>
+            <p className="roster-case-load">Assigned active cases: <strong>{caseLoad(entry)}</strong></p>
+            <p className="mono">Discord: {linkedDiscordId(entry) ?? "Not linked"}</p>
+            <p>Start date: {entry.startDate ? dateFormatter.format(entry.startDate) : "Not set"}</p>
+            <div className="roster-card-badges">
+              <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
+              {entry.divisionGroup && <span className="pill pill-navy">Group {entry.divisionGroup}</span>}
+              {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
+            </div>
+            {(canManage || (canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup))) && <div className="roster-card-actions">
+              {canManage && <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>{!entry.unit && !canManageAll ? "Assign to my division" : "Edit profile"}</Link>}
+              {canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup) && <form action={updateCriminalGroupAssignment} className="roster-group-assignment"><input type="hidden" name="id" value={entry.id} /><label htmlFor={`group-${entry.id}`}>Group</label><select id={`group-${entry.id}`} name="divisionGroup" defaultValue={entry.divisionGroup ?? ""}><option value="">Unassigned</option><option value={viewerGroup!}>Group {viewerGroup}</option></select><button className="govbtn-outline" type="submit">Save</button></form>}
+              {canManage && (canManageAll || entry.unit === (user?.division ?? null)) && (entry.robloxSynced ? <span className="hint">Membership managed by Roblox</span> : <>
+                <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>
+                <RemoveButton id={entry.id} action={removeRosterEntry} />
+              </>)}
+            </div>}
+          </article>)}
         </div>
         </div>
       </details>
