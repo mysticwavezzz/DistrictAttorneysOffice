@@ -36,6 +36,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
     && (user.division !== "Criminal Division" || !user.divisionGroup)) redirect("/login?error=forbidden");
   const canManageAll = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE);
   const canManageDivision = Boolean(user.division) && hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION);
+  const canViewUnassignedOnly = !user.division && (
+    hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)
+    || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION)
+  );
   const canManage = canManageAll || canManageDivision;
   const canManageOwnGroup = hasGroupLeadTier && !canManageAll && !canManageDivision && user.division === "Criminal Division" && Boolean(user.divisionGroup);
   const canViewOwnGroup = hasGroupLeadTier && Boolean(user.divisionGroup) && !canManageAll && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW_DIVISION);
@@ -52,8 +56,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
         : canViewOwnGroup
           ? { unit: "Criminal Division", OR: [{ divisionGroup: user.divisionGroup }, { divisionGroup: null }] }
         : canManageDivision
-          ? { OR: [{ unit: user.division }, { unit: null }] }
-          : { unit: user.division ?? "__unassigned__" },
+          ? { OR: [{ unit: user.division }, { unit: null }, { unit: "" }] }
+          : canViewUnassignedOnly
+            ? { OR: [{ unit: null }, { unit: "" }] }
+            : { unit: user.division ?? "__unassigned__" },
       orderBy: { name: "asc" },
     });
   } catch (error) {

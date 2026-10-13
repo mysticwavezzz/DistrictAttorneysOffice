@@ -13,6 +13,8 @@ import { normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migration
 import { getSiteConfiguration } from "@/lib/site-settings";
 
 const SYNC_TIERS: ReadonlySet<string> = new Set([
+  PERMISSION_TIERS.SECRETARY,
+  PERMISSION_TIERS.SECRETARY_SUPERVISOR,
   PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY,
   PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY,
   PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY,
