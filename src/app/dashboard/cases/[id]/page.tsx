@@ -10,7 +10,6 @@ import { updateCase, deleteCase, deleteFiling, addComment, fileCase } from "../a
 import { submitCaseRequest } from "../requests/actions";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { RemoveButton } from "@/components/remove-button";
-import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 import { getOngoingObligations, getProceduralDeadlines, isCourtDeadlineOverdue } from "@/lib/procedural-deadlines";
@@ -95,6 +94,11 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const canPropose = !canEdit && hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
   const canReviewThisDivision = canReviewDivision(session.user.tiers, user.division, caseRecord.division, user.divisionGroup, caseRecord.divisionGroup ?? caseRecord.assignedAttorney?.divisionGroup ?? caseRecord.createdBy.divisionGroup);
   const visibleFilings = caseRecord.filings.filter((filing) => filing.status === "ACCEPTED" || filing.addedById === user.id || canReviewThisDivision);
+  const reusableCourtFilings = canFileCourt ? await prisma.caseFiling.findMany({
+    where: { caseId: id, status: "ACCEPTED", pdfData: { not: null } },
+    select: { id: true, title: true, pdfFileName: true },
+    orderBy: { createdAt: "desc" },
+  }) : [];
 
   if (canEdit && canAssign) {
     try {
@@ -220,7 +224,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <div className="case-detail-fold-body">
         {activeDeadlines.length === 0 && ongoingObligations.length === 0 ? <p>No deadlines recorded.</p> : <ul>{activeDeadlines.map((deadline) => {
           const overdue = isCourtDeadlineOverdue(deadline.dueDate);
-          return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "America/New_York" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : deadline.authority}</small></li>;
+          return <li key={deadline.key}><span className={overdue ? "deadline-overdue" : undefined}>{deadline.label}: {deadline.dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "America/New_York" })}{overdue ? " - OVERDUE" : ""}</span><small>{deadline.authority}</small></li>;
         })}{ongoingObligations.map((obligation) => <li key={obligation.key}><span>{obligation.label}</span><small>{obligation.authority} · Ongoing duty</small></li>)}</ul>}
       </div>
     </details>
@@ -229,15 +233,15 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const courtFilingSection = (
     <section className="case-court-filing" id="court-filing" aria-labelledby="court-filing-title">
       <div className="case-court-filing-heading"><div><p className="eyebrow">Court status</p><h2 id="court-filing-title">Initial case filing</h2></div><span className={`pill pill-${courtFilingColor}`}>{courtFilingLabel}</span></div>
-      {effectiveCourtFiledAt ? <p>Filed {dateTimeFormatter.format(effectiveCourtFiledAt)}{caseRecord.assignedJudge ? "" : " · Assign a judge to calculate the arraignment schedule."}</p>
+      {effectiveCourtFiledAt ? <p>Filed {dateTimeFormatter.format(effectiveCourtFiledAt)}</p>
         : pendingInitial ? <p>The initial complaint is in the Review Inbox. The case will become court-filed when it is approved.</p>
           : returnedInitial ? <p className="note-inline">The initial complaint was returned{returnedInitial.reviewNote ? `: ${returnedInitial.reviewNote}` : ". Replace the PDF and submit it for review again."}</p>
-            : <p>This staff case record has not been filed with the court. {caseRecord.assignedJudge ? "The arraignment predictor will start after filing." : "Assign a judge to start the arraignment predictor after filing."}</p>}
+        : <p>This staff case record has not been filed with the court.</p>}
       {!effectiveCourtFiledAt && !pendingInitial && canFileCourt && <form action={fileCase} className="case-court-filing-form" encType="multipart/form-data">
         <input type="hidden" name="caseId" value={caseRecord.id} />
-        <div className="field"><label htmlFor="court-filing-document-title">Complaint / initial filing title</label><input id="court-filing-document-title" name="initialFilingTitle" maxLength={200} defaultValue={returnedInitial?.title ?? draftInitial?.title ?? ""} placeholder="Initial complaint" /></div>
-        <div className="field"><label htmlFor="court-filing-pdf">{draftInitial ? "Replace initial complaint PDF (optional)" : "Initial complaint PDF (max 5 MB)"}</label><PdfUploadInput id="court-filing-pdf" name="initialPdf" required={!draftInitial} /></div>
-        {draftInitial && <p className="note-inline">Ready to file: {draftInitial.pdfFileName ?? draftInitial.title}. Leave the PDF empty to use this saved complaint.</p>}
+        <div className="field"><label htmlFor="court-filing-source">Choose an attached PDF filing</label><select id="court-filing-source" name="sourceFilingId" required defaultValue={draftInitial?.id ?? returnedInitial?.id ?? ""}><option value="" disabled>Select a filing…</option>{draftInitial && <option value={draftInitial.id}>{draftInitial.title} — saved draft</option>}{returnedInitial && <option value={returnedInitial.id}>{returnedInitial.title} — returned filing</option>}{reusableCourtFilings.map((filing) => <option key={filing.id} value={filing.id}>{filing.title} — {filing.pdfFileName ?? "PDF"}</option>)}</select></div>
+        <p className="note-inline">The selected PDF must already be attached to this case. To add one, use the Filings section first.</p>
+        <div className="field"><label htmlFor="court-filing-document-title">Complaint / initial filing title <span className="hint">Optional</span></label><input id="court-filing-document-title" name="initialFilingTitle" maxLength={200} defaultValue={returnedInitial?.title ?? draftInitial?.title ?? ""} placeholder="Uses the selected filing title if blank" /></div>
         <PendingSubmitButton label={shouldRequireFilingApproval(session.user.tiers, caseRecord.division) ? "Submit for filing review" : "File with court"} pendingLabel="Submitting…" className="govbtn" />
       </form>}
     </section>
@@ -253,13 +257,11 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       ? "The complaint was returned. Correct the PDF and resubmit it for review."
       : !isCourtFiled
         ? canFileCourt ? "File the initial complaint to move this case into the court docket." : "This case is waiting for an authorized staff member to file the initial complaint."
-        : !caseRecord.assignedJudge
-          ? canEdit ? "Assign a judge to enable the arraignment schedule." : "A judge has not been assigned yet. Predicted court dates are paused."
-          : overdueCount
+        : overdueCount
             ? `${overdueCount} deadline${overdueCount === 1 ? " is" : "s are"} overdue. Review the deadlines below.`
             : nextDeadline
               ? `Next deadline: ${nextDeadline.label} on ${courtDateFormatter.format(nextDeadline.dueDate)}.`
-              : "Court filing is complete. Continue casework using the sections below.";
+              : "Court filing is complete. Enter any case deadlines manually in case management.";
   const caseHeader = <header className="case-workspace-header">
     <div className="case-workspace-title">
       <div><p className="eyebrow">Case {caseRecord.caseNumber}</p><h1>{caseRecord.title}</h1><p className="subtitle">{caseRecord.type ?? "Case"} · Opened {courtDateFormatter.format(caseRecord.createdAt)}</p></div>
@@ -390,6 +392,14 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         <div className="case-edit-heading"><div><p className="eyebrow">Case management</p><p className="lede">Update the case record, assignment, and key dates.</p></div><span className={`pill ${caseRecord.stage ? `pill-${statusColor}` : "pill-muted"}`}>{caseRecord.stage ?? "No status set"}</span></div>
         <input type="hidden" name="id" value={caseRecord.id} />
         <input type="hidden" name="summary" value={caseRecord.summary} />
+        <input type="hidden" name="arraignmentAt" value={toDateInputValue(caseRecord.arraignmentAt)} />
+        <input type="hidden" name="proofOfServiceAt" value={toDateInputValue(caseRecord.proofOfServiceAt)} />
+        <input type="hidden" name="discoveryOrderAt" value={toDateInputValue(caseRecord.discoveryOrderAt)} />
+        <input type="hidden" name="discoveryRequestedAt" value={toDateInputValue(caseRecord.discoveryRequestedAt)} />
+        <input type="hidden" name="motionServedAt" value={toDateInputValue(caseRecord.motionServedAt)} />
+        <input type="hidden" name="verdictAt" value={toDateInputValue(caseRecord.verdictAt)} />
+        <input type="hidden" name="sentenceAt" value={toDateInputValue(caseRecord.sentenceAt)} />
+        <input type="hidden" name="finalJudgmentAt" value={toDateInputValue(caseRecord.finalJudgmentAt)} />
         <details className="case-edit-subfold" id="case-information" open>
           <summary>Case information <span>Title, status, attorney, and judge</span></summary>
         <fieldset className="case-edit-section">
@@ -453,7 +463,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         </details>
 
         <details className="case-edit-subfold" id="case-dates">
-          <summary>Dates and disclosures <span>Manual dates and automatic deadline triggers</span></summary>
+          <summary>Dates and disclosures <span>Manually entered deadlines and case dates</span></summary>
         <fieldset className="case-edit-section">
           <legend className="sr-only">Dates and disclosures</legend>
         <div className="field">
@@ -480,18 +490,6 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             <label htmlFor="pretrial">Pretrial</label>
             <input type="date" id="pretrial" name="pretrial" defaultValue={toDateInputValue(caseRecord.pretrial)} />
           </div>
-        </div>
-        <h3>Trigger dates for automatic deadlines</h3>
-        <p className="note-inline">Enter an event date when it occurs. Applicable deadlines are calculated from the master procedural rules. Calendar days are counted in Eastern Time.</p>
-        <div className="field-row">
-          <div className="field"><label htmlFor="arraignmentAt">Arraignment date</label><input type="date" id="arraignmentAt" name="arraignmentAt" defaultValue={toDateInputValue(caseRecord.arraignmentAt)} /></div>
-          <div className="field"><label htmlFor="proofOfServiceAt">Proof of service date</label><input type="date" id="proofOfServiceAt" name="proofOfServiceAt" defaultValue={toDateInputValue(caseRecord.proofOfServiceAt)} /></div>
-          <div className="field"><label htmlFor="discoveryOrderAt">Discovery order date</label><input type="date" id="discoveryOrderAt" name="discoveryOrderAt" defaultValue={toDateInputValue(caseRecord.discoveryOrderAt)} /></div>
-          <div className="field"><label htmlFor="discoveryRequestedAt">Discovery request date</label><input type="date" id="discoveryRequestedAt" name="discoveryRequestedAt" defaultValue={toDateInputValue(caseRecord.discoveryRequestedAt)} /></div>
-          <div className="field"><label htmlFor="motionServedAt">Written motion served</label><input type="date" id="motionServedAt" name="motionServedAt" defaultValue={toDateInputValue(caseRecord.motionServedAt)} /></div>
-          <div className="field"><label htmlFor="verdictAt">Verdict date</label><input type="date" id="verdictAt" name="verdictAt" defaultValue={toDateInputValue(caseRecord.verdictAt)} /></div>
-          <div className="field"><label htmlFor="sentenceAt">Sentence date</label><input type="date" id="sentenceAt" name="sentenceAt" defaultValue={toDateInputValue(caseRecord.sentenceAt)} /></div>
-          <div className="field"><label htmlFor="finalJudgmentAt">Final judgment date</label><input type="date" id="finalJudgmentAt" name="finalJudgmentAt" defaultValue={toDateInputValue(caseRecord.finalJudgmentAt)} /></div>
         </div>
         </fieldset>
         </details>

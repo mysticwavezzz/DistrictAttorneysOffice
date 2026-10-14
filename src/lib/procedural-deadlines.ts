@@ -1,3 +1,5 @@
+import { formatDateTimeInTimeZone, parseDateTimeInTimeZone } from "./time-zone";
+
 export type ProceduralDeadlineCase = {
   type: string | null;
   createdAt: Date;
@@ -16,19 +18,10 @@ export type ProceduralDeadlineCase = {
   finalJudgmentAt: Date | null;
 };
 
-export type ProceduralDeadline = { key: string; label: string; dueDate: Date; authority: string; automatic: boolean };
+export type ProceduralDeadline = { key: string; label: string; dueDate: Date; authority: string };
 export type OngoingObligation = { key: string; label: string; authority: string };
 
-function addCalendarDays(anchor: Date, days: number): Date {
-  // Date inputs are stored as UTC-midnight; event timestamps use the court's local date.
-  const dateOnly = anchor.getUTCHours() === 0 && anchor.getUTCMinutes() === 0 && anchor.getUTCSeconds() === 0;
-  const date = dateOnly ? anchor.toISOString().slice(0, 10) : formatDateTimeInTimeZone(anchor, COURT_TIME_ZONE).slice(0, 10);
-  const [year = 0, month = 0, day = 0] = date.split("-").map(Number);
-  const target = new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
-  const cutoff = parseDateTimeInTimeZone(`${target}T23:59`, COURT_TIME_ZONE);
-  if (!cutoff) throw new Error(`Could not calculate court deadline for ${target}`);
-  return new Date(cutoff.getTime() + 59_999);
-}
+const COURT_TIME_ZONE = "America/New_York";
 
 export function courtDeadlineDate(date: Date): string {
   return formatDateTimeInTimeZone(date, COURT_TIME_ZONE).slice(0, 10);
@@ -38,46 +31,27 @@ export function isCourtDeadlineOverdue(date: Date, now = new Date()): boolean {
   return date.getTime() < now.getTime();
 }
 
+function manualDeadlineCutoff(date: Date): Date {
+  // Date inputs are stored at UTC midnight. Keep the entered calendar date
+  // and give it the court's local end-of-day cutoff.
+  const dateKey = date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0
+    ? date.toISOString().slice(0, 10)
+    : courtDeadlineDate(date);
+  const cutoff = parseDateTimeInTimeZone(`${dateKey}T23:59`, COURT_TIME_ZONE);
+  if (!cutoff) throw new Error(`Could not interpret manually entered deadline ${dateKey}`);
+  return new Date(cutoff.getTime() + 59_999);
+}
+
+/** Only staff-entered dates are deadlines. Event dates never produce projections. */
 export function getProceduralDeadlines(item: ProceduralDeadlineCase): ProceduralDeadline[] {
-  const type = (item.type ?? "").toLocaleLowerCase("en-US");
-  const criminal = type.includes("criminal") || type.includes("felony") || type.includes("misdemeanor");
-  const civil = type.includes("civil");
-  const appellate = type.includes("appellate") || type.includes("appeal") || type.includes("circuit");
-  const deadlines: ProceduralDeadline[] = [];
-  const add = (key: string, label: string, dueDate: Date | null, authority: string, automatic = true) => {
-    if (dueDate) deadlines.push({ key, label, dueDate, authority, automatic });
-  };
-
-  add("manual-discDue", "Discovery due", item.discDue ? addCalendarDays(item.discDue, 0) : null, "Manually entered", false);
-  add("manual-pretrial", "Pretrial", item.pretrial ? addCalendarDays(item.pretrial, 0) : null, "Manually entered", false);
-  add("manual-appealBy", "Appeal by", item.appealBy ? addCalendarDays(item.appealBy, 0) : null, "Manually entered", false);
-  if (criminal) {
-    if (item.assignedJudge) {
-      // Once the actual arraignment date is recorded, the projected due date is satisfied.
-      add("criminal-arraignment", "Arraignment", !item.arraignmentAt && item.courtFiledAt ? addCalendarDays(item.courtFiledAt, 7) : null, "Ches. R. Crim. P. Rule 9(d)");
-      add("criminal-particulars", "Bill of particulars", item.arraignmentAt ? addCalendarDays(item.arraignmentAt, 7) : null, "Ches. R. Crim. P. Rule 5(e)");
-      add("criminal-motion-response", "Motion response", item.motionServedAt ? addCalendarDays(item.motionServedAt, 3) : null, "Ches. R. Crim. P. Rule 12(a)(3)");
-      add("criminal-post-trial", "Post-trial motions", item.verdictAt ? addCalendarDays(item.verdictAt, 5) : null, "Ches. R. Crim. P. Rules 16(b), 16(c), 16(d)");
-      add("criminal-new-evidence", "New-trial motion (new evidence)", item.verdictAt ? addCalendarDays(item.verdictAt, 14) : null, "Ches. R. Crim. P. Rule 16(c)(1)");
-      add("criminal-sentence-correction", "Sentence correction", item.sentenceAt ? addCalendarDays(item.sentenceAt, 2) : null, "Ches. R. Crim. P. Rule 16(e)(1)");
-    }
-  }
-  if (civil) {
-    if (item.assignedJudge) {
-      // Recorded proof of service fulfills the calculated service deadline.
-      add("civil-service", "Service of summons and complaint", !item.proofOfServiceAt && item.courtFiledAt ? addCalendarDays(item.courtFiledAt, 7) : null, "Ches. R. Civ. P. Rule 5(d)");
-      add("civil-answer", "Answer to complaint", item.proofOfServiceAt ? addCalendarDays(item.proofOfServiceAt, 7) : null, "Ches. R. Civ. P. Rules 5(b), 13");
-      add("civil-discovery-window", "Discovery request window", item.discoveryOrderAt ? addCalendarDays(item.discoveryOrderAt, 4) : null, "Ches. R. Civ. P. Rule 25(b)");
-      // A manually entered discovery due date is the controlling response deadline.
-      add("civil-discovery-response", "Discovery response", !item.discDue && item.discoveryRequestedAt ? addCalendarDays(item.discoveryRequestedAt, 3) : null, "Ches. R. Civ. P. Rule 25(b)");
-    }
-  }
-  if (appellate && item.assignedJudge) {
-    // An entered manual appeal date replaces the computed certiorari date.
-    add("appellate-certiorari", "Certiorari petition", !item.appealBy && item.finalJudgmentAt ? addCalendarDays(item.finalJudgmentAt, 30) : null, "Ches. Cir. Ct. Rule 13.2");
-  }
-
-  return deadlines.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  return [
+    ["manual-discDue", "Discovery due", item.discDue],
+    ["manual-pretrial", "Pretrial", item.pretrial],
+    ["manual-appealBy", "Appeal by", item.appealBy],
+  ]
+    .filter((entry): entry is [string, string, Date] => entry[2] instanceof Date)
+    .map(([key, label, dueDate]) => ({ key, label, dueDate: manualDeadlineCutoff(dueDate), authority: "Manually entered" }))
+    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 }
 
 export function getOngoingObligations(item: Pick<ProceduralDeadlineCase, "type">): OngoingObligation[] {
@@ -87,6 +61,3 @@ export function getOngoingObligations(item: Pick<ProceduralDeadlineCase, "type">
   }
   return [];
 }
-import { formatDateTimeInTimeZone, parseDateTimeInTimeZone } from "./time-zone";
-
-const COURT_TIME_ZONE = "America/New_York";

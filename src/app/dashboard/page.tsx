@@ -3,14 +3,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { TIER_DEFINITIONS, hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseVisibilityWhere, localUser, canViewCases as canViewCasesInDocket } from "@/lib/case-access";
-import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
+import { getProceduralDeadlines, isCourtDeadlineOverdue } from "@/lib/procedural-deadlines";
 import { DashboardFoldPersistence } from "@/components/dashboard-fold-persistence";
 import { getPrivacyConsentGeneration } from "@/lib/site-settings";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 
 export const metadata = staffPageMetadata("Staff Overview", "Your assignments, reviews, deadlines, filings, and recent office activity.", "/dashboard");
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/New_York" });
 
 export default async function DashboardOverviewPage({ searchParams }: { searchParams: Promise<{ caseSubmitted?: string }> }) {
   const query = await searchParams;
@@ -41,11 +41,10 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
 
   const deadlineCases = canViewCases && caseScope ? await prisma.case.findMany({ where: { archived: false, isDraft: false, ...caseScope }, orderBy: { updatedAt: "desc" }, take: 5000 }).catch(() => []) : [];
   const now = new Date();
-  const today = new Date(now); today.setUTCHours(0, 0, 0, 0);
   const deadlineRows = deadlineCases.flatMap((item) => getProceduralDeadlines(item).map((deadline) => ({ item, deadline })))
-    .filter(({ deadline }) => deadline.dueDate.getTime() < today.getTime() + 14 * 86400000)
+    .filter(({ deadline }) => deadline.dueDate.getTime() < now.getTime() + 14 * 86400000)
     .sort((a, b) => a.deadline.dueDate.getTime() - b.deadline.dueDate.getTime());
-  const deadlineCount = deadlineRows.filter(({ deadline }) => deadline.dueDate.getTime() < today.getTime() + 4 * 86400000).length;
+  const deadlineCount = deadlineRows.filter(({ deadline }) => deadline.dueDate.getTime() < now.getTime() + 4 * 86400000).length;
   const upcomingDeadlines = deadlineRows.slice(0, 40);
   const recentFilings = canViewCases && caseScope ? await prisma.caseFiling.findMany({
     where: { case: caseScope },
@@ -72,7 +71,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
 
     <details className="dashboard-fold" open><summary id="my-work-heading"><span className="dashboard-fold-title">My Work</span></summary><section aria-labelledby="my-work-heading"><p className="section-lede">Your assigned and recently created work.</p><div className="cards">{canViewCases && <Link href="/dashboard/cases?mine=1&tab=ongoing" className="card card-action"><span className="card-label">My active cases</span><span className="card-value">{myActiveCount}</span><span className="card-action-label">Open my cases</span></Link>}{canCreateCases && <Link href="/dashboard/cases/new" className="card card-action"><span className="card-label">Open a case</span><span className="card-value" aria-hidden="true">＋</span><span className="card-action-label">Start a case submission</span></Link>}</div></section></details>
 
-    {canViewCases && <details className="dashboard-fold" open><summary id="deadlines-heading"><span className="dashboard-fold-title">Upcoming Deadlines</span></summary><section aria-labelledby="deadlines-heading">{upcomingDeadlines.length === 0 ? <div className="message message-success">No case deadlines in the next 14 days.</div> : <div className="tablewrap"><table className="stat mobile-cards"><thead><tr><th scope="col">Case</th><th scope="col">Deadline</th><th scope="col">Date</th><th scope="col">Next action</th></tr></thead><tbody>{upcomingDeadlines.map(({ item, deadline }) => <tr key={`${item.id}-${deadline.key}`}><td data-label="Case"><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} - {item.title}</Link></td><td data-label="Deadline">{deadline.label}</td><td data-label="Date"><time className={deadline.dueDate.getTime() < today.getTime() ? "deadline-overdue" : undefined} dateTime={deadline.dueDate.toISOString()}>{dateFormatter.format(deadline.dueDate)}</time><small>{deadline.automatic ? `Calculated · ${deadline.authority}` : "Manually entered"}</small></td><td data-label="Next action"><Link href={`/dashboard/cases/${item.id}#deadlines`}>{deadline.dueDate.getTime() < today.getTime() ? "Resolve overdue item" : "Review case"}</Link></td></tr>)}</tbody></table></div>}</section></details>}
+    {canViewCases && <details className="dashboard-fold" open><summary id="deadlines-heading"><span className="dashboard-fold-title">Upcoming Deadlines</span></summary><section aria-labelledby="deadlines-heading"><p className="section-lede">Deadlines entered by staff; dates are not calculated automatically.</p>{upcomingDeadlines.length === 0 ? <div className="message message-success">No case deadlines in the next 14 days.</div> : <div className="tablewrap"><table className="stat mobile-cards"><thead><tr><th scope="col">Case</th><th scope="col">Deadline</th><th scope="col">Date</th><th scope="col">Next action</th></tr></thead><tbody>{upcomingDeadlines.map(({ item, deadline }) => <tr key={`${item.id}-${deadline.key}`}><td data-label="Case"><Link href={`/dashboard/cases/${item.id}`}>{item.caseNumber} - {item.title}</Link></td><td data-label="Deadline">{deadline.label}</td><td data-label="Date"><time className={isCourtDeadlineOverdue(deadline.dueDate, now) ? "deadline-overdue" : undefined} dateTime={deadline.dueDate.toISOString()}>{dateFormatter.format(deadline.dueDate)}</time><small>Manually entered</small></td><td data-label="Next action"><Link href={`/dashboard/cases/${item.id}#deadlines`}>{isCourtDeadlineOverdue(deadline.dueDate, now) ? "Resolve overdue item" : "Review case"}</Link></td></tr>)}</tbody></table></div>}</section></details>}
 
     {canViewCases && <details className="dashboard-fold" open><summary id="recent-filings-heading"><span className="dashboard-fold-title">Recent Filings</span></summary><section aria-labelledby="recent-filings-heading"><div className="page-heading-row"><Link href="/dashboard/filings">Filing history</Link></div>{recentFilings.length ? <ul className="recent-filings-list">{recentFilings.map((filing) => <li key={filing.id}><span><Link href={`/dashboard/cases/${filing.case.id}`}><strong>{filing.case.caseNumber}</strong> · {filing.title}</Link><small>{filing.case.title}</small></span><time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></li>)}</ul> : <div className="message">No filings yet.</div>}</section></details>}
 

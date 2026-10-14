@@ -134,7 +134,7 @@ export function CaseOpeningForm({
             <p><strong>Initial filing</strong><span>{documentName || revision?.filingName || "No PDF attached"}</span></p>
             <p><strong>Submitting officer</strong><span>{officerName}</span></p>
             <p><strong>Next step</strong><span>{revision ? "Resubmission for review" : canCreate ? "Save unfiled case, then file the complaint" : "Reviewer approval before the case record is created"}</span></p>
-            <p className="note-inline">{revision ? "Check your changes, then resubmit this request for another review." : canCreate ? "No court filing or arraignment schedule is created until you use File on the case page." : "Check the case information and parties before submitting."}</p>
+            <p className="note-inline">{revision ? "Check your changes, then resubmit this request for another review." : canCreate ? "No court filing is created until you use File on the case page." : "Check the case information and parties before submitting."}</p>
           </div>
         </fieldset>
 

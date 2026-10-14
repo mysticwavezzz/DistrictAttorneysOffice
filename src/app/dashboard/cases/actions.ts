@@ -209,10 +209,20 @@ async function fileCaseImpl(formData: FormData) {
   if (caseRecord.courtFiledAt || caseRecord.filings.some((filing) => filing.status === "ACCEPTED") || legacyInitialAccepted) throw new Error("This case has already been filed with the court.");
   if (caseRecord.filings.some((filing) => filing.status === "PENDING")) throw new Error("The initial filing is already awaiting review.");
 
-  const pdf = await readCasePdf(formData.get("initialPdf"));
   const draftFiling = caseRecord.filings.find((filing) => filing.status === "DRAFT");
-  if (!draftFiling && !pdf) throw new Error("Attach the initial complaint as a PDF before filing this case.");
-  const title = String(formData.get("initialFilingTitle") ?? "").trim().slice(0, 200);
+  const sourceFilingId = String(formData.get("sourceFilingId") ?? "").trim();
+  if (!sourceFilingId) throw new Error("Choose a PDF filing already attached to this case.");
+  const sourceFiling = await prisma.caseFiling.findFirst({
+    where: {
+      id: sourceFilingId,
+      caseId: id,
+      pdfData: { not: null },
+      OR: [{ status: "ACCEPTED" }, { isInitial: true, status: { in: ["DRAFT", "REJECTED"] } }],
+    },
+    select: { id: true, title: true, pdfData: true, pdfFileName: true, status: true },
+  });
+  if (!sourceFiling?.pdfData) throw new Error("That PDF filing is not available on this case. Refresh and choose an attached PDF.");
+  const title = String(formData.get("initialFilingTitle") ?? "").trim().slice(0, 200) || sourceFiling.title;
   const needsApproval = shouldRequireFilingApproval(session.user.tiers, caseRecord.division);
   const nextStatus = needsApproval ? "PENDING" : "ACCEPTED";
   const filedAt = needsApproval ? null : new Date();
@@ -220,15 +230,15 @@ async function fileCaseImpl(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     const activeInitial = await tx.caseFiling.findFirst({ where: { caseId: id, isInitial: true, status: { in: ["PENDING", "ACCEPTED"] } }, select: { id: true } });
     if (activeInitial) throw new Error("The initial case filing was already submitted or filed. Refresh the case before retrying.");
-    if (draftFiling) {
+    if (sourceFiling.status === "DRAFT" && draftFiling?.id === sourceFiling.id) {
       const claimed = await tx.caseFiling.updateMany({
         where: { id: draftFiling.id, status: "DRAFT" },
-        data: { ...(pdf ? { pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName } : {}), title: title || (pdf?.pdfFileName ?? draftFiling.title), status: nextStatus, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt },
+        data: { title, status: nextStatus, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt },
       });
       if (!claimed.count) throw new Error("This complaint was already submitted. Refresh the case before retrying.");
-    } else if (pdf) {
+    } else {
       await tx.caseFiling.create({
-        data: { caseId: id, title: title || pdf.pdfFileName, pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName, addedById: user.id, status: nextStatus, isInitial: true, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt },
+        data: { caseId: id, title, pdfData: sourceFiling.pdfData, pdfFileName: sourceFiling.pdfFileName, addedById: user.id, status: nextStatus, isInitial: true, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt },
       });
     }
     await tx.case.update({ where: { id }, data: { ...(filedAt ? { courtFiledAt: filedAt } : {}), updatedAt: new Date() } });
