@@ -179,13 +179,17 @@ async function createCaseImpl(formData: FormData) {
   });
 
   if (created.assignedAttorneyId && created.assignedAttorneyId !== user.id) {
-    await notify({
-      userId: created.assignedAttorneyId,
-      type: "case_assigned",
-      title: `You were assigned to ${created.caseNumber}`,
-      body: created.title,
-      link: `/dashboard/cases/${created.id}`,
-    });
+    try {
+      await notify({
+        userId: created.assignedAttorneyId,
+        type: "case_assigned",
+        title: `You were assigned to ${created.caseNumber}`,
+        body: created.title,
+        link: `/dashboard/cases/${created.id}`,
+      });
+    } catch (error) {
+      console.error(`[case creation ${created.id}] Case saved, but assignment notification failed.`, error);
+    }
   }
 
   revalidatePath("/dashboard/cases");
@@ -588,3 +592,4 @@ async function addCommentImpl(formData: FormData) {
 
   revalidatePath(`/dashboard/cases/${caseId}`);
 }
+

@@ -47,9 +47,24 @@ export function CaseOpeningForm({
   const [caseType, setCaseType] = useState(revision?.type || "Criminal");
   const [judge, setJudge] = useState(revision?.assignedJudge ?? "");
   const [documentName, setDocumentName] = useState(revision?.filingTitle ?? "");
+  const [validationError, setValidationError] = useState("");
+
+  function advance() {
+    if (step === 0 && !caseTitle.trim()) {
+      setValidationError("Enter a case title before continuing.");
+      return;
+    }
+    if (step === 1 && !parties.some((party) => party.name.trim())) {
+      setValidationError("Add at least one person or party before continuing.");
+      return;
+    }
+    setValidationError("");
+    setStep((current) => Math.min(steps.length - 1, current + 1));
+  }
 
   function updateParty(index: number, update: Partial<Party>) {
     setParties((current) => current.map((party, item) => item === index ? { ...party, ...update } : party));
+    if (update.name?.trim()) setValidationError("");
   }
 
   return (
@@ -80,7 +95,18 @@ export function CaseOpeningForm({
         ))}
       </ol>
 
-      <form action={createCase} className="case-opening-form" noValidate>
+      <form action={createCase} className="case-opening-form" noValidate onSubmit={(event) => {
+        if (!caseTitle.trim()) {
+          event.preventDefault();
+          setStep(0);
+          setValidationError("Enter a case title before submitting.");
+        } else if (!parties.some((party) => party.name.trim())) {
+          event.preventDefault();
+          setStep(1);
+          setValidationError("Add at least one person or party before submitting.");
+        }
+      }}>
+        {validationError && <p className="message error" role="alert">{validationError}</p>}
         {revision && <input type="hidden" name="reviseRequestId" value={revision.requestId} />}
         {revision?.caseNumber && <input type="hidden" name="caseNumber" value={revision.caseNumber} />}
         {revision && <input type="hidden" name="summary" value={revision.summary} />}
@@ -141,7 +167,7 @@ export function CaseOpeningForm({
         <div className="case-opening-controls">
           <button type="button" className="govbtn-outline" onClick={() => setStep((current) => Math.max(0, current - 1))} disabled={step === 0}>Back</button>
           {step < steps.length - 1 ? (
-            <button type="button" className="govbtn" onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}>Continue</button>
+            <button type="button" className="govbtn" onClick={advance}>Continue</button>
           ) : (
             <PendingSubmitButton label={revision ? "Resubmit for Review" : canCreate ? "Save Unfiled Case" : "Submit for Review"} pendingLabel="Saving…" />
           )}
@@ -150,3 +176,4 @@ export function CaseOpeningForm({
     </section>
   );
 }
+
