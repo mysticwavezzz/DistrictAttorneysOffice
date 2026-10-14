@@ -1,15 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
 import { getSiteSettings } from "@/lib/site-settings";
-import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
+import { courtDeadlineDate, getProceduralDeadlines } from "@/lib/procedural-deadlines";
 
 const RENOTIFY_HOURS = 20;
 export async function runDeadlineCheck() {
   const settings = await getSiteSettings();
   const reminderDays = settings.deadlineReminderDays.split(",").map(Number).filter((day) => Number.isInteger(day) && day > 0 && day <= 90);
   const now = new Date();
-  const today = new Date(now);
-  today.setUTCHours(0, 0, 0, 0);
+  const todayKey = courtDeadlineDate(now);
 
   let cases: Awaited<ReturnType<typeof prisma.case.findMany>> = [];
   try {
@@ -26,7 +25,8 @@ export async function runDeadlineCheck() {
     if (!item.assignedAttorneyId) continue;
     for (const deadline of getProceduralDeadlines(item)) {
       const { key, label, dueDate } = deadline;
-      const days = Math.ceil((Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate()) - today.getTime()) / 86_400_000);
+      const dueKey = courtDeadlineDate(dueDate);
+      const days = Math.round((Date.parse(`${dueKey}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / 86_400_000);
       if (days < 0 ? !settings.overdueRemindersEnabled : days === 0 ? false : !reminderDays.includes(days)) continue;
 
       const identity = { userId: item.assignedAttorneyId, caseId: item.id, deadlineType: key, dueDate };
@@ -40,7 +40,7 @@ export async function runDeadlineCheck() {
       if (reminder.acknowledgedAt || (reminder.snoozedUntil && reminder.snoozedUntil > now)) continue;
       if (reminder.lastNotifiedAt && now.getTime() - reminder.lastNotifiedAt.getTime() < RENOTIFY_HOURS * 3_600_000) continue;
 
-      const dateText = dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" });
+      const dateText = dueDate.toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "America/New_York" });
       await notify({
         userId: item.assignedAttorneyId,
         type: "case_deadline",
