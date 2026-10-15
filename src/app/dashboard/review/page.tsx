@@ -10,10 +10,11 @@ import { reviewAopc, reviewFiling } from "./actions";
 import { FilingAiReviewPanel } from "@/components/filing-ai-review-panel";
 import { canViewAllContactMail } from "@/lib/contact-mail";
 import { shareMetadata } from "@/lib/share-metadata";
+import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 
 export const metadata = shareMetadata("Review Inbox", "Review pending case openings, requests, affidavits, and records workflows.", "/dashboard/review");
 
-type ReviewItem = { id: string; kind: "case" | "filing" | "records" | "aopc" | "contact"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string; details?: string; contact?: string; documentHref?: string; documentName?: string; aiReview?: { status: string; createdAt: Date; resultJson: string | null; failureCode: string | null } };
+type ReviewItem = { id: string; kind: "case" | "filing" | "records" | "aopc" | "contact"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string; details?: string; contact?: string; documentHref?: string; documentName?: string; aiReviewAutoEligible?: boolean; aiReview?: { status: string; createdAt: Date; resultJson: string | null; failureCode: string | null } };
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 export default async function ReviewInboxPage({ searchParams }: { searchParams: Promise<{ type?: string; age?: string; division?: string }> }) {
@@ -94,13 +95,13 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
     };
     const rows = await prisma.caseFiling.findMany({
       where: { status: "PENDING", ...(filingCaseScope ? { case: filingCaseScope } : {}) },
-      select: { id: true, title: true, pdfFileName: true, isInitial: true, createdAt: true, caseId: true, case: { select: { caseNumber: true, title: true, division: true, divisionGroup: true, assignedAttorney: { select: { divisionGroup: true } }, createdBy: { select: { divisionGroup: true } } } }, addedBy: { select: { displayName: true } }, aiReviews: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true, createdAt: true, resultJson: true, failureCode: true } } },
+      select: { id: true, title: true, pdfFileName: true, isInitial: true, createdAt: true, caseId: true, addedById: true, case: { select: { caseNumber: true, title: true, division: true, divisionGroup: true, assignedAttorney: { select: { divisionGroup: true } }, createdBy: { select: { divisionGroup: true } } } }, addedBy: { select: { displayName: true } }, aiReviews: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true, createdAt: true, resultJson: true, failureCode: true } } },
       orderBy: { createdAt: "asc" }, take: 100,
     });
     for (const row of rows) {
       const filingGroup = row.case.divisionGroup ?? row.case.assignedAttorney?.divisionGroup ?? row.case.createdBy.divisionGroup;
       if (!canReviewDivision(session.user.tiers, viewer?.division, row.case.division, viewer?.divisionGroup, filingGroup)) continue;
-      items.push({ id: row.id, kind: "filing", title: row.title, summary: `${row.isInitial ? "Initial complaint · " : ""}${row.case.caseNumber} · ${row.case.title}`, submittedBy: row.addedBy.displayName, division: row.case.division ?? "Unassigned", createdAt: row.createdAt, href: `/dashboard/cases/${row.caseId}#filings`, details: row.pdfFileName ? `PDF: ${row.pdfFileName}` : undefined, documentHref: `/api/cases/filings/${row.id}/pdf`, documentName: row.pdfFileName ?? undefined, aiReview: row.aiReviews[0] });
+      items.push({ id: row.id, kind: "filing", title: row.title, summary: `${row.isInitial ? "Initial complaint · " : ""}${row.case.caseNumber} · ${row.case.title}`, submittedBy: row.addedBy.displayName, division: row.case.division ?? "Unassigned", createdAt: row.createdAt, href: `/dashboard/cases/${row.caseId}#filings`, details: row.pdfFileName ? `PDF: ${row.pdfFileName}` : undefined, documentHref: `/api/cases/filings/${row.id}/pdf`, documentName: row.pdfFileName ?? undefined, aiReviewAutoEligible: row.addedById !== viewer?.id || session.user.tiers.includes(DEVELOPER_PROFILE_TIER), aiReview: row.aiReviews[0] });
     }
   }
   if (canReviewRecords && (selectedType === "all" || selectedType === "records")) {
@@ -121,6 +122,11 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
     return bUrgency - aUrgency || a.createdAt.getTime() - b.createdAt.getTime();
   });
 
+  const hasRunningAiReview = visible.some((item) => item.kind === "filing" && item.aiReview?.status === "RUNNING");
+  const autoReviewFilingId = aiReviewConfigured && !hasRunningAiReview
+    ? visible.find((item) => item.kind === "filing" && item.aiReviewAutoEligible && !item.aiReview)?.id ?? null
+    : null;
+
   return <div className="review-inbox">
     <p className="eyebrow">Staff workflow</p><h1>Review Inbox</h1>
     <p className="lede">One queue for pending case decisions, affidavit reviews, public records requests, and private Contact Us messages. Older items rise to the top.</p>
@@ -140,7 +146,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
         {item.details && item.kind !== "records" && <p className="review-item-details">{item.details}</p>}
         {item.kind === "contact" ? <><p className="review-item-details">{item.details}</p><Link className="govbtn" href={item.href}>Open private conversation</Link></>
           : item.kind === "filing" ? <details className="review-aopc-detail" open><summary>{item.summary.startsWith("Initial complaint") ? "Initial case filing review" : "Filing review"}</summary>{item.documentHref && <p><a href={item.documentHref} target="_blank" rel="noopener noreferrer">View {item.documentName ?? "submitted PDF"} ↗</a></p>}{item.summary.startsWith("Initial complaint") && <p className="note-inline">Approval files the case with the court. Deadlines are entered manually on the case record.</p>}
-            <FilingAiReviewPanel filingId={item.id} configured={aiReviewConfigured} review={item.aiReview ?? null} />
+            <FilingAiReviewPanel filingId={item.id} configured={aiReviewConfigured} review={item.aiReview ?? null} autoStart={item.id === autoReviewFilingId} autoEligible={item.aiReviewAutoEligible ?? false} />
             <form action={reviewFiling} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><input type="hidden" name="decision" value="ACCEPTED"/><button type="submit" className="govbtn">{item.summary.startsWith("Initial complaint") ? "Approve and file case" : "Approve filing"}</button></form><form action={reviewFiling} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><input type="hidden" name="decision" value="REJECTED"/><div className="field"><label htmlFor={`filing-review-note-${item.id}`}>Reason for return <span className="hint">Required</span></label><textarea id={`filing-review-note-${item.id}`} name="note" rows={2} maxLength={1000} required/></div><button type="submit" className="govbtn-outline">Return filing</button></form></details>
           : item.kind === "aopc" ? <details className="review-aopc-detail"><summary>Review details and decision</summary><p><strong>Target:</strong> {item.summary}</p>{item.documentHref && <p><a href={item.documentHref} target="_blank" rel="noopener noreferrer">{item.documentName ? `View ${item.documentName}` : "View supporting document"} ↗</a></p>}<form action={reviewAopc} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><div className="field"><label htmlFor={`aopc-note-${item.id}`}>Review note <span className="hint">Required when returning</span></label><textarea id={`aopc-note-${item.id}`} name="note" rows={2} maxLength={1000}/></div><button type="submit" name="decision" value="ACCEPTED" className="govbtn">Accept</button><button type="submit" name="decision" value="REJECTED" className="govbtn-outline">Return for changes</button></form></details>
           : item.kind === "records" ? <><details className="review-aopc-detail"><summary>Request details and status</summary>{item.contact && <p><strong>Contact:</strong> {item.contact}</p>}<p className="review-item-details">{item.details}</p></details><form action={markRecordsRequestStatus} className="review-record-action"><input type="hidden" name="id" value={item.id}/><label htmlFor={`records-status-${item.id}`}>Update status</label><select id={`records-status-${item.id}`} name="status" defaultValue="IN_PROGRESS"><option value="IN_PROGRESS">In progress</option><option value="FULFILLED">Fulfilled</option><option value="DENIED">Denied</option></select><button type="submit" className="govbtn-outline">Save status</button></form></>
