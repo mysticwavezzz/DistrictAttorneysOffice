@@ -75,7 +75,13 @@ async function runAiFilingReviewImpl(formData: FormData) {
 
   try {
     const extraction = await extractFilingPdfText(pdfBytes);
-    const result = await runFilingAiReview({ pages: extraction.pages, modelId });
+    const result = await runFilingAiReview({
+      pages: extraction.pages,
+      filingTitle: filing.title,
+      caseType: filing.case.type,
+      isInitial: filing.isInitial,
+      modelId,
+    });
     await prisma.filingAiReview.update({
       where: { id: run.id },
       data: { status: "COMPLETED", activeFilingId: null, resultJson: JSON.stringify(result), completedAt: new Date() },
@@ -94,3 +100,4 @@ async function runAiFilingReviewImpl(formData: FormData) {
 export async function runAiFilingReview(formData: FormData) {
   return runWithActionDebug("runAiFilingReview", [formData], () => runAiFilingReviewImpl(formData));
 }
+
