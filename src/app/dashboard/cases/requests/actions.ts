@@ -135,7 +135,7 @@ async function reviewCaseRequestImpl(formData: FormData) {
             type: emptyToNull(caseData.type),
             stage: emptyToNull(caseData.stage),
             assignedJudge: emptyToNull(caseData.assignedJudge),
-            courtFiledAt: filing?.pdfData || filing?.url ? new Date() : null,
+            courtFiledAt: null,
             partyDetails: parties,
             disclosures: emptyToNull(caseData.disclosures),
             discGiven: toDate(caseData.discGiven),
@@ -162,7 +162,7 @@ async function reviewCaseRequestImpl(formData: FormData) {
         });
         if (filing?.title && (filing.url || filing.pdfData)) {
           await tx.caseFiling.create({
-            data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById, isInitial: true },
+            data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById, isInitial: true, status: "PENDING" },
           });
         }
         return caseRecord;
