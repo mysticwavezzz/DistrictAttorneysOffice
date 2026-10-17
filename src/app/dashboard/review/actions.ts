@@ -52,9 +52,10 @@ async function reviewFilingImpl(formData: FormData) {
   if (!id || !["ACCEPTED", "REJECTED"].includes(decision) || (decision === "REJECTED" && !note)) throw new Error("Choose a decision and provide a reason when rejecting.");
 
   const filing = await prisma.caseFiling.findUnique({ where: { id }, include: { case: { include: { assignedAttorney: { select: { divisionGroup: true } }, createdBy: { select: { divisionGroup: true } } } } } });
-  const isDeveloper = session.user.tiers.includes(DEVELOPER_PROFILE_TIER);
+  const mayReviewOwnFiling = session.user.tiers.includes(DEVELOPER_PROFILE_TIER)
+    || session.user.tiers.includes("chief_assistant_district_attorney");
   const filingGroup = filing ? filing.case.divisionGroup ?? filing.case.assignedAttorney?.divisionGroup ?? filing.case.createdBy.divisionGroup : null;
-  if (!filing || !canReviewDivision(session.user.tiers, user.division, filing.case.division, user.divisionGroup, filingGroup) || (filing.addedById === user.id && !isDeveloper)) throw new Error("This filing is outside your review authority.");
+  if (!filing || !canReviewDivision(session.user.tiers, user.division, filing.case.division, user.divisionGroup, filingGroup) || (filing.addedById === user.id && !mayReviewOwnFiling)) throw new Error("This filing is outside your review authority.");
 
   await prisma.$transaction(async (tx) => {
     const claimed = await tx.caseFiling.updateMany({
