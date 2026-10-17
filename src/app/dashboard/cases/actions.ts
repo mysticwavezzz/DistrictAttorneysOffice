@@ -8,6 +8,7 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
 import { caseFilingSchema, caseCommentSchema } from "@/lib/validation/case-extras";
 import { localUser, canAccessCase, generateCaseNumber, canAssignCase, canEditCase, requiresCriminalAssigneeGroup } from "@/lib/case-access";
+import { requiresCriminalDivisionGroupForCaseCreation } from "@/lib/criminal-case-assignment";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { readCasePdf } from "@/lib/filing-upload";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
@@ -54,7 +55,7 @@ async function createCaseImpl(formData: FormData) {
   if (!assignedAttorney || (assignedAttorneyId !== user.id && assignedAttorney.division !== user.division)) throw new Error("Choose an attorney in your division.");
   if (session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assignedAttorney.divisionGroup !== user.divisionGroup) throw new Error("You can only assign cases to attorneys in your Criminal Division group.");
   const caseGroup = user.division === "Criminal Division" ? assignedAttorney.divisionGroup ?? user.divisionGroup : null;
-  if (user.division === "Criminal Division" && !caseGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN)) throw new Error("Assign the submitting attorney or selected attorney to Criminal Division Group 1 or 2 first.");
+  if (requiresCriminalDivisionGroupForCaseCreation(session.user.tiers, user.division) && !caseGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN)) throw new Error("Assign the submitting attorney or selected attorney to Criminal Division Group 1 or 2 first.");
   const partyRows = formData.getAll("partyName").map((value, index) => ({ name: String(value).trim(), role: String(formData.getAll("partyRole")[index] ?? "") })).filter((party) => party.name);
   if (!partyRows.length || partyRows.length > 20) throw new Error("Add at least one party and no more than 20.");
   const allowedPartyRoles = new Set(["Defendant", "Co-defendant", "Witness", "Reporting officer", "Other"]);
