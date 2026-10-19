@@ -63,7 +63,7 @@ export default async function CaseCalendarPage({ searchParams }: { searchParams:
   return <div>
     <p className="eyebrow">Cases</p><h1>Deadline Calendar</h1>
     <p className="note-inline">Only deadlines entered by staff appear here. Acknowledgment and snooze settings are personal to your account.</p>
-    <nav className="tabs-row" aria-label="Calendar month"><Link href={`/dashboard/cases/calendar?month=${monthKey(previous.getUTCFullYear(), previous.getUTCMonth())}`}>← Previous month</Link><strong aria-live="polite">{title}</strong><Link href={`/dashboard/cases/calendar?month=${monthKey(next.getUTCFullYear(), next.getUTCMonth())}`}>Next month →</Link><Link href="/dashboard/cases/calendar">Today</Link></nav>
+    <nav className="tabs-row calendar-month-nav" aria-label="Calendar month"><Link href={`/dashboard/cases/calendar?month=${monthKey(previous.getUTCFullYear(), previous.getUTCMonth())}`}>← Previous month</Link><strong aria-live="polite">{title}</strong><Link href={`/dashboard/cases/calendar?month=${monthKey(next.getUTCFullYear(), next.getUTCMonth())}`}>Next month →</Link><Link href="/dashboard/cases/calendar">Today</Link></nav>
     <div className="deadline-calendar" role="grid" aria-label={`${title} deadlines`}>
       {[
         ...["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((weekday) => <div className="deadline-calendar-weekday" role="columnheader" key={weekday}>{weekday}</div>),
