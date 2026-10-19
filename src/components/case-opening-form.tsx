@@ -54,12 +54,17 @@ export function CaseOpeningForm({
       setValidationError("Enter a case title before continuing.");
       return;
     }
+    if (step === 1 && !parties.some((party) => party.name.trim())) {
+      setValidationError("Add at least one person or party before continuing.");
+      return;
+    }
     setValidationError("");
     setStep((current) => Math.min(steps.length - 1, current + 1));
   }
 
   function updateParty(index: number, update: Partial<Party>) {
     setParties((current) => current.map((party, item) => item === index ? { ...party, ...update } : party));
+    if (update.name?.trim()) setValidationError("");
   }
 
   return (
@@ -95,6 +100,10 @@ export function CaseOpeningForm({
           event.preventDefault();
           setStep(0);
           setValidationError("Enter a case title before submitting.");
+        } else if (!parties.some((party) => party.name.trim())) {
+          event.preventDefault();
+          setStep(1);
+          setValidationError("Add at least one person or party before submitting.");
         }
       }}>
         {validationError && <p className="message error" role="alert">{validationError}</p>}

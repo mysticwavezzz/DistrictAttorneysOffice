@@ -54,7 +54,6 @@ function parseAiReview(value: string | null): DisplayResult | null {
     return null;
   }
 }
-
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 export function FilingAiReviewPanel({ filingId, configured, review, autoStart, autoEligible }: { filingId: string; configured: boolean; review: ReviewRun | null; autoStart: boolean; autoEligible: boolean }) {
