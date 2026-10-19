@@ -31,8 +31,8 @@ export const UNITS: UnitOption[] = [
     value: "Public Integrity Bureau",
     label: "Public Integrity Bureau",
     description:
-      "Handles public corruption and government integrity matters. Led by a Supervisory Assistant District Attorney.",
-    leaderRank: "Supervisory Assistant District Attorney",
+      "Handles public corruption and government integrity matters. Led by a Senior Assistant District Attorney.",
+    leaderRank: "Senior Assistant District Attorney",
     acceptsAopc: true,
   },
 ];
@@ -43,7 +43,7 @@ export const UNIT_LEADER_RANK: Record<string, string> = {
   "Criminal Division": "Chief Assistant District Attorney",
   "Civil Division": "Chief Assistant District Attorney",
   "Special Investigations Bureau": "Chief Assistant District Attorney",
-  "Public Integrity Bureau": "Supervisory Assistant District Attorney",
+  "Public Integrity Bureau": "Senior Assistant District Attorney",
 };
 
 export function unitLabel(value: string | null | undefined): string {

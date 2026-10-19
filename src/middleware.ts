@@ -5,6 +5,7 @@ import { findRouteRule } from "@/config/route-permissions";
 import { hasAnyCapability } from "@/lib/permissions/resolve";
 import { env } from "@/lib/env";
 import { shouldRedirectToMaintenance } from "@/lib/maintenance-access";
+import { applyRosterRankOverride } from "@/lib/staff-rank-control";
 
 const { auth } = NextAuth(authConfig);
 
@@ -76,12 +77,27 @@ export default auth(async (req) => {
     return response;
   }
 
+  let effectiveUser = req.auth?.user ?? null;
+  if (effectiveUser?.robloxUserId) {
+    try {
+      const url = new URL("/api/staff-access/status", req.nextUrl.origin);
+      url.searchParams.set("robloxUserId", effectiveUser.robloxUserId);
+      const status = await fetch(url, { cache: "no-store", headers: { "x-staff-access-check": env.AUTH_SECRET } });
+      if (!status.ok) throw new Error(`Staff access check returned ${status.status}`);
+      const access = await status.json() as { revoked: boolean; rankOverride: string | null };
+      effectiveUser = access.revoked ? null : { ...effectiveUser, tiers: applyRosterRankOverride(effectiveUser.tiers, access.rankOverride) };
+    } catch (error) {
+      console.error("Failed to verify staff access in middleware", error);
+      effectiveUser = null;
+    }
+  }
+
   const maintenance = await getMaintenanceConfiguration(req.nextUrl.origin);
   if (shouldRedirectToMaintenance({
     pathname,
     callbackUrl: req.nextUrl.searchParams.get("callbackUrl"),
     enabled: maintenance.enabled,
-    user: req.auth?.user,
+    user: effectiveUser ?? undefined,
     exemptTiers: maintenance.exemptTiers,
     exemptUserIds: maintenance.exemptUserIds,
   })) {
@@ -96,7 +112,7 @@ export default auth(async (req) => {
 
   const rule = findRouteRule(pathname);
   if (rule) {
-    const user = req.auth?.user;
+    const user = effectiveUser;
     if (!user?.providerUserId) {
       const loginUrl = new URL("/login", req.nextUrl.origin);
       loginUrl.searchParams.set("callbackUrl", pathname);

@@ -4,8 +4,10 @@ import { canAccessCase, caseVisibilityWhere, canManageRosterInDivision, canManag
 describe("case record access boundaries", () => {
   const record = { assignedAttorneyId: "assigned-user", createdById: "creator-user", division: "Criminal Division", divisionGroup: "1" };
   it("allows the assigned attorney and creator to access their case", () => {
-    expect(canAccessCase(["da_attorney"], "assigned-user", record)).toBe(true);
-    expect(canAccessCase(["da_attorney"], "creator-user", record)).toBe(true);
+    expect(canAccessCase(["da_attorney"], "assigned-user", record, "Criminal Division")).toBe(true);
+    expect(canAccessCase(["da_attorney"], "creator-user", record, "Criminal Division")).toBe(true);
+    expect(canAccessCase(["da_attorney"], "assigned-user", record, null)).toBe(false);
+    expect(canAccessCase(["da_attorney"], "assigned-user", record, "Civil Division")).toBe(false);
   });
   it("does not allow an unrelated attorney to access a case", () => {
     expect(canAccessCase(["special_investigations"], "other-user", record)).toBe(false);
@@ -18,15 +20,24 @@ describe("case record access boundaries", () => {
     expect(canAccessCase(["special_investigations"], "other-user", { ...record, isDraft: true })).toBe(false);
     expect(canAccessCase(["senior_assistant_district_attorney"], "other-user", { ...record, isDraft: true }, "Criminal Division", "1")).toBe(true);
   });
+  it("scopes Executive Secretary case access to their assigned division, like CADA", () => {
+    expect(canAccessCase(["executive_secretary"], "other-user", record, "Criminal Division")).toBe(true);
+    expect(canAccessCase(["executive_secretary"], "other-user", { ...record, division: "Civil Division" }, "Criminal Division")).toBe(false);
+    expect(canAccessCase(["executive_secretary"], "other-user", record, null)).toBe(false);
+    expect(caseVisibilityWhere(["executive_secretary"], "staff-1", "Criminal Division")).toEqual({ division: "Criminal Division" });
+    expect(caseVisibilityWhere(["executive_secretary"], "staff-1", null)).toEqual({ id: "__no_division__" });
+  });
   it("fails closed when a non-view-all staff member has no local user record", () => {
     expect(caseVisibilityWhere(["special_investigations"], null)).toBeNull();
   });
   it("scopes ordinary case access to ownership and division access to one unit", () => {
     expect(caseVisibilityWhere(["special_investigations"], "staff-1")).toEqual({ OR: [{ assignedAttorneyId: "staff-1" }, { createdById: "staff-1" }] });
     expect(caseVisibilityWhere(["senior_assistant_district_attorney"], null, "Criminal Division")).toBeNull();
-    expect(caseVisibilityWhere(["senior_assistant_district_attorney"], "staff-1", "Criminal Division", "1")).toEqual({ OR: [
-      { AND: [{ OR: [{ assignedAttorneyId: "staff-1" }, { createdById: "staff-1" }] }, { division: "Criminal Division" }, { OR: [{ divisionGroup: "1" }, { divisionGroup: null, assignedAttorney: { divisionGroup: "1" } }, { divisionGroup: null, createdBy: { divisionGroup: "1" } }] }] },
-      { division: "Criminal Division", OR: [{ divisionGroup: "1" }, { divisionGroup: null, assignedAttorney: { divisionGroup: "1" } }, { divisionGroup: null, createdBy: { divisionGroup: "1" } }] },
+    expect(caseVisibilityWhere(["senior_assistant_district_attorney"], "staff-1", "Criminal Division", "1")).toEqual({ AND: [
+      { division: "Criminal Division" }, { divisionGroup: "1" }, {},
+    ] });
+    expect(caseVisibilityWhere(["assistant_district_attorney"], "staff-1", "Criminal Division", "1")).toEqual({ AND: [
+      { division: "Criminal Division" }, {}, { OR: [{ assignedAttorneyId: "staff-1" }, { createdById: "staff-1" }] },
     ] });
   });
 });

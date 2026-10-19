@@ -8,15 +8,15 @@ describe("case filing approval requirement", () => {
     expect(shouldRequireFilingApproval([PERMISSION_TIERS.SPECIAL_INVESTIGATOR], "Criminal Division")).toBe(true);
   });
 
-  it("lets division supervisors file directly only when assigned to a division", () => {
-    expect(shouldRequireFilingApproval([PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY], "Criminal Division")).toBe(false);
+  it("requires every filing to enter review, including division supervisors", () => {
+    expect(shouldRequireFilingApproval([PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY], "Criminal Division")).toBe(true);
     expect(shouldRequireFilingApproval([PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY], null)).toBe(true);
     expect(shouldRequireFilingApproval([PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY], null)).toBe(true);
   });
 
-  it("lets office-wide reviewers and Developer Profile file directly", () => {
-    expect(shouldRequireFilingApproval([PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY], null)).toBe(false);
-    expect(shouldRequireFilingApproval([PERMISSION_TIERS.DISTRICT_ATTORNEY], null)).toBe(false);
-    expect(shouldRequireFilingApproval([DEVELOPER_PROFILE_TIER], null)).toBe(false);
+  it("requires review for office-wide reviewers and Developer Profile too", () => {
+    expect(shouldRequireFilingApproval([PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY], null)).toBe(true);
+    expect(shouldRequireFilingApproval([PERMISSION_TIERS.DISTRICT_ATTORNEY], null)).toBe(true);
+    expect(shouldRequireFilingApproval([DEVELOPER_PROFILE_TIER], null)).toBe(true);
   });
 });

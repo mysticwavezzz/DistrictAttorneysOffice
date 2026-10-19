@@ -30,7 +30,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
   const caseScope = caseVisibilityWhere(tiers, user?.id, user?.division, user?.divisionGroup);
 
   const [myActiveCount, pendingRequestCount, newRecordsRequests, pendingAopcCount, unreadCount, rosterCount, releasesThisMonth] = await Promise.all([
-    canViewCases && personalScope ? prisma.case.count({ where: { archived: false, ...personalScope } }).catch(() => 0) : Promise.resolve(0),
+    canViewCases && personalScope && caseScope ? prisma.case.count({ where: { AND: [caseScope, personalScope, { archived: false }] } }).catch(() => 0) : Promise.resolve(0),
     canApproveRequests ? prisma.caseActionRequest.count({ where: { status: "PENDING", ...(hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) ? {} : { division: user?.division ?? "__none__" }) } }).catch(() => 0) : Promise.resolve(0),
     canViewRequests ? prisma.recordsRequest.count({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }).catch(() => 0) : Promise.resolve(0),
     canApproveRequests ? prisma.aopc.count({ where: { status: "PENDING", ...(hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) ? {} : { targetUnit: user?.division ?? "__none__" }) } }).catch(() => 0) : Promise.resolve(0),
@@ -39,7 +39,7 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
     canManageAnnouncements ? prisma.announcement.count({ where: { isPublished: true, publishedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }).catch(() => 0) : Promise.resolve(0),
   ]);
 
-  const deadlineCases = canViewCases && caseScope ? await prisma.case.findMany({ where: { archived: false, isDraft: false, ...caseScope }, orderBy: { updatedAt: "desc" }, take: 5000 }).catch(() => []) : [];
+  const deadlineCases = canViewCases && caseScope ? await prisma.case.findMany({ where: { AND: [caseScope, { archived: false, isDraft: false }] }, orderBy: { updatedAt: "desc" }, take: 5000 }).catch(() => []) : [];
   const now = new Date();
   const deadlineRows = deadlineCases.flatMap((item) => getProceduralDeadlines(item).map((deadline) => ({ item, deadline })))
     .filter(({ deadline }) => deadline.dueDate.getTime() < now.getTime() + 14 * 86400000)
@@ -77,6 +77,6 @@ export default async function DashboardOverviewPage({ searchParams }: { searchPa
 
     {(canViewRoster || canManageAnnouncements) && <details className="dashboard-fold" open><summary id="admin-heading"><span className="dashboard-fold-title">Administration</span></summary><section aria-labelledby="admin-heading"><div className="cards">{canViewRoster && <Link href="/dashboard/roster" className="card"><span className="card-label">Staff roster</span><span className="card-value">{rosterCount}</span><span className="card-action-label">Manage staff</span></Link>}{canManageAnnouncements && <Link href="/dashboard/announcements" className="card"><span className="card-label">Releases this month</span><span className="card-value">{releasesThisMonth}</span><span className="card-action-label">Manage releases</span></Link>}</div></section></details>}
 
-    {hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) && <details className="dashboard-fold" open><summary id="activity-heading"><span className="dashboard-fold-title">Recent Activity</span></summary><section aria-labelledby="activity-heading">{recentActivity.length === 0 ? <div className="message">No recent activity.</div> : <ul className="activity-preview">{recentActivity.map((entry) => <li key={entry.id}><span>{entry.actorName} {entry.action} {entry.targetType} &quot;{entry.targetLabel}&quot;</span><time dateTime={entry.createdAt.toISOString()}>{entry.createdAt.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</time></li>)}</ul>}</section></details>}
+    {hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) && <details className="dashboard-fold" open><summary id="activity-heading"><span className="dashboard-fold-title">Recent Activity</span></summary><section aria-labelledby="activity-heading">{recentActivity.length === 0 ? <div className="message">No recent activity.</div> : <ul className="activity-preview">{recentActivity.map((entry) => <li key={entry.id}><span>{entry.actorName} {entry.action} {entry.targetType} &quot;{entry.targetLabel}&quot;</span><time dateTime={entry.createdAt.toISOString()}>{entry.createdAt.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short", timeZone: "America/New_York" })}</time></li>)}</ul>}</section></details>}
   </div>;
 }

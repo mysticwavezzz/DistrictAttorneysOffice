@@ -13,10 +13,11 @@ export const RANKS: RankOption[] = [
     isLeadership: true,
   },
   {
-    value: "Supervisory Assistant District Attorney",
-    label: "Supervisory Assistant District Attorney",
+    value: "Senior Assistant District Attorney",
+    label: "Senior Assistant District Attorney",
     isLeadership: true,
   },
+  { value: "Executive Secretary", label: "Executive Secretary", isLeadership: true },
   { value: "Chief of Staff", label: "Chief of Staff", isLeadership: false },
   { value: "Assistant District Attorney", label: "Assistant District Attorney", isLeadership: false },
   { value: "Secretary", label: "Secretary", isLeadership: false },

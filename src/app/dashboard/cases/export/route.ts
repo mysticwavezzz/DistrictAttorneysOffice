@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { caseVisibilityWhere, localUser } from "@/lib/case-access";
+import { localUser } from "@/lib/case-access";
 import { escapeCsvCell } from "@/lib/csv";
+import { caseDocketWhere, withOverdueCaseFilter } from "@/lib/case-docket-query";
 
 function fmtDate(date: Date | null): string {
   return date ? date.toISOString().slice(0, 10) : "";
@@ -17,31 +17,34 @@ export async function GET(req: NextRequest) {
   }
 
   const user = await localUser(session.user);
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const tab = searchParams.get("tab") === "archived" ? "archived" : "ongoing";
   const q = (searchParams.get("q") ?? "").trim();
   const status = (searchParams.get("status") ?? "").trim();
-
-  const visibility = caseVisibilityWhere(session.user.tiers, user?.id, user?.division, user?.divisionGroup);
-  if (!visibility) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const where: Prisma.CaseWhereInput = { archived: tab === "archived", ...visibility };
-  if (q) {
-    where.AND = [
-      {
-        OR: [
-          { title: { contains: q } },
-          { caseNumber: { contains: q } },
-          { assignedAttorney: { displayName: { contains: q } } },
-        ],
-      },
-    ];
-  }
-  if (status) where.stage = status;
+  const canFilterStaff = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION);
+  const staffId = canFilterStaff && searchParams.get("mine") !== "1" ? searchParams.get("staff") : null;
+  const allAccessible = staffId === "all";
+  const selectedStaff = staffId && !allAccessible ? await prisma.user.findFirst({ where: {
+    id: staffId,
+    ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) ? { tiers: { not: "" } } : {
+      division: user.division ?? "__no_division__",
+      ...(session.user.tiers.includes("senior_assistant_district_attorney") && user.division === "Criminal Division" ? { divisionGroup: user.divisionGroup ?? "__no_group__" } : {}),
+    }),
+  }, select: { id: true } }) : null;
+  if (staffId && !allAccessible && !selectedStaff) return NextResponse.json({ error: "Invalid employee filter" }, { status: 400 });
+  let where = caseDocketWhere({ tiers: session.user.tiers, viewerId: user.id, viewerDivision: user.division, viewerGroup: user.divisionGroup, ownerId: allAccessible ? null : selectedStaff?.id ?? user.id, tab, q, status, reviewOnly: searchParams.get("review") === "1" });
+  if (!where) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (searchParams.get("deadline") === "overdue") where = await withOverdueCaseFilter(where);
+  const sorts = ["caseNumber", "title", "stage", "updatedAt"] as const;
+  const sortInput = searchParams.get("sort");
+  const sort = sorts.find((item) => item === sortInput) ?? "updatedAt";
+  const direction = searchParams.get("dir") === "asc" ? "asc" : "desc";
 
   const cases = await prisma.case.findMany({
     where,
-    orderBy: { updatedAt: "desc" },
+    orderBy: { [sort]: direction },
     include: { assignedAttorney: true },
   });
 

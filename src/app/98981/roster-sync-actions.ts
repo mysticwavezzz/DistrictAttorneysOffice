@@ -50,7 +50,11 @@ async function buildPreview(members: RobloxGroupMember[]): Promise<SyncPreview> 
     .flatMap((mapping) => mapping.roleIds));
   if (!eligibleRoleIds.size) throw new Error("No ADA-or-higher Roblox role IDs are configured for the District Attorney group. No roster changes were prepared.");
 
-  const entries = await prisma.rosterEntry.findMany({ select: { id: true, name: true, rank: true, unit: true, robloxUserId: true, robloxSynced: true, robloxRoleId: true, robloxRank: true, isActive: true } });
+  const [entries, revokedAccounts] = await Promise.all([
+    prisma.rosterEntry.findMany({ select: { id: true, name: true, rank: true, rankOverride: true, robloxRoleName: true, unit: true, robloxUserId: true, robloxSynced: true, robloxRoleId: true, robloxRank: true, isActive: true } }),
+    prisma.revokedStaffAccess.findMany({ select: { robloxUserId: true } }),
+  ]);
+  const revokedIds = new Set(revokedAccounts.map((account) => account.robloxUserId));
   const byRobloxId = new Map(entries.flatMap((entry) => entry.robloxUserId ? [[entry.robloxUserId, entry] as const] : []));
   const byName = new Map<string, typeof entries>();
   for (const entry of entries) {
@@ -62,6 +66,7 @@ async function buildPreview(members: RobloxGroupMember[]): Promise<SyncPreview> 
   const preview: SyncPreview = { fetchedCount: members.length, eligibleCount: 0, additions: [], updates: [], inactivations: [], unchanged: [], exceptions: [] };
 
   for (const member of members) {
+    if (revokedIds.has(member.userId)) continue;
     const eligible = eligibleRoleIds.has(member.roleId);
     const existing = byRobloxId.get(member.userId);
     if (!eligible) {
@@ -84,7 +89,7 @@ async function buildPreview(members: RobloxGroupMember[]): Promise<SyncPreview> 
       preview.additions.push(candidate);
       continue;
     }
-    const needsUpdate = matched.name !== member.username || matched.rank !== member.roleName || matched.robloxUserId !== member.userId || matched.robloxRoleId !== String(member.roleId) || matched.robloxRank !== member.rank || !matched.isActive || !matched.robloxSynced;
+    const needsUpdate = matched.name !== member.username || matched.rank !== (matched.rankOverride ?? member.roleName) || matched.robloxRoleName !== member.roleName || matched.robloxUserId !== member.userId || matched.robloxRoleId !== String(member.roleId) || matched.robloxRank !== member.rank || !matched.isActive || !matched.robloxSynced;
     if (needsUpdate) preview.updates.push({ ...candidate, entryId: matched.id, oldName: matched.name, oldRank: matched.rank, wasActive: matched.isActive, wasSynced: matched.robloxSynced });
     else preview.unchanged.push({ ...candidate, entryId: matched.id });
   }
@@ -160,6 +165,8 @@ async function applyRobloxRosterSyncImpl(formData: FormData) {
 
       // Revalidate the previewed records before making any changes; a concurrent edit requires a fresh preview.
       for (const change of allTargets) {
+        const revoked = await tx.revokedStaffAccess.findUnique({ where: { robloxUserId: change.item.userId }, select: { robloxUserId: true } });
+        if (revoked) throw new Error(`${change.item.username}'s site access was revoked after preview. Generate a fresh preview.`);
         const existing = await tx.rosterEntry.findUnique({ where: { robloxUserId: change.item.userId } });
         if (change.kind === "add" && existing) throw new Error(`${change.item.username} was added to the roster after preview. Generate a fresh preview.`);
         if (change.kind === "update") {
@@ -174,7 +181,8 @@ async function applyRobloxRosterSyncImpl(formData: FormData) {
 
       for (const change of allTargets) {
         const item = change.item;
-        const syncedFields = { name: item.username, rank: item.roleName, robloxUserId: item.userId, robloxSynced: true, robloxRoleId: String(item.roleId), robloxRank: item.rank, lastRobloxSyncAt: now, isActive: true };
+        const existing = change.kind === "update" ? await tx.rosterEntry.findUnique({ where: { id: change.item.entryId }, select: { rankOverride: true } }) : null;
+        const syncedFields = { name: item.username, rank: existing?.rankOverride ?? item.roleName, robloxRoleName: item.roleName, robloxUserId: item.userId, robloxSynced: true, robloxRoleId: String(item.roleId), robloxRank: item.rank, lastRobloxSyncAt: now, isActive: true };
         const roster = change.kind === "add"
           ? await tx.rosterEntry.create({ data: { ...syncedFields, unit: null } })
           : await tx.rosterEntry.update({ where: { id: change.item.entryId }, data: syncedFields });
@@ -185,7 +193,8 @@ async function applyRobloxRosterSyncImpl(formData: FormData) {
         await tx.user.updateMany({ where: { robloxUserId: change.userId }, data: { division: roster.unit, divisionGroup: roster.divisionGroup } });
       }
       for (const change of data.inactivations) {
-        await tx.rosterEntry.update({ where: { id: change.entryId }, data: { isActive: false, rank: change.newRank === "Not in group" ? undefined : change.newRank, lastRobloxSyncAt: now, robloxRoleId: change.newRoleId === null ? null : String(change.newRoleId), robloxRank: change.rankNumber } });
+        const current = await tx.rosterEntry.findUnique({ where: { id: change.entryId }, select: { rankOverride: true } });
+        await tx.rosterEntry.update({ where: { id: change.entryId }, data: { isActive: false, rank: current?.rankOverride ?? (change.newRank === "Not in group" ? undefined : change.newRank), robloxRoleName: change.newRank === "Not in group" ? null : change.newRank, lastRobloxSyncAt: now, robloxRoleId: change.newRoleId === null ? null : String(change.newRoleId), robloxRank: change.rankNumber } });
       }
       await tx.robloxRosterSyncRun.update({ where: { id }, data: { status: "APPLIED", previewData: JSON.stringify(data), appliedAt: now } });
     });

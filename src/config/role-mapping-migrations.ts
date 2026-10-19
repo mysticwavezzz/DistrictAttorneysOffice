@@ -12,6 +12,12 @@ export function normalizeRobloxTierRoleMappings(saved: RobloxTierRoleMapping[]):
     );
     if (alreadyConfigured) continue;
 
+    // These staff tiers are part of the roster's ADA+ sync scope. Older saved
+    // configurations may predate their rows, so restore their current role IDs
+    // when absent; an explicitly saved row (including an empty one) is kept.
+    const restoreDefaultsForRoster = currentDefault.tier === PERMISSION_TIERS.SECRETARY
+      || currentDefault.tier === PERMISSION_TIERS.SECRETARY_SUPERVISOR
+      || currentDefault.tier === PERMISSION_TIERS.EXECUTIVE_SECRETARY;
     const legacyIds: number[] = [];
     for (const roleId of currentDefault.roleIds) {
       let found = false;
@@ -21,8 +27,7 @@ export function normalizeRobloxTierRoleMappings(saved: RobloxTierRoleMapping[]):
           mapping.roleIds = mapping.roleIds.filter((id) => id !== roleId);
         }
       }
-      // Restore no-access/general roles that were intentionally absent from old staff-only mappings.
-      if (found || [100901328, 12884901889, 100910645, 788467063, 100901326, 100901325].includes(roleId)) {
+      if (found || restoreDefaultsForRoster || [100901328, 12884901889, 100910645, 788467063, 100901326, 100901325].includes(roleId)) {
         legacyIds.push(roleId);
       }
     }

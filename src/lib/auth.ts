@@ -10,6 +10,7 @@ import { hasActiveDeveloperProfile } from "./developer-profile-access";
 import { normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
 import { mayUseCachedRoles } from "./role-refresh-policy";
 import { migrateSavedAttorneyPermissions } from "./permissions/migrate-saved-config";
+import { applyRosterRankOverride } from "./staff-rank-control";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -53,8 +54,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       }
 
-      const custom = token as typeof token & { permissionModelVersion?: string; configuredRobloxRoleMappings?: typeof ROBLOX_TIER_ROLE_MAPPINGS; configuredTierCapabilities?: Record<string, string[]> };
-      const needsPermissionRefresh = custom.permissionModelVersion !== "release-1.1.1";
+      // A roster removal revokes even an already signed-in browser. This check
+      // runs on every server auth request and precedes Developer Profile access.
+      let rankOverride: string | null;
+      try {
+        const [revoked, roster] = await Promise.all([
+          prisma.revokedStaffAccess.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { robloxUserId: true } }),
+          prisma.rosterEntry.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { rankOverride: true, isActive: true } }),
+        ]);
+        if (revoked) return null;
+        rankOverride = roster?.isActive ? roster.rankOverride : null;
+      } catch (error) {
+        console.error("Could not verify staff access controls", error);
+        return null;
+      }
+
+      const custom = token as typeof token & { permissionModelVersion?: string; configuredRobloxRoleMappings?: typeof ROBLOX_TIER_ROLE_MAPPINGS; configuredTierCapabilities?: Record<string, string[]>; groupTiers?: PermissionTier[] };
+      const needsPermissionRefresh = custom.permissionModelVersion !== "release-1.1.2";
       if (token.robloxUserId && (params.account || params.trigger === "update" || needsPermissionRefresh)) {
         try {
           await migrateSavedAttorneyPermissions();
@@ -66,14 +82,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const mappings = normalizeRobloxTierRoleMappings(mappingRow ? JSON.parse(mappingRow.value) as typeof ROBLOX_TIER_ROLE_MAPPINGS : ROBLOX_TIER_ROLE_MAPPINGS);
           const tierCapabilities = capabilityRow ? JSON.parse(capabilityRow.value) as Record<string, string[]> : {};
           const tiers = resolveTiersFromRobloxRoles(roles, mappings);
+          custom.groupTiers = tiers;
           token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, tierCapabilities)] as PermissionTier[];
-          custom.permissionModelVersion = "release-1.1.1";
+          custom.permissionModelVersion = "release-1.1.2";
           custom.configuredRobloxRoleMappings = mappings;
           custom.configuredTierCapabilities = tierCapabilities;
           token.tiersFetchedAt = Date.now();
         } catch (error) {
           console.error("Failed to resolve configured Roblox group permissions", error);
-          if (needsPermissionRefresh || !mayUseCachedRoles(token.tiersFetchedAt, Date.now())) token.tiers = [];
+          if (needsPermissionRefresh || !mayUseCachedRoles(token.tiersFetchedAt, Date.now())) {
+            token.tiers = [];
+            custom.groupTiers = [];
+          }
         }
       }
 
@@ -81,10 +101,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // active, so never trust its cached tier. Rebuild the effective tiers
       // from the current persisted toggle on every server auth request.
       if (token.identityProvider === "roblox" && token.robloxUserId) {
-        const custom = token as typeof token & { configuredTierCapabilities?: Record<string, string[]> };
-        const baseTiers = (token.tiers ?? []).filter((tier) =>
-          tier !== "developer_profile" && !tier.startsWith("cap:") && !tier.startsWith("denycap:")
-        );
+        const custom = token as typeof token & { configuredTierCapabilities?: Record<string, string[]>; groupTiers?: PermissionTier[] };
+        const baseTiers = applyRosterRankOverride(custom.groupTiers ?? [], rankOverride);
         const developerEnabled = await hasActiveDeveloperProfile({
           identityProvider: token.identityProvider,
           username: token.username,
@@ -131,8 +149,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       if (token.identityProvider === "roblox" && token.robloxUserId) {
         try {
-          const linkedAccount = await prisma.user.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { discordUserId: true } });
+          const linkedAccount = await prisma.user.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { discordUserId: true, tiers: true } });
           token.discordUserId = linkedAccount?.discordUserId ?? "";
+          const currentTiers = (token.tiers ?? []).join(",");
+          if (linkedAccount && linkedAccount.tiers !== currentTiers) await prisma.user.update({ where: { robloxUserId: token.robloxUserId }, data: { tiers: currentTiers } });
         } catch (error) {
           console.error("Failed to refresh the linked Discord identity", error);
         }

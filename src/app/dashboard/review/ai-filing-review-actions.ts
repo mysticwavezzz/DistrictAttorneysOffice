@@ -13,6 +13,7 @@ import { extractFilingPdfText, FilingPdfTextError } from "@/lib/ai-filing-review
 import { DEFAULT_GROQ_REVIEW_MODEL, FilingAiReviewError, runFilingAiReview } from "@/lib/ai-filing-review/review";
 import { FILING_REVIEW_PROMPT_VERSION } from "@/lib/ai-filing-review/review";
 import { FILING_REVIEW_SOURCE_VERSION } from "@/lib/ai-filing-review/authorities";
+import { buildCaseDocumentContext } from "@/lib/ai-filing-review/case-context";
 import { runWithActionDebug } from "@/lib/action-debug";
 
 const STALE_REVIEW_MS = 5 * 60_000;
@@ -75,7 +76,24 @@ async function runAiFilingReviewImpl(formData: FormData) {
 
   try {
     const extraction = await extractFilingPdfText(pdfBytes);
-    const result = await runFilingAiReview({ pages: extraction.pages, modelId });
+    const [otherFilings, linkedAopcs] = await Promise.all([
+      prisma.caseFiling.findMany({
+        where: { caseId: filing.caseId, id: { not: filing.id } },
+        select: { title: true, pdfFileName: true, status: true, createdAt: true },
+      }),
+      prisma.aopc.findMany({
+        where: { linkedCaseId: filing.caseId },
+        select: { title: true, pdfFileName: true, status: true, createdAt: true },
+      }),
+    ]);
+    const result = await runFilingAiReview({
+      pages: extraction.pages,
+      filingTitle: filing.title,
+      caseType: filing.case.type,
+      isInitial: filing.isInitial,
+      caseDocuments: buildCaseDocumentContext(otherFilings, linkedAopcs),
+      modelId,
+    });
     await prisma.filingAiReview.update({
       where: { id: run.id },
       data: { status: "COMPLETED", activeFilingId: null, resultJson: JSON.stringify(result), completedAt: new Date() },

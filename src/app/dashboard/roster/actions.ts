@@ -13,6 +13,8 @@ import { logActivity } from "@/lib/activity-log";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { RANKS, type RankOption } from "@/config/ranks";
 import { UNITS, type UnitOption } from "@/config/units";
+import { canAssignStaffRank, canControlStaff, replaceGroupRankTier } from "@/lib/staff-rank-control";
+import { parseStoredTiers } from "@/lib/contact-mail";
 
 async function requireManager() {
   const session = await auth();
@@ -40,6 +42,7 @@ async function addRosterEntryImpl(formData: FormData) {
   if (data.divisionGroup && data.unit !== "Criminal Division") throw new Error("Groups 1 and 2 are only available in the Criminal Division.");
   const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
   if (!ranks.some((rank) => rank.value === data.rank) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
+  if (data.robloxUserId && await prisma.revokedStaffAccess.findUnique({ where: { robloxUserId: data.robloxUserId } })) throw new Error("This Roblox account has been removed from site access.");
 
   await prisma.rosterEntry.create({
     data: {
@@ -84,15 +87,14 @@ async function updateRosterEntryImpl(formData: FormData) {
   if (!current || !mayManageCurrent || !canManageRosterInDivision(session.user.tiers, user.division, data.unit)) throw new Error("You can only assign unassigned staff to your division or edit entries already in your division.");
   if (data.divisionGroup && data.unit !== "Criminal Division") throw new Error("Groups 1 and 2 are only available in the Criminal Division.");
   const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
-  // Roblox-synced ranks are read-only and can contain source labels that are
-  // no longer present in the editable rank list. Validate only mutable ranks.
-  if ((!current.robloxSynced && !ranks.some((rank) => rank.value === data.rank)) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
+  if (data.unit && !divisions.some((unit) => unit.value === data.unit)) throw new Error("Select a configured division");
+  if (!current.robloxSynced && data.robloxUserId && await prisma.revokedStaffAccess.findUnique({ where: { robloxUserId: data.robloxUserId } })) throw new Error("This Roblox account has been removed from site access.");
 
   await prisma.rosterEntry.update({
     where: { id },
     data: {
       name: current.robloxSynced ? current.name : data.name,
-      rank: current.robloxSynced ? current.rank : data.rank,
+      rank: current.rank,
       unit: emptyToNull(data.unit),
       divisionGroup: data.unit === "Criminal Division" ? emptyToNull(data.divisionGroup) : null,
       discordUserId: emptyToNull(data.discordUserId),
@@ -127,14 +129,24 @@ async function removeRosterEntryImpl(formData: FormData) {
   if (!id) throw new Error("Missing roster entry id");
 
   const entry = await prisma.rosterEntry.findUnique({ where: { id } });
-  if (!entry || !canManageRosterInDivision(session.user.tiers, user.division, entry.unit)) throw new Error("You can only remove roster entries in your assigned division.");
-  if (entry.robloxSynced) throw new Error("This entry is managed by Roblox group sync. Remove the member from the Roblox group and run a sync to mark them inactive.");
-  await prisma.rosterEntry.delete({ where: { id } });
-  if (entry?.robloxUserId) await prisma.user.updateMany({ where: { robloxUserId: entry.robloxUserId }, data: { division: null, divisionGroup: null } });
+  if (!entry || !canControlStaff(session.user.tiers, session.user.providerUserId, user.division, entry)) throw new Error("Only CADA or higher can remove staff within their authority.");
+  await prisma.$transaction(async (tx) => {
+    if (entry.robloxUserId) {
+      await tx.revokedStaffAccess.upsert({
+        where: { robloxUserId: entry.robloxUserId },
+        create: { robloxUserId: entry.robloxUserId, username: entry.name, revokedBy: session.user.displayName },
+        update: { username: entry.name, revokedBy: session.user.displayName, revokedAt: new Date() },
+      });
+      await tx.user.updateMany({ where: { robloxUserId: entry.robloxUserId }, data: { division: null, divisionGroup: null, tiers: "" } });
+    }
+    await tx.rosterEntry.delete({ where: { id } });
+  });
 
   await logActivity(session.user.displayName, "removed", "roster entry", entry?.name ?? id);
   revalidatePath("/dashboard/roster");
   revalidatePath("/contacts");
+  revalidatePath("/dashboard");
+  redirect("/dashboard/roster");
 }
 
 async function setRosterActiveImpl(formData: FormData) {
@@ -147,6 +159,31 @@ async function setRosterActiveImpl(formData: FormData) {
   const entry = await prisma.rosterEntry.update({ where: { id }, data: { isActive } });
   await logActivity(session.user.displayName, isActive ? "reactivated" : "deactivated", "roster entry", entry.name);
   revalidatePath("/dashboard/roster");
+  revalidatePath("/contacts");
+}
+
+async function setRosterRankOverrideImpl(formData: FormData) {
+  const { session, user } = await requireManager();
+  const id = String(formData.get("id") ?? "");
+  const requestedRank = String(formData.get("rankOverride") ?? "").trim();
+  const entry = await prisma.rosterEntry.findUnique({ where: { id } });
+  if (!entry || !canControlStaff(session.user.tiers, session.user.providerUserId, user.division, entry)) throw new Error("Only CADA or higher can change this staff member's rank.");
+  if (!requestedRank && !entry.robloxSynced) throw new Error("Manual roster entries require a rank.");
+  if (requestedRank) {
+    const configuredRanks = await getSiteConfiguration<RankOption[]>("ranks", RANKS);
+    if (!configuredRanks.some((rank) => rank.value === requestedRank) || !canAssignStaffRank(session.user.tiers, requestedRank)) throw new Error("You cannot assign that rank.");
+  }
+  const nextRank = requestedRank || entry.robloxRoleName || entry.rank;
+  await prisma.$transaction(async (tx) => {
+    await tx.rosterEntry.update({ where: { id }, data: { rank: nextRank, rankOverride: requestedRank || null, robloxRoleName: entry.robloxSynced ? entry.robloxRoleName ?? entry.rank : null } });
+    if (entry.robloxUserId) {
+      const linked = await tx.user.findUnique({ where: { robloxUserId: entry.robloxUserId }, select: { tiers: true } });
+      if (linked) await tx.user.update({ where: { robloxUserId: entry.robloxUserId }, data: { tiers: replaceGroupRankTier(parseStoredTiers(linked.tiers), nextRank).join(",") } });
+    }
+  });
+  await logActivity(session.user.displayName, requestedRank ? "overrode rank" : "restored Roblox rank", "roster entry", `${entry.name}: ${entry.rank ?? "none"} → ${nextRank ?? "none"}`);
+  revalidatePath("/dashboard/roster");
+  revalidatePath(`/dashboard/roster/${id}`);
   revalidatePath("/contacts");
 }
 
@@ -181,5 +218,6 @@ async function updateCriminalGroupAssignmentImpl(formData: FormData) {
 export async function addRosterEntry(formData: FormData) { return runWithActionDebug("addRosterEntry", [formData], () => addRosterEntryImpl(formData)); }
 export async function updateRosterEntry(formData: FormData) { return runWithActionDebug("updateRosterEntry", [formData], () => updateRosterEntryImpl(formData)); }
 export async function removeRosterEntry(formData: FormData) { return runWithActionDebug("removeRosterEntry", [formData], () => removeRosterEntryImpl(formData)); }
+export async function setRosterRankOverride(formData: FormData) { return runWithActionDebug("setRosterRankOverride", [formData], () => setRosterRankOverrideImpl(formData)); }
 export async function setRosterActive(formData: FormData) { return runWithActionDebug("setRosterActive", [formData], () => setRosterActiveImpl(formData)); }
 export async function updateCriminalGroupAssignment(formData: FormData) { return runWithActionDebug("updateCriminalGroupAssignment", [formData], () => updateCriminalGroupAssignmentImpl(formData)); }

@@ -13,6 +13,8 @@ import { SafeImage } from "@/components/safe-image";
 import { localUser, canManageCriminalGroupRosterEntry } from "@/lib/case-access";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 import { DashboardFoldPersistence } from "@/components/dashboard-fold-persistence";
+import { DivisionRosterFields } from "@/components/division-roster-fields";
+import { canControlStaff } from "@/lib/staff-rank-control";
 
 export const metadata = staffPageMetadata("Staff Roster", "Review active staff, divisions, synced Roblox ranks, and manual assignments.", "/dashboard/roster");
 
@@ -121,14 +123,13 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
               <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
               {entry.divisionGroup && <span className="pill pill-navy">Group {entry.divisionGroup}</span>}
               {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
+              {entry.rankOverride && <span className="pill pill-navy">Rank override</span>}
             </div>
             {(canManage || (canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup))) && <div className="roster-card-actions">
               {canManage && <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>{!entry.unit && !canManageAll ? "Assign to my division" : "Edit profile"}</Link>}
               {canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup) && <form action={updateCriminalGroupAssignment} className="roster-group-assignment"><input type="hidden" name="id" value={entry.id} /><label htmlFor={`group-${entry.id}`}>Group</label><select id={`group-${entry.id}`} name="divisionGroup" defaultValue={entry.divisionGroup ?? ""}><option value="">Unassigned</option><option value={viewerGroup!}>Group {viewerGroup}</option></select><button className="govbtn-outline" type="submit">Save</button></form>}
-              {canManage && (canManageAll || entry.unit === (user?.division ?? null)) && (entry.robloxSynced ? <span className="hint">Membership managed by Roblox</span> : <>
-                <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>
-                <RemoveButton id={entry.id} action={removeRosterEntry} />
-              </>)}
+              {canManage && (canManageAll || entry.unit === (user?.division ?? null)) && !entry.robloxSynced && <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>}
+              {canControlStaff(session!.user.tiers, session!.user.providerUserId, user!.division, entry) && <RemoveButton id={entry.id} action={removeRosterEntry} label="Remove access" confirmMessage={`Remove ${entry.name} from the roster${entry.robloxUserId ? " and revoke this Roblox account's website access" : ""}? Group sync will not restore a revoked account.`} />}
             </div>}
           </article>)}
         </div>
@@ -143,6 +144,8 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
       <h1>Staff Roster</h1>
       {hasCapability(session.user.tiers, CAPABILITIES.SETTINGS_MANAGE) && <p><Link className="govbtn-outline" href="/98981/roster-sync">Roblox roster sync</Link></p>}
 
+      <details className="dashboard-fold roster-filter-fold" data-fold-key="roster-filters" open={Boolean(filters.q || filters.rank || filters.unit || filters.group || (filters.active && filters.active !== "all"))}>
+      <summary><span className="dashboard-fold-title">Search and filter staff</span></summary>
       <form method="get" className="formbox roster-filters" aria-label="Filter staff roster">
         <div className="field"><label htmlFor="roster-search">Search name or Discord ID</label><input id="roster-search" name="q" defaultValue={filters.q} /></div>
         <div className="field"><label htmlFor="roster-rank">Rank</label><select id="roster-rank" name="rank" defaultValue={filters.rank ?? ""}><option value="">All ranks</option>{ranks.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
@@ -151,6 +154,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
         <div className="field"><label htmlFor="roster-active">Roster status</label><select id="roster-active" name="active" defaultValue={filters.active ?? "all"}><option value="all">All</option><option value="yes">Active</option><option value="no">Inactive</option></select></div>
         <button className="govbtn" type="submit">Filter</button><Link className="govbtn-outline" href="/dashboard/roster">Clear</Link>
       </form>
+      </details>
 
       {filteredEntries.length === 0 ? (
         <div className="message">{entries.length ? "No staff match these filters." : "No roster entries yet."}</div>
@@ -191,23 +195,12 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
                   ))}
                 </select>
               </div>
-              <div className="field">
-                <label htmlFor="unit">
-                  Unit / Bureau <span className="hint">(optional. Determines which leadership position a leadership rank fills)</span>
-                </label>
-                <select id="unit" name="unit" defaultValue="">
-                  <option value="">No unit set</option>
-                  {divisions.map((u) => (
-                    <option key={u.value} value={u.value}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="divisionGroup">Criminal Division group <span className="hint">(optional; assigns a supervising SADA group)</span></label>
-                <select id="divisionGroup" name="divisionGroup" defaultValue=""><option value="">No group</option><option value="1">Group 1</option><option value="2">Group 2</option></select>
-              </div>
+              <DivisionRosterFields
+                divisions={divisions}
+                unitId="new-roster-unit"
+                unitHint="(optional. Determines which leadership position a leadership rank fills)"
+                groupHint="(optional; assigns a supervising SADA group)"
+              />
             </div>
             <div className="field-row">
               <div className="field">

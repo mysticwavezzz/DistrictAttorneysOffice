@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser, caseVisibilityWhere, canViewCases } from "@/lib/case-access";
+import { localUser, caseVisibilityWhere, canViewCases, canEditCase } from "@/lib/case-access";
 import { addFiling } from "@/app/dashboard/cases/actions";
 import { PdfUploadInput } from "@/components/pdf-upload-input";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
@@ -16,9 +16,11 @@ export default async function FileOnCasePage({ searchParams }: { searchParams: P
   if (!session?.user || !canViewCases(session.user.tiers)) redirect("/login?error=forbidden");
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
+  if (!canEditCase(session.user.tiers, user.division, user.division)) redirect("/dashboard/cases");
   const query = await searchParams;
+  const visibility = caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup);
   const cases = await prisma.case.findMany({
-    where: caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup) ?? { id: "__no-access__" },
+    where: { AND: [visibility ?? { id: "__no-access__" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT) ? [] : [{ division: user.division ?? "__no_division__" }])] },
     select: { id: true, caseNumber: true, title: true, isDraft: true },
     orderBy: { updatedAt: "desc" },
     take: 200,

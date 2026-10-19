@@ -47,6 +47,16 @@ export function CaseOpeningForm({
   const [caseType, setCaseType] = useState(revision?.type || "Criminal");
   const [judge, setJudge] = useState(revision?.assignedJudge ?? "");
   const [documentName, setDocumentName] = useState(revision?.filingTitle ?? "");
+  const [validationError, setValidationError] = useState("");
+
+  function advance() {
+    if (step === 0 && !caseTitle.trim()) {
+      setValidationError("Enter a case title before continuing.");
+      return;
+    }
+    setValidationError("");
+    setStep((current) => Math.min(steps.length - 1, current + 1));
+  }
 
   function updateParty(index: number, update: Partial<Party>) {
     setParties((current) => current.map((party, item) => item === index ? { ...party, ...update } : party));
@@ -80,14 +90,21 @@ export function CaseOpeningForm({
         ))}
       </ol>
 
-      <form action={createCase} className="case-opening-form" noValidate>
+      <form action={createCase} className="case-opening-form" noValidate onSubmit={(event) => {
+        if (!caseTitle.trim()) {
+          event.preventDefault();
+          setStep(0);
+          setValidationError("Enter a case title before submitting.");
+        }
+      }}>
+        {validationError && <p className="message error" role="alert">{validationError}</p>}
         {revision && <input type="hidden" name="reviseRequestId" value={revision.requestId} />}
         {revision?.caseNumber && <input type="hidden" name="caseNumber" value={revision.caseNumber} />}
         {revision && <input type="hidden" name="summary" value={revision.summary} />}
         <fieldset hidden={step !== 0}>
           <legend>Case information</legend>
           <div className="field-row">
-            <div className="field"><label htmlFor="case-title">Case title</label><input id="case-title" name="title" required maxLength={200} placeholder="Example: State v. PlayerName" value={caseTitle} onChange={(event) => setCaseTitle(event.target.value)} /></div>
+            <div className="field"><label htmlFor="case-title">Case title</label><input id="case-title" name="title" required maxLength={200} placeholder="Example: State v. PlayerName" value={caseTitle} aria-invalid={Boolean(validationError)} onChange={(event) => { setCaseTitle(event.target.value); setValidationError(""); }} /></div>
             <div className="field"><label htmlFor="case-type">Case type</label><input id="case-type" name="type" maxLength={100} placeholder="Criminal" value={caseType} onChange={(event) => setCaseType(event.target.value)} /></div>
           </div>
           <div className="field-row">
@@ -141,7 +158,7 @@ export function CaseOpeningForm({
         <div className="case-opening-controls">
           <button type="button" className="govbtn-outline" onClick={() => setStep((current) => Math.max(0, current - 1))} disabled={step === 0}>Back</button>
           {step < steps.length - 1 ? (
-            <button type="button" className="govbtn" onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}>Continue</button>
+            <button type="button" className="govbtn" onClick={advance}>Continue</button>
           ) : (
             <PendingSubmitButton label={revision ? "Resubmit for Review" : canCreate ? "Save Unfiled Case" : "Submit for Review"} pendingLabel="Saving…" />
           )}

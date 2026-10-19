@@ -19,6 +19,7 @@ import { getDivisionCaseAssignees, isAssignableAttorneyRank } from "@/lib/case-a
 describe("isAssignableAttorneyRank", () => {
   it.each([
     "Assistant District Attorney",
+    "Senior Assistant District Attorney",
     "Supervisory Assistant District Attorney",
     "Chief Assistant District Attorney",
     "Deputy District Attorney",

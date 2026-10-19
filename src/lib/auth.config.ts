@@ -5,7 +5,7 @@ import { resolveTiersFromRobloxRoles, capabilityMarkersForTiers } from "./permis
 import { ROBLOX_TIER_ROLE_MAPPINGS, type RobloxTierRoleMapping } from "@/config/roblox-role-mappings";
 import { env } from "./env";
 import { withDeveloperProfile } from "@/config/developer-profiles";
-import { DEVELOPER_PROFILE_TIER } from "./permissions/tiers";
+import { DEVELOPER_PROFILE_TIER, type PermissionTier } from "./permissions/tiers";
 import { mayUseCachedRoles } from "./role-refresh-policy";
 
 // Refresh on each auth request so Roblox role revocations take effect promptly.
@@ -44,18 +44,24 @@ export const authConfig = {
           const custom = token as typeof token & {
             configuredRobloxRoleMappings?: RobloxTierRoleMapping[];
             configuredTierCapabilities?: Record<string, string[]>;
+            groupTiers?: PermissionTier[];
           };
+          const groupTiers = resolveTiersFromRobloxRoles(roles, custom.configuredRobloxRoleMappings ?? ROBLOX_TIER_ROLE_MAPPINGS);
+          custom.groupTiers = groupTiers;
           const resolved = withDeveloperProfile(
             token.identityProvider,
             token.username,
-            resolveTiersFromRobloxRoles(roles, custom.configuredRobloxRoleMappings ?? ROBLOX_TIER_ROLE_MAPPINGS),
+            groupTiers,
             token.tiers?.includes(DEVELOPER_PROFILE_TIER) ?? false
           );
           token.tiers = [...resolved, ...capabilityMarkersForTiers(resolved, custom.configuredTierCapabilities ?? {})] as typeof token.tiers;
           token.tiersFetchedAt = now;
         } catch (error) {
           console.error("Failed to resolve Roblox group permissions", error);
-          if (!mayUseCachedRoles(token.tiersFetchedAt, now)) token.tiers = [];
+          if (!mayUseCachedRoles(token.tiersFetchedAt, now)) {
+            token.tiers = [];
+            (token as typeof token & { groupTiers?: PermissionTier[] }).groupTiers = [];
+          }
         }
       }
 

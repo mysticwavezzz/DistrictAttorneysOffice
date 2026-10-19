@@ -4,12 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { RANKS } from "@/config/ranks";
 import { UNITS } from "@/config/units";
-import { updateRosterEntry, removeRosterEntry } from "../actions";
+import { updateRosterEntry, removeRosterEntry, setRosterRankOverride } from "../actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
+import { DivisionRosterFields } from "@/components/division-roster-fields";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { localUser, canManageRosterInDivision, canManageUnassignedRosterEntry } from "@/lib/case-access";
 import { staffPageMetadata } from "@/lib/staff-metadata";
+import { canAssignStaffRank, canControlStaff } from "@/lib/staff-rank-control";
 
 export const metadata = staffPageMetadata("Staff Profile", "Review an employee roster entry and manage permitted roster details.", "/dashboard/roster");
 
@@ -36,6 +38,8 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
     getSiteConfiguration("divisions", UNITS),
   ]);
   const visibleDivisions = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) ? divisions : divisions.filter((division) => division.value === user.division);
+  const canControl = canControlStaff(session.user.tiers, session.user.providerUserId, user.division, entry);
+  const assignableRanks = ranks.filter((rank) => canAssignStaffRank(session.user.tiers, rank.value));
 
   return (
     <div>
@@ -55,42 +59,19 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
           </div>
           <div className="field">
             <label htmlFor="rank">Rank</label>
-            {entry.robloxSynced ? <>
-              <input type="text" id="rank" value={entry.rank ?? "Not assigned"} readOnly aria-describedby="synced-rank-hint" />
-              <span className="hint" id="synced-rank-hint">Synced from Roblox. Run a roster sync to update this rank.</span>
-              <input type="hidden" name="rank" value={entry.rank ?? ""} />
-            </> : <select id="rank" name="rank" defaultValue={entry.rank ?? ""} required>
-              <option value="" disabled>
-                Select a rank
-              </option>
-            {ranks.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>}
+            <input type="text" id="rank" value={entry.rank ?? "Not assigned"} readOnly />
+            <input type="hidden" name="rank" value={entry.rank ?? ""} />
+            {entry.rankOverride && <span className="hint">Manual rank override. Roblox rank: {entry.robloxRoleName ?? "not recorded"}.</span>}
           </div>
-          <div className="field">
-            <label htmlFor="unit">
-              Unit / Bureau <span className="hint">{!canManageRosterInDivision(session.user.tiers, user.division, entry.unit) ? "(select your division to assign this unassigned staff member)" : "(optional. Determines which leadership position a leadership rank fills)"}</span>
-            </label>
-            <select id="unit" name="unit" defaultValue={entry.unit ?? ""} required={!canManageRosterInDivision(session.user.tiers, user.division, entry.unit)}>
-              <option value="" disabled={!canManageRosterInDivision(session.user.tiers, user.division, entry.unit)}>{entry.unit ? "No unit set" : "Choose your division"}</option>
-              {visibleDivisions.map((u) => (
-                <option key={u.value} value={u.value}>
-                  {u.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="divisionGroup">Criminal Division group <span className="hint">(Group 1 or 2; sets the employee’s case-review team)</span></label>
-            <select id="divisionGroup" name="divisionGroup" defaultValue={entry.divisionGroup ?? ""}>
-              <option value="">No group assigned</option>
-              <option value="1">Group 1</option>
-              <option value="2">Group 2</option>
-            </select>
-          </div>
+          <DivisionRosterFields
+            divisions={visibleDivisions}
+            unitId="unit"
+            initialUnit={entry.unit ?? ""}
+            initialGroup={entry.divisionGroup ?? ""}
+            unitRequired={!canManageRosterInDivision(session.user.tiers, user.division, entry.unit)}
+            unitHint={!canManageRosterInDivision(session.user.tiers, user.division, entry.unit) ? "(select your division to assign this unassigned staff member)" : "(optional. Determines which leadership position a leadership rank fills)"}
+            groupHint="(Group 1 or 2; sets the employee’s case-review team)"
+          />
         </div>
         <div className="field-row">
           <div className="field">
@@ -137,16 +118,29 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
         </div>
       </FormWithPendingSubmit>
 
-      {!entry.robloxSynced && canManageRosterInDivision(session.user.tiers, user.division, entry.unit) && <RemoveButton
+      {canControl && <section className="formbox" style={{ marginTop: 16 }} aria-labelledby="rank-control-title">
+        <h2 id="rank-control-title">Rank and access</h2>
+        <p className="hint">{entry.robloxSynced ? "A manual rank replaces this member’s synced rank and site permissions until you restore the Roblox rank." : "Set this member’s roster rank and site permissions."}</p>
+        <FormWithPendingSubmit action={setRosterRankOverride} submitLabel="Save rank" pendingLabel="Saving rank…">
+          <input type="hidden" name="id" value={entry.id} />
+          <div className="field"><label htmlFor="rankOverride">Rank</label><select id="rankOverride" name="rankOverride" defaultValue={entry.rankOverride ?? (entry.robloxSynced ? "" : entry.rank ?? "")} required={!entry.robloxSynced}>
+            {entry.robloxSynced && <option value="">Use Roblox rank ({entry.robloxRoleName ?? entry.rank ?? "not recorded"})</option>}
+            {assignableRanks.map((rank) => <option key={rank.value} value={rank.value}>{rank.label}</option>)}
+          </select></div>
+        </FormWithPendingSubmit>
+      </section>}
+
+      {canControl && <RemoveButton
         id={entry.id}
         action={removeRosterEntry}
-        label="Remove from Roster"
+        label={entry.robloxUserId ? "Remove site access and roster entry" : "Remove from roster"}
         pendingLabel="Removing…"
         className="govbtn"
         style={{ background: "var(--down)", borderColor: "#6b2018" }}
         formStyle={{ marginTop: 16 }}
+        confirmMessage={entry.robloxUserId ? `Remove ${entry.name} from the roster and revoke website access for Roblox account ${entry.robloxUserId}? Group sync will not restore access.` : `Remove ${entry.name} from the roster?`}
       />}
-      {entry.robloxSynced && <p className="note-inline">This roster record is managed by Roblox group sync. Remove the member from the Roblox group and run a sync to mark them inactive.</p>}
+      {entry.robloxSynced && <p className="note-inline">Roblox still controls group membership. A manual rank override survives sync; removing site access prevents this account from being re-added by sync.</p>}
     </div>
   );
 }

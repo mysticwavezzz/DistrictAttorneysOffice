@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 
 const ASSIGNABLE_ATTORNEY_RANKS = [
   "Assistant District Attorney",
+  "Senior Assistant District Attorney",
+  // Retired label remains readable for historical roster rows until their next group sync.
   "Supervisory Assistant District Attorney",
   "Chief Assistant District Attorney",
   "Deputy District Attorney",
