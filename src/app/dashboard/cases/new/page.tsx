@@ -69,6 +69,7 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
       assignedJudge: asText(data.assignedJudge),
       assignedAttorneyId: asText(data.assignedAttorneyId),
       summary: asText(data.summary),
+      initialFilingDue: asText(data.initialFilingDue),
       discDue: asText(data.discDue),
       pretrial: asText(data.pretrial),
       appealBy: asText(data.appealBy),

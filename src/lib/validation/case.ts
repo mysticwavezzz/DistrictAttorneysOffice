@@ -9,6 +9,7 @@ export const caseInputSchema = z.object({
   assignedJudge: z.string().trim().max(120).optional().or(z.literal("")),
   stage: optionalText,
   disclosures: z.string().trim().max(2000).optional().or(z.literal("")),
+  initialFilingDue: optionalText,
   discGiven: optionalText,
   discDue: optionalText,
   pretrial: optionalText,

@@ -352,6 +352,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
               </div>
               <input type="hidden" name="summary" value={caseRecord.summary} />
               <input type="hidden" name="disclosures" value={caseRecord.disclosures ?? ""} />
+              <input type="hidden" name="initialFilingDue" value={toDateInputValue(caseRecord.initialFilingDue)} />
               <input type="hidden" name="discGiven" value={toDateInputValue(caseRecord.discGiven)} />
               <input type="hidden" name="discDue" value={toDateInputValue(caseRecord.discDue)} />
               <input type="hidden" name="pretrial" value={toDateInputValue(caseRecord.pretrial)} />
@@ -478,6 +479,11 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div className="field-row">
+          <div className="field">
+            <label htmlFor="initialFilingDue">Filing / portal reconciliation target</label>
+            <input type="date" id="initialFilingDue" name="initialFilingDue" defaultValue={toDateInputValue(caseRecord.initialFilingDue)} />
+            <small>Internal office target only. Not a court deadline. Reconcile an externally filed case instead of filing it again.</small>
+          </div>
           <div className="field">
             <label htmlFor="discGiven">Discovery provided</label>
             <input type="date" id="discGiven" name="discGiven" defaultValue={toDateInputValue(caseRecord.discGiven)} />

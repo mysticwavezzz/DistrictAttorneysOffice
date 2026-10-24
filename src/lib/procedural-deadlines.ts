@@ -5,6 +5,7 @@ export type ProceduralDeadlineCase = {
   createdAt: Date;
   assignedJudge?: string | null;
   courtFiledAt?: Date | null;
+  initialFilingDue?: Date | null;
   discDue: Date | null;
   pretrial: Date | null;
   appealBy: Date | null;
@@ -42,15 +43,16 @@ function manualDeadlineCutoff(date: Date): Date {
   return new Date(cutoff.getTime() + 59_999);
 }
 
-/** Only staff-entered dates are deadlines. Event dates never produce projections. */
+/** Only explicitly entered dates are reminders. Event dates never produce projections. */
 export function getProceduralDeadlines(item: ProceduralDeadlineCase): ProceduralDeadline[] {
   return [
+    ["manual-initialFilingDue", "Filing / portal reconciliation target (office)", item.courtFiledAt ? null : item.initialFilingDue],
     ["manual-discDue", "Discovery due", item.discDue],
     ["manual-pretrial", "Pretrial", item.pretrial],
     ["manual-appealBy", "Appeal by", item.appealBy],
   ]
     .filter((entry): entry is [string, string, Date] => entry[2] instanceof Date)
-    .map(([key, label, dueDate]) => ({ key, label, dueDate: manualDeadlineCutoff(dueDate), authority: "Manually entered" }))
+    .map(([key, label, dueDate]) => ({ key, label, dueDate: manualDeadlineCutoff(dueDate), authority: key === "manual-initialFilingDue" ? "Internal office target. Not court ordered." : "Manually entered" }))
     .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 }
 

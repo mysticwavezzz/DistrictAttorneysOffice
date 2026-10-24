@@ -41,7 +41,7 @@ export function caseDocketWhere(input: {
 export async function withOverdueCaseFilter(where: Prisma.CaseWhereInput, now = new Date()): Promise<Prisma.CaseWhereInput> {
   const candidates = await prisma.case.findMany({ where, select: {
     id: true, type: true, createdAt: true, assignedJudge: true, courtFiledAt: true,
-    discDue: true, pretrial: true, appealBy: true, arraignmentAt: true,
+    initialFilingDue: true, discDue: true, pretrial: true, appealBy: true, arraignmentAt: true,
     proofOfServiceAt: true, discoveryOrderAt: true, discoveryRequestedAt: true,
     motionServedAt: true, verdictAt: true, sentenceAt: true, finalJudgmentAt: true,
   } });

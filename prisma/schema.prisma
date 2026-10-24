@@ -108,6 +108,7 @@ model Case {
   partyDetails       String    @default("[]")
   assignedJudge      String?
   courtFiledAt       DateTime?
+  initialFilingDue   DateTime?
   discGiven          DateTime?
   discDue            DateTime?
   pretrial           DateTime?

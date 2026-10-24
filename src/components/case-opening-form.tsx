@@ -18,6 +18,7 @@ export type RevisionDraft = {
   assignedJudge: string;
   assignedAttorneyId: string;
   summary: string;
+  initialFilingDue: string;
   discDue: string;
   pretrial: string;
   appealBy: string;
@@ -122,6 +123,7 @@ export function CaseOpeningForm({
           </div>
           <h3>Key deadlines (optional)</h3>
           <div className="field-row">
+            <div className="field"><label htmlFor="initial-filing-due">Filing / portal reconciliation target</label><input id="initial-filing-due" type="date" name="initialFilingDue" defaultValue={revision?.initialFilingDue ?? ""} /><small>Internal office target only. Not a court deadline. Reconcile an externally filed case instead of filing it again.</small></div>
             <div className="field"><label htmlFor="disc-due">Discovery due</label><input id="disc-due" type="date" name="discDue" defaultValue={revision?.discDue ?? ""} /></div>
             <div className="field"><label htmlFor="pretrial-date">Pretrial</label><input id="pretrial-date" type="date" name="pretrial" defaultValue={revision?.pretrial ?? ""} /></div>
             <div className="field"><label htmlFor="appeal-date">Appeal deadline</label><input id="appeal-date" type="date" name="appealBy" defaultValue={revision?.appealBy ?? ""} /></div>
