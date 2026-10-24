@@ -65,6 +65,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}><RoleSyncButton /></SessionProvider>
           <p className="note-inline">Role sync checks your current Roblox group roles and refreshes your access. Discord is not used for website permissions.</p>
         </section>
+        <section className="formbox" aria-labelledby="local-automation-link-heading">
+          <h2 id="local-automation-link-heading" style={{ marginTop: 0 }}>Local case operations</h2>
+          <p className="note-inline">Manage a signed PowerShell credential for case lookup and assignment from this computer.</p>
+          <Link className="govbtn-outline" href="/settings/local-automation">Manage local access</Link>
+        </section>
         <section id="notifications" aria-labelledby="notifications-heading">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><h2 id="notifications-heading">Notifications</h2>{notifications.some((item) => !item.isRead) && <form action={markAllNotificationsRead}><button className="linklike" type="submit">Mark all as read</button></form>}</div>
           {!env.DISCORD_DM_NOTIFICATIONS && <p className="message" role="status">Discord direct messages are disabled. In-site notifications remain available here.</p>}

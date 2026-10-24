@@ -50,11 +50,11 @@ async function createCaseImpl(formData: FormData) {
   const data = parsed.data;
   const canAssign = canAssignCase(session.user.tiers, user.division);
   const canCreate = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
-  const assignedAttorneyId = canAssign ? emptyToNull(data.assignedAttorneyId) ?? user.id : user.id;
-  const assignedAttorney = await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { id: true, division: true, divisionGroup: true } });
-  if (!assignedAttorney || (assignedAttorneyId !== user.id && assignedAttorney.division !== user.division)) throw new Error("Choose an attorney in your division.");
-  if (session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assignedAttorney.divisionGroup !== user.divisionGroup) throw new Error("You can only assign cases to attorneys in your Criminal Division group.");
-  const caseGroup = user.division === "Criminal Division" ? assignedAttorney.divisionGroup ?? user.divisionGroup : null;
+  const assignedAttorneyId = canAssign ? emptyToNull(data.assignedAttorneyId) : null;
+  const assignedAttorney = assignedAttorneyId ? await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { id: true, division: true, divisionGroup: true } }) : null;
+  if (assignedAttorneyId && (!assignedAttorney || (assignedAttorneyId !== user.id && assignedAttorney.division !== user.division))) throw new Error("Choose an attorney in your division.");
+  if (assignedAttorneyId && session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assignedAttorney?.divisionGroup !== user.divisionGroup) throw new Error("You can only assign cases to attorneys in your Criminal Division group.");
+  const caseGroup = user.division === "Criminal Division" ? assignedAttorney?.divisionGroup ?? user.divisionGroup : null;
   if (requiresCriminalDivisionGroupForCaseCreation(session.user.tiers, user.division) && !caseGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN)) throw new Error("Assign the submitting attorney or selected attorney to Criminal Division Group 1 or 2 first.");
   const partyRows = formData.getAll("partyName").map((value, index) => ({ name: String(value).trim(), role: String(formData.getAll("partyRole")[index] ?? "") })).filter((party) => party.name);
   if (!partyRows.length || partyRows.length > 20) throw new Error("Add at least one party and no more than 20.");

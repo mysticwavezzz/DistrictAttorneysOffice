@@ -41,6 +41,25 @@ model User {
   deadlineReminders    DeadlineReminder[]
   aopcsSubmitted       Aopc[]              @relation("AopcSubmitted")
   aopcsReviewed        Aopc[]              @relation("AopcReviewed")
+  localAutomationTokens LocalAutomationToken[]
+}
+
+model LocalAutomationToken {
+  id             String    @id @default(cuid())
+  userId         String
+  activeForUserId String?  @unique
+  name           String
+  tokenHash      String    @unique
+  tokenPrefix    String
+  publicKeyPem   String
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
 }
 
 model Account {

@@ -119,7 +119,7 @@ export default async function CasesPage({
         </div>
       </header>
 
-      <p className="case-scope-note">{allAccessible ? "Showing every case you are permitted to access, including unassigned cases." : selectedStaff ? `Showing cases assigned to or filed by ${selectedStaff.displayName}.` : canFilterStaff ? "Showing your cases. Select an employee or all accessible cases below." : "Showing cases assigned to or filed by you."}</p>
+      <p className="case-scope-note">{allAccessible ? "Showing every case you are permitted to access, including unassigned cases." : selectedStaff ? `Showing cases assigned to ${selectedStaff.displayName}.` : canFilterStaff ? "Showing cases assigned to you. Select an employee or all accessible cases below." : "Showing cases assigned to you."}</p>
 
       {canFilterStaff && <form method="get" className="case-staff-filter">
         <input type="hidden" name="tab" value={tab} />

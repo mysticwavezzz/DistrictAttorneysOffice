@@ -118,7 +118,7 @@ export function CaseOpeningForm({
           </div>
           <div className="field-row">
             <div className="field"><label htmlFor="case-judge">Assigned judge</label><input id="case-judge" name="assignedJudge" maxLength={120} placeholder="Not assigned yet" value={judge} onChange={(event) => setJudge(event.target.value)} /></div>
-            {canAssign && <div className="field"><label htmlFor="case-attorney">Assigned attorney</label><select id="case-attorney" name="assignedAttorneyId" defaultValue={revision?.assignedAttorneyId ?? ""}><option value="">Assign to submitting officer</option>{attorneys.map((attorney) => <option key={attorney.id} value={attorney.id}>{attorney.displayName}</option>)}</select></div>}
+            {canAssign && <div className="field"><label htmlFor="case-attorney">Assigned attorney</label><select id="case-attorney" name="assignedAttorneyId" defaultValue={revision?.assignedAttorneyId ?? ""}><option value="">Leave unassigned</option>{attorneys.map((attorney) => <option key={attorney.id} value={attorney.id}>{attorney.displayName}</option>)}</select></div>}
           </div>
           <h3>Key deadlines (optional)</h3>
           <div className="field-row">

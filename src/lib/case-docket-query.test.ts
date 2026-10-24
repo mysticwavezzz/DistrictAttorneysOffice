@@ -15,14 +15,21 @@ const base = {
 };
 
 describe("My Cases docket scope", () => {
-  it("keeps the reviewer division and group when a broad title search is added", () => {
+  it("limits My Cases to directly assigned cases when a broad title search is added", () => {
     const where = caseDocketWhere({ ...base, q: "People" });
     expect(where).toEqual({ AND: [
       { AND: [{ division: "Criminal Division" }, { divisionGroup: "1" }, {}] },
-      { OR: [{ assignedAttorneyId: "attorney" }, { createdById: "attorney" }] },
+      { assignedAttorneyId: "attorney" },
       { archived: false },
       { OR: [{ title: { contains: "People" } }, { caseNumber: { contains: "People" } }, { assignedAttorney: { displayName: { contains: "People" } } }] },
     ] });
+  });
+
+  it("does not include cases only submitted by the selected employee", () => {
+    const where = caseDocketWhere({ ...base });
+    const conditions = Array.isArray(where?.AND) ? where.AND : [];
+    expect(conditions).toContainEqual({ assignedAttorneyId: "attorney" });
+    expect(conditions).not.toContainEqual({ OR: [{ assignedAttorneyId: "attorney" }, { createdById: "attorney" }] });
   });
 
   it("searches an exact case number across the active and archived tabs without dropping access scope", () => {

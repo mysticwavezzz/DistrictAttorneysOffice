@@ -20,7 +20,7 @@ export function caseDocketWhere(input: {
   if (!visibility) return null;
   const exactCaseNumber = normalizeExactCaseNumber(input.q);
   const conditions: Prisma.CaseWhereInput[] = [visibility];
-  if (input.ownerId) conditions.push({ OR: [{ assignedAttorneyId: input.ownerId }, { createdById: input.ownerId }] });
+  if (input.ownerId) conditions.push({ assignedAttorneyId: input.ownerId });
   if (exactCaseNumber) conditions.push({ caseNumber: exactCaseNumber });
   else {
     conditions.push({ archived: input.tab === "archived" });
