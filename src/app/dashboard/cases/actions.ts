@@ -247,7 +247,7 @@ async function fileCaseImpl(formData: FormData) {
         data: { caseId: id, title, pdfData: sourceFiling.pdfData, pdfFileName: sourceFiling.pdfFileName, addedById: user.id, status: nextStatus, isInitial: true, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt },
       });
     }
-    await tx.case.update({ where: { id }, data: { ...(filedAt ? { courtFiledAt: filedAt } : {}), updatedAt: new Date() } });
+    await tx.case.update({ where: { id }, data: { ...(filedAt ? { courtFiledAt: filedAt, initialFilingDue: null } : {}), updatedAt: new Date() } });
     await tx.caseComment.create({ data: {
       caseId: id,
       body: needsApproval ? `Initial complaint submitted for court-filing review by ${session.user.displayName}.` : `Case filed with the court by ${session.user.displayName}.`,
