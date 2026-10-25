@@ -23,6 +23,17 @@ export const CASE_STATUSES: CaseStatusOption[] = [
 
 export const CASE_STATUS_VALUES = CASE_STATUSES.map((s) => s.value) as [string, ...string[]];
 
+export function hasReachedChargesFiledStatus(
+  stage: string | null | undefined,
+  statuses: Pick<CaseStatusOption, "value">[] = CASE_STATUSES,
+): boolean {
+  if (!stage?.trim()) return false;
+  const normalizedStage = stage.trim().toLocaleLowerCase();
+  const chargesFiledIndex = statuses.findIndex((status) => status.value.trim().toLocaleLowerCase() === "charges filed");
+  const stageIndex = statuses.findIndex((status) => status.value.trim().toLocaleLowerCase() === normalizedStage);
+  return chargesFiledIndex >= 0 && stageIndex >= chargesFiledIndex;
+}
+
 export function caseStatusColor(value: string | null | undefined): StatusColor {
   return CASE_STATUSES.find((s) => s.value === value)?.color ?? "muted";
 }

@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser, canAccessCase, canViewCases, canEditCase, canAssignCase, canReviewDivision } from "@/lib/case-access";
-import { CASE_STATUSES, caseStatusColor } from "@/config/case-statuses";
+import { CASE_STATUSES, caseStatusColor, hasReachedChargesFiledStatus } from "@/config/case-statuses";
 import { updateCase, deleteCase, deleteFiling, addComment, fileCase, recordCourtFiling, recordAdditionalCourtFiling } from "../actions";
 import { submitCaseRequest } from "../requests/actions";
 import { getSiteConfiguration } from "@/lib/site-settings";
@@ -134,7 +134,8 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const draftInitial = initialFilings.find((filing) => filing.status === "DRAFT");
   const returnedInitial = initialFilings.find((filing) => filing.status === "REJECTED");
   const effectiveCourtFiledAt = caseRecord.courtFiledAt;
-  const courtFilingLabel = effectiveCourtFiledAt ? "Filed with court" : acceptedInitial ? "Approved in portal · date needed" : pendingInitial ? "Awaiting review" : returnedInitial ? "Returned for correction" : "Unfiled in court";
+  const chargesFiledByStatus = hasReachedChargesFiledStatus(caseRecord.stage, caseStatuses);
+  const courtFilingLabel = effectiveCourtFiledAt ? "Filed with court" : acceptedInitial ? "Approved in portal · date needed" : pendingInitial ? "Awaiting review" : returnedInitial ? "Returned for correction" : chargesFiledByStatus ? "Complaint filing not recorded" : "Unfiled in court";
   const courtFilingColor = effectiveCourtFiledAt ? "green" : acceptedInitial || pendingInitial ? "gold" : returnedInitial ? "red" : "muted";
   const activeDeadlines = getProceduralDeadlines({ ...caseRecord, courtFiledAt: effectiveCourtFiledAt });
   const ongoingObligations = getOngoingObligations(caseRecord);
@@ -243,6 +244,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const courtFilingSection = (
     <section className="case-court-filing" id="court-filing" aria-labelledby="court-filing-title">
       <div className="case-court-filing-heading"><div><p className="eyebrow">Court status</p><h2 id="court-filing-title">Initial case filing</h2></div><span className={`pill pill-${courtFilingColor}`}>{courtFilingLabel}</span></div>
+      {chargesFiledByStatus && <p className="note-inline">The case status has reached or passed “Charges Filed,” so that milestone is marked complete. Complaint submission and the actual court filing date remain tracked separately.</p>}
       {effectiveCourtFiledAt ? <p>Filed {dateTimeFormatter.format(effectiveCourtFiledAt)}{caseRecord.courtDocketUrl ? <> · <a href={caseRecord.courtDocketUrl} target="_blank" rel="noreferrer noopener">Open court record ↗</a></> : null}</p>
         : acceptedInitial ? <><p>Approved in the portal {acceptedInitialFiling?.reviewedAt ? dateTimeFormatter.format(acceptedInitialFiling.reviewedAt) : ""}. Portal approval and filing with the court are separate events; record the date and court source after the complaint is filed.</p>{canFileCourt && <form action={recordCourtFiling} className="case-court-filing-form"><input type="hidden" name="caseId" value={caseRecord.id}/><div className="field"><label htmlFor="court-filed-date">Actual court filing date</label><input id="court-filed-date" name="filedDate" type="date" required max={new Date().toISOString().slice(0, 10)}/></div><div className="field"><label htmlFor="court-docket-url">Court docket or source link</label><input id="court-docket-url" name="courtDocketUrl" type="url" maxLength={2000} required placeholder="https://discord.com/channels/…"/></div><PendingSubmitButton label="Record court filing" pendingLabel="Saving…" className="govbtn"/></form>}</>
           : pendingInitial ? <p>The initial complaint is in the Review Inbox. Portal approval will not mark it as filed with the court.</p>
@@ -278,7 +280,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const caseHeader = <header className="case-workspace-header">
     <div className="case-workspace-title">
       <div><p className="eyebrow">Case {caseRecord.caseNumber}</p><h1>{caseRecord.title}</h1><p className="subtitle">{caseRecord.type ?? "Case"} · Opened {courtDateFormatter.format(caseRecord.createdAt)}</p></div>
-      <div className="case-workspace-badges"><span className={`pill pill-${courtFilingColor}`}>{courtFilingLabel}</span><span className={`pill ${caseRecord.archived ? "pill-muted" : `pill-${statusColor}`}`}>{caseRecord.archived ? "Archived" : caseRecord.stage ?? "No case status"}</span>{caseRecord.isDraft && <span className="pill pill-muted">Internal draft</span>}</div>
+      <div className="case-workspace-badges"><span className={`pill pill-${courtFilingColor}`}>{courtFilingLabel}</span><span className={`pill ${caseRecord.archived ? "pill-muted" : `pill-${statusColor}`}`}>{caseRecord.archived ? "Archived" : caseRecord.stage ?? "No case status"}</span>{chargesFiledByStatus && <span className="pill pill-navy" title="Automatically marked from the case status; complaint filing is tracked separately">Charges filed milestone</span>}{caseRecord.isDraft && <span className="pill pill-muted">Internal draft</span>}</div>
     </div>
     <dl className="case-workspace-facts">
       <div><dt>Assigned attorney</dt><dd>{caseRecord.assignedAttorney?.displayName ?? "Unassigned"}</dd></div>

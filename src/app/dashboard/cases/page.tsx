@@ -5,13 +5,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser, canViewCases, canAssignCase, canEditCase } from "@/lib/case-access";
-import { caseStatusColor, CASE_STATUSES } from "@/config/case-statuses";
+import { caseStatusColor, CASE_STATUSES, hasReachedChargesFiledStatus } from "@/config/case-statuses";
 import { bulkUpdateCases, saveCaseFilter, deleteCaseFilter } from "./actions";
 import { getProceduralDeadlines, isCourtDeadlineOverdue, courtDeadlineDate } from "@/lib/procedural-deadlines";
 import { shareMetadata } from "@/lib/share-metadata";
 import { normalizeExactCaseNumber } from "@/lib/case-number-search";
 import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 import { caseDocketWhere, withOverdueCaseFilter } from "@/lib/case-docket-query";
+import { getSiteConfiguration } from "@/lib/site-settings";
 
 export const metadata = shareMetadata("My Cases", "Search assigned and accessible cases, review their status, and continue casework.", "/dashboard/cases");
 
@@ -35,6 +36,7 @@ export default async function CasesPage({
   const filters = await searchParams;
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
+  const caseStatuses = await getSiteConfiguration("caseStatuses", CASE_STATUSES);
   const canCreate = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
   const canPropose = hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
   const viewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL);
@@ -189,7 +191,8 @@ export default async function CasesPage({
             const initialPending = initialFiling?.status === "PENDING";
             const initialApproved = initialFiling?.status === "ACCEPTED";
             const initialRejected = initialFiling?.status === "REJECTED";
-            const courtStatus = courtFiledAt ? "Filed with court" : initialPending ? "Awaiting portal review" : initialApproved ? "Portal approved · date needed" : initialRejected ? "Returned for correction" : "Unfiled in court";
+            const chargesFiledByStatus = hasReachedChargesFiledStatus(c.stage, caseStatuses);
+            const courtStatus = courtFiledAt ? "Filed with court" : initialPending ? "Awaiting portal review" : initialApproved ? "Portal approved · date needed" : initialRejected ? "Returned for correction" : chargesFiledByStatus ? "Complaint filing not recorded" : "Unfiled in court";
             const deadlineOptions = getProceduralDeadlines({ ...c, courtFiledAt });
             const now = new Date();
             const nextDeadline = deadlineOptions.find((item) => item.dueDate >= now) ?? deadlineOptions.at(-1) ?? null;
@@ -202,7 +205,7 @@ export default async function CasesPage({
             } catch { partyRole = ""; }
             const yourRole = partyRole || (user && c.assignedAttorneyId === user.id ? "Assigned attorney" : user && c.createdById === user.id ? "Submitting officer" : "Office staff");
             return <article className="case-card" key={c.id}>
-              <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Internal draft</span>}</div></div><div className="case-card-statuses"><span className={`pill ${courtFiledAt ? "pill-green" : initialPending || initialApproved ? "pill-gold" : initialRejected ? "pill-red" : "pill-muted"}`}>{courtStatus}</span><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "No case status"}</span></div></header>
+              <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Internal draft</span>}</div></div><div className="case-card-statuses"><span className={`pill ${courtFiledAt ? "pill-green" : initialPending || initialApproved ? "pill-gold" : initialRejected ? "pill-red" : "pill-muted"}`}>{courtStatus}</span><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "No case status"}</span>{chargesFiledByStatus && <span className="pill pill-navy" title="Automatically marked from the case status; complaint filing is tracked separately">Charges filed milestone</span>}</div></header>
               <div className="case-card-meta"><span><small>Assigned attorney</small><strong>{c.assignedAttorney?.displayName ?? "Unassigned"}</strong></span><span><small>Court filing</small><strong>{courtStatus}</strong></span><span><small>Assigned judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Your role</small><strong>{yourRole}</strong></span><span><small>{nextDeadline?.label ?? "Next deadline"}</small><strong className={nextDeadline && isCourtDeadlineOverdue(nextDeadline.dueDate, now) ? "deadline-overdue" : undefined}>{nextDeadline ? courtDeadlineDate(nextDeadline.dueDate) : "Not set"}</strong></span></div>
               <details className="case-card-expand">
                 <summary aria-label={`Toggle details for ${c.caseNumber}`}><span className="case-card-expand-open">Hide case details</span><span className="case-card-expand-closed">Show recent filings and actions</span></summary>

@@ -7,6 +7,8 @@ import { canAccessCase, canEditCase, localUser } from "@/lib/case-access";
 import { getProceduralDeadlines, isCourtDeadlineOverdue } from "@/lib/procedural-deadlines";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 import { addReadinessTask, updateCaseTask } from "../../workbench-actions";
+import { CASE_STATUSES, hasReachedChargesFiledStatus } from "@/config/case-statuses";
+import { getSiteConfiguration } from "@/lib/site-settings";
 
 export const metadata = staffPageMetadata("Court Readiness", "Review open preparation items before a hearing or trial.", "/dashboard/cases");
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/New_York" });
@@ -36,6 +38,7 @@ export default async function CourtReadinessPage({ params }: { params: Promise<{
   } });
   if (!record) notFound();
   if (!canAccessCase(session.user.tiers, user.id, record, user.division, user.divisionGroup)) redirect("/login?error=forbidden");
+  const caseStatuses = await getSiteConfiguration("caseStatuses", CASE_STATUSES);
   const editable = canEditCase(session.user.tiers, user.division, record.division);
   const parties = parseParties(record.partyDetails);
   const witnesses = parties.filter((party) => party.role.toLocaleLowerCase() === "witness");
@@ -51,6 +54,7 @@ export default async function CourtReadinessPage({ params }: { params: Promise<{
   const motionFilings = record.filings.filter((filing) => /\bmotion\b/i.test(filing.title));
   const checks = [
     { label: "Attorney assigned", complete: Boolean(record.assignedAttorneyId), detail: record.assignedAttorney?.displayName ?? "No attorney assigned", href: `/dashboard/cases/${id}#edit-case` },
+    { label: "Charges filed milestone", complete: hasReachedChargesFiledStatus(record.stage, caseStatuses), detail: hasReachedChargesFiledStatus(record.stage, caseStatuses) ? `Automatically marked complete from case status “${record.stage}.” Complaint submission and the actual court filing remain separate.` : "The case status has not reached Charges Filed.", href: `/dashboard/cases/${id}#edit-case` },
     { label: "Hearing date entered", complete: record.events.length > 0 || Boolean(record.pretrial && record.pretrial.getTime() >= now.getTime()), detail: record.events[0] ? `${record.events[0].title} · ${dateFormat.format(record.events[0].startsAt)}` : record.pretrial && record.pretrial.getTime() >= now.getTime() ? `Pretrial · ${dateFormat.format(record.pretrial)}` : "No future court hearing or pretrial date is recorded", href: `/dashboard/cases/${id}/workbench#timeline` },
     { label: "Judge assigned", complete: Boolean(record.assignedJudge?.trim()), detail: record.assignedJudge || "No judge recorded", href: `/dashboard/cases/${id}#edit-case` },
     { label: "Initial filing recorded with the court", complete: initialFiled, detail: record.courtFiledAt ? `Filed ${dateFormat.format(record.courtFiledAt)}` : "No actual court filing date recorded", href: `/dashboard/cases/${id}#court-filing` },
