@@ -8,13 +8,14 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { staffPageMetadata } from "@/lib/staff-metadata";
-import { isDeveloperProfileIdentity } from "@/config/developer-profiles";
+import { hasActiveDeveloperProfile } from "@/lib/developer-profile-access";
 
 export const metadata = staffPageMetadata("Local Case Operations", "Manage signed local access for case lookup and assignment.", "/settings/local-automation");
 
 export default async function LocalAutomationPage() {
   const session = await auth();
   if (!session?.user?.providerUserId || session.user.identityProvider !== "roblox") redirect("/login?callbackUrl=/settings/local-automation");
+  if (!await hasActiveDeveloperProfile(session.user)) redirect("/settings?error=forbidden");
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
   const activeToken = await prisma.localAutomationToken.findFirst({
@@ -30,7 +31,7 @@ export default async function LocalAutomationPage() {
         <p className="lede">Run case lookups and attorney assignments from PowerShell without operating the portal by hand.</p>
         <p><Link href="/settings">Back to settings</Link></p>
         <LocalAutomationSettings
-          canCreate={isDeveloperProfileIdentity(session.user.identityProvider, session.user.username) && canAssignCase(session.user.tiers, user.division)}
+          canCreate={canAssignCase(session.user.tiers, user.division)}
           activeToken={activeToken ? {
             ...activeToken,
             createdAt: activeToken.createdAt.toISOString(),

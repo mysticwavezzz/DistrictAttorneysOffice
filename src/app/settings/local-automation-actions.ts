@@ -4,11 +4,11 @@ import { createHash, randomBytes, X509Certificate } from "node:crypto";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { localUser, canAssignCase } from "@/lib/case-access";
-import { isDeveloperProfileIdentity } from "@/config/developer-profiles";
+import { hasActiveDeveloperProfile } from "@/lib/developer-profile-access";
 
 export async function createLocalAutomationToken(input: { name: string; certificatePem: string }) {
   const session = await auth();
-  if (!session?.user?.providerUserId || !isDeveloperProfileIdentity(session.user.identityProvider, session.user.username)) throw new Error("Local case operations are restricted to the authorized owner account.");
+  if (!session?.user?.providerUserId || !await hasActiveDeveloperProfile(session.user)) throw new Error("Local case operations are restricted to the active Developer Profile.");
   const user = await localUser(session.user);
   if (!user) throw new Error("Your staff account could not be found.");
   if (!canAssignCase(session.user.tiers, user.division)) throw new Error("Your current access does not allow case assignments.");
@@ -59,7 +59,7 @@ export async function createLocalAutomationToken(input: { name: string; certific
 
 export async function revokeLocalAutomationToken(tokenId: string) {
   const session = await auth();
-  if (!session?.user?.providerUserId || session.user.identityProvider !== "roblox") throw new Error("Sign in with your Roblox account first.");
+  if (!session?.user?.providerUserId || session.user.identityProvider !== "roblox" || !await hasActiveDeveloperProfile(session.user)) throw new Error("Local case operations are restricted to the active Developer Profile.");
   const user = await localUser(session.user);
   if (!user) throw new Error("Your staff account could not be found.");
   const now = new Date();
