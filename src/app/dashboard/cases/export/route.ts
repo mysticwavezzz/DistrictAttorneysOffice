@@ -23,6 +23,8 @@ export async function GET(req: NextRequest) {
   const tab = searchParams.get("tab") === "archived" ? "archived" : "ongoing";
   const q = (searchParams.get("q") ?? "").trim();
   const status = (searchParams.get("status") ?? "").trim();
+  const filingStatusValue = (searchParams.get("filing") ?? "").trim();
+  const filingStatus = ["unfiled", "pending", "approved", "returned", "filed"].includes(filingStatusValue) ? filingStatusValue : "";
   const canFilterStaff = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION);
   const staffId = canFilterStaff && searchParams.get("mine") !== "1" ? searchParams.get("staff") : null;
   const allAccessible = staffId === "all";
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
     }),
   }, select: { id: true } }) : null;
   if (staffId && !allAccessible && !selectedStaff) return NextResponse.json({ error: "Invalid employee filter" }, { status: 400 });
-  let where = caseDocketWhere({ tiers: session.user.tiers, viewerId: user.id, viewerDivision: user.division, viewerGroup: user.divisionGroup, ownerId: allAccessible ? null : selectedStaff?.id ?? user.id, tab, q, status, reviewOnly: searchParams.get("review") === "1" });
+  let where = caseDocketWhere({ tiers: session.user.tiers, viewerId: user.id, viewerDivision: user.division, viewerGroup: user.divisionGroup, ownerId: allAccessible ? null : selectedStaff?.id ?? user.id, tab, q, status, filingStatus, reviewOnly: searchParams.get("review") === "1" });
   if (!where) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (searchParams.get("deadline") === "overdue") where = await withOverdueCaseFilter(where);
   const sorts = ["caseNumber", "title", "stage", "updatedAt"] as const;

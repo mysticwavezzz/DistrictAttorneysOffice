@@ -25,7 +25,7 @@ function fmt(date: Date | null): string {
 export default async function CasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string; status?: string; page?: string; size?: string; sort?: string; dir?: string; mine?: string; staff?: string; deadline?: string; review?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; status?: string; filing?: string; page?: string; size?: string; sort?: string; dir?: string; mine?: string; staff?: string; deadline?: string; review?: string }>;
 }) {
   const session = await auth();
   if (!session?.user || !canViewCases(session.user.tiers)) {
@@ -45,8 +45,9 @@ export default async function CasesPage({
   const q = (filters.q ?? "").trim();
   const exactCaseNumber = normalizeExactCaseNumber(q);
   const statusFilter = (filters.status ?? "").trim();
+  const filingStatus = ["unfiled", "pending", "approved", "returned", "filed"].includes(filters.filing ?? "") ? filters.filing! : "";
   const page = Math.max(1, Number.parseInt(filters.page ?? "1", 10) || 1);
-  const sortable = ["caseNumber", "title", "stage", "updatedAt"] as const;
+  const sortable = ["caseNumber", "title", "stage", "updatedAt", "assignedJudge", "courtFiledAt", "assignedAttorney"] as const;
   const sort = sortable.includes(filters.sort as (typeof sortable)[number])
     ? (filters.sort as (typeof sortable)[number])
     : "updatedAt";
@@ -75,7 +76,7 @@ export default async function CasesPage({
   }) : [];
 
   const ownerId = allAccessible ? null : selectedStaff?.id ?? user.id;
-  let where = caseDocketWhere({ tiers: session.user.tiers, viewerId: user.id, viewerDivision: user.division, viewerGroup: user.divisionGroup, ownerId, tab, q, status: statusFilter, reviewOnly });
+  let where = caseDocketWhere({ tiers: session.user.tiers, viewerId: user.id, viewerDivision: user.division, viewerGroup: user.divisionGroup, ownerId, tab, q, status: statusFilter, filingStatus, reviewOnly });
   if (!where) redirect("/login?error=forbidden");
 
   let cases: CaseWithAttorney[] = [];
@@ -84,7 +85,7 @@ export default async function CasesPage({
   try {
     if (overdueOnly) where = await withOverdueCaseFilter(where);
     [cases, totalCases] = await Promise.all([
-      prisma.case.findMany({ where, orderBy: { [sort]: direction }, include: { assignedAttorney: true, filings: { select: { id: true, title: true, url: true, pdfFileName: true, status: true, isInitial: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 3 } }, skip: (page - 1) * pageSize, take: pageSize }),
+      prisma.case.findMany({ where, orderBy: sort === "assignedAttorney" ? [{ assignedAttorney: { displayName: direction } }, { caseNumber: "asc" }] : { [sort]: direction }, include: { assignedAttorney: true, filings: { select: { id: true, title: true, url: true, pdfFileName: true, status: true, isInitial: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 3 } }, skip: (page - 1) * pageSize, take: pageSize }),
       prisma.case.count({ where }),
     ]);
   } catch (error) {
@@ -102,7 +103,7 @@ export default async function CasesPage({
   }
 
   const qs = (overrides: Record<string, string>) => {
-    const params = new URLSearchParams({ tab, q, status: statusFilter, page: String(page), size: String(pageSize), sort, dir: direction, ...(mineOnly ? { mine: "1" } : {}), ...(allAccessible ? { staff: "all" } : selectedStaff ? { staff: selectedStaff.id } : {}), ...(overdueOnly ? { deadline: "overdue" } : {}), ...(reviewOnly ? { review: "1" } : {}), ...overrides });
+    const params = new URLSearchParams({ tab, q, status: statusFilter, filing: filingStatus, page: String(page), size: String(pageSize), sort, dir: direction, ...(mineOnly ? { mine: "1" } : {}), ...(allAccessible ? { staff: "all" } : selectedStaff ? { staff: selectedStaff.id } : {}), ...(overdueOnly ? { deadline: "overdue" } : {}), ...(reviewOnly ? { review: "1" } : {}), ...overrides });
     for (const [key, value] of Array.from(params.entries())) {
       if (!value) params.delete(key);
     }
@@ -128,6 +129,7 @@ export default async function CasesPage({
         <input type="hidden" name="dir" value={direction} />
         {q && <input type="hidden" name="q" value={q} />}
         {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+        {filingStatus && <input type="hidden" name="filing" value={filingStatus} />}
         {overdueOnly && <input type="hidden" name="deadline" value="overdue" />}
         {reviewOnly && <input type="hidden" name="review" value="1" />}
         <label htmlFor="case-staff">Cases to show</label>
@@ -152,7 +154,8 @@ export default async function CasesPage({
         <div className="case-filter-grid">
           <div className="field"><label htmlFor="q">Search</label><input type="text" id="q" name="q" defaultValue={q} placeholder="Case #, title, attorney" /></div>
           <div className="field"><label htmlFor="status">Status</label><select id="status" name="status" defaultValue={statusFilter}><option value="">All statuses</option>{CASE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}{statusFilter && !CASE_STATUSES.some((s) => s.value === statusFilter) && <option value={statusFilter}>{statusFilter}</option>}</select></div>
-          <div className="field"><label htmlFor="case-sort">Sort by</label><select id="case-sort" name="sort" defaultValue={sort}><option value="updatedAt">Recently updated</option><option value="caseNumber">Case number</option><option value="title">Case title</option><option value="stage">Status</option></select></div>
+          <div className="field"><label htmlFor="filing">Court filing</label><select id="filing" name="filing" defaultValue={filingStatus}><option value="">All filing states</option><option value="unfiled">Not recorded with court</option><option value="pending">Awaiting portal review</option><option value="approved">Portal approved · date needed</option><option value="returned">Returned for correction</option><option value="filed">Filed with court</option></select></div>
+          <div className="field"><label htmlFor="case-sort">Sort by</label><select id="case-sort" name="sort" defaultValue={sort}><option value="updatedAt">Recently updated</option><option value="caseNumber">Case number</option><option value="title">Case title</option><option value="stage">Case stage</option><option value="courtFiledAt">Court filing date</option><option value="assignedAttorney">Assigned attorney</option><option value="assignedJudge">Assigned judge</option></select></div>
           <div className="field"><label htmlFor="case-direction">Order</label><select id="case-direction" name="dir" defaultValue={direction}><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
           <div className="field"><label htmlFor="case-page-size">Cases per page</label><select id="case-page-size" name="size" defaultValue={String(pageSize)}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></div>
         </div>
@@ -164,6 +167,7 @@ export default async function CasesPage({
           <Link href={`/dashboard/cases${qs({ tab: "ongoing", staff: "", mine: "1", deadline: "", review: "", page: "1" })}`}>My active cases</Link>
           <Link href={`/dashboard/cases${qs({ tab: "ongoing", mine: "", deadline: "overdue", review: "", page: "1" })}`}>Overdue deadlines</Link>
           <Link href={`/dashboard/cases${qs({ tab: "ongoing", mine: "", deadline: "", review: "1", page: "1" })}`}>Awaiting review</Link>
+          <Link href={`/dashboard/cases${qs({ tab: "ongoing", mine: "", deadline: "", review: "", filing: "unfiled", page: "1" })}`}>Court filing not recorded</Link>
         </nav><div className="case-tools-actions"><Link href={`/dashboard/cases/export${qs({})}`} className="govbtn-outline">Export CSV</Link><Link href="/dashboard/cases/calendar" className="govbtn-outline">Deadline Calendar</Link></div></div>
         {user && <div className="case-saved-filters">
           <form action={saveCaseFilter} className="case-save-filter-form"><input type="hidden" name="query" value={qs({ page: "1" })} /><div className="field"><label htmlFor="saved-filter-name">Save this view</label><input id="saved-filter-name" name="name" maxLength={60} required placeholder="Name this filter" /></div><button className="govbtn-outline" type="submit">Save view</button></form>
@@ -181,10 +185,11 @@ export default async function CasesPage({
           </div></div></details>
           <div className="case-card-list">{cases.map((c) => {
             const initialFiling = c.filings.find((filing) => filing.isInitial);
-            const courtFiledAt = c.courtFiledAt ?? (initialFiling?.status === "ACCEPTED" ? initialFiling.createdAt : legacyFiledAt.get(c.id) ?? null);
+            const courtFiledAt = c.courtFiledAt ?? legacyFiledAt.get(c.id) ?? null;
             const initialPending = initialFiling?.status === "PENDING";
+            const initialApproved = initialFiling?.status === "ACCEPTED";
             const initialRejected = initialFiling?.status === "REJECTED";
-            const courtStatus = courtFiledAt ? "Filed with court" : initialPending ? "Awaiting review" : initialRejected ? "Returned for correction" : "Unfiled in court";
+            const courtStatus = courtFiledAt ? "Filed with court" : initialPending ? "Awaiting portal review" : initialApproved ? "Portal approved · date needed" : initialRejected ? "Returned for correction" : "Unfiled in court";
             const deadlineOptions = getProceduralDeadlines({ ...c, courtFiledAt });
             const now = new Date();
             const nextDeadline = deadlineOptions.find((item) => item.dueDate >= now) ?? deadlineOptions.at(-1) ?? null;
@@ -197,12 +202,12 @@ export default async function CasesPage({
             } catch { partyRole = ""; }
             const yourRole = partyRole || (user && c.assignedAttorneyId === user.id ? "Assigned attorney" : user && c.createdById === user.id ? "Submitting officer" : "Office staff");
             return <article className="case-card" key={c.id}>
-              <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Internal draft</span>}</div></div><div className="case-card-statuses"><span className={`pill ${courtFiledAt ? "pill-green" : initialPending ? "pill-gold" : initialRejected ? "pill-red" : "pill-muted"}`}>{courtStatus}</span><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "No case status"}</span></div></header>
-              <div className="case-card-meta"><span><small>Court filing</small><strong>{fmt(courtFiledAt)}</strong></span><span><small>Assigned judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Your role</small><strong>{yourRole}</strong></span><span><small>{nextDeadline?.label ?? "Next deadline"}</small><strong className={nextDeadline && isCourtDeadlineOverdue(nextDeadline.dueDate, now) ? "deadline-overdue" : undefined}>{nextDeadline ? courtDeadlineDate(nextDeadline.dueDate) : "Not set"}</strong></span></div>
+              <header className="case-card-heading"><label className="case-select"><input type="checkbox" name="caseIds" value={c.id} aria-label={`Select ${c.caseNumber}: ${c.title}`} /></label><div><Link href={`/dashboard/cases/${c.id}`}><strong>{c.caseNumber} · {c.title}</strong></Link><div className="case-card-subtitle">{c.type ?? "Case"}{c.isDraft && <span className="pill pill-muted">Internal draft</span>}</div></div><div className="case-card-statuses"><span className={`pill ${courtFiledAt ? "pill-green" : initialPending || initialApproved ? "pill-gold" : initialRejected ? "pill-red" : "pill-muted"}`}>{courtStatus}</span><span className={`pill ${c.archived ? "pill-muted" : c.stage ? `pill-${color}` : "pill-muted"}`}>{c.archived ? "Archived" : c.stage ?? "No case status"}</span></div></header>
+              <div className="case-card-meta"><span><small>Assigned attorney</small><strong>{c.assignedAttorney?.displayName ?? "Unassigned"}</strong></span><span><small>Court filing</small><strong>{courtStatus}</strong></span><span><small>Assigned judge</small><strong>{c.assignedJudge ?? "Not assigned"}</strong></span><span><small>Your role</small><strong>{yourRole}</strong></span><span><small>{nextDeadline?.label ?? "Next deadline"}</small><strong className={nextDeadline && isCourtDeadlineOverdue(nextDeadline.dueDate, now) ? "deadline-overdue" : undefined}>{nextDeadline ? courtDeadlineDate(nextDeadline.dueDate) : "Not set"}</strong></span></div>
               <details className="case-card-expand">
                 <summary aria-label={`Toggle details for ${c.caseNumber}`}><span className="case-card-expand-open">Hide case details</span><span className="case-card-expand-closed">Show recent filings and actions</span></summary>
                 {c.filings.length > 0 && <div className="case-card-filings"><strong>Recent filings</strong><ul>{c.filings.map((filing) => <li key={filing.id}><span>{filing.title}{filing.pdfFileName && <> <a href={`/api/cases/filings/${filing.id}/pdf`} target="_blank" rel="noreferrer noopener">View PDF</a></>}</span><time dateTime={filing.createdAt.toISOString()}>{dateFormatter.format(filing.createdAt)}</time></li>)}</ul></div>}
-                <footer className="case-card-actions"><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}`}>Open case</Link>{!courtFiledAt && canEditCase(session.user.tiers, user.division, c.division) && <Link className="govbtn-outline" href={`/dashboard/cases/${c.id}#court-filing`}>{initialPending ? "Filing awaiting review" : "File with court"}</Link>}{canEditCase(session.user.tiers, user.division, c.division) && <Link className="govbtn-outline" href={`/dashboard/filings/new?caseId=${c.id}`}>File a document</Link>}</footer>
+                <footer className="case-card-actions"><Link className="govbtn-outline" href={`/dashboard/cases/${c.id}`}>Open case</Link>{!courtFiledAt && canEditCase(session.user.tiers, user.division, c.division) && <Link className="govbtn-outline" href={`/dashboard/cases/${c.id}#court-filing`}>{initialPending ? "Filing awaiting review" : initialApproved ? "Record court filing" : "File initial complaint"}</Link>}{canEditCase(session.user.tiers, user.division, c.division) && <Link className="govbtn-outline" href={`/dashboard/filings/new?caseId=${c.id}`}>File a document</Link>}</footer>
               </details>
             </article>;
           })}</div>

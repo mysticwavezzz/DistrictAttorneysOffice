@@ -14,48 +14,48 @@ model User {
   username         String
   displayName      String
   avatarUrl        String?
-    tiers            String   @default("")
-    division         String?
-    divisionGroup    String?
+  tiers            String   @default("")
+  division         String?
+  divisionGroup    String?
   mutedTypes       String   @default("")
   pushMutedTypes   String   @default("")
   savedCaseFilters String   @default("[]")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  accounts             Account[]
-  sessions             Session[]
-  assignedCases        Case[]              @relation("AssignedAttorney")
-  createdCases         Case[]              @relation("CreatedBy")
-  createdAnnouncements Announcement[]      @relation("CreatedAnnouncements")
-  filingsAdded         CaseFiling[]        @relation("FilingsAdded")
-  aiFilingReviews      FilingAiReview[]    @relation("FilingAiReviewActor")
-  commentsAuthored     CaseComment[]       @relation("CommentsAuthored")
-  requestsSubmitted    CaseActionRequest[] @relation("RequestsSubmitted")
-  requestsReviewed     CaseActionRequest[] @relation("RequestsReviewed")
-  notifications        Notification[]
-  pushSubscriptions    PushSubscription[]
-  contactTickets      ContactTicket[] @relation("ContactTicketRequester")
-  assignedContactTickets ContactTicket[] @relation("ContactTicketAssignee")
-  contactMessages     ContactMessage[]
-  deadlineReminders    DeadlineReminder[]
-  aopcsSubmitted       Aopc[]              @relation("AopcSubmitted")
-  aopcsReviewed        Aopc[]              @relation("AopcReviewed")
-  localAutomationTokens LocalAutomationToken[]
+  accounts               Account[]
+  sessions               Session[]
+  assignedCases          Case[]                 @relation("AssignedAttorney")
+  createdCases           Case[]                 @relation("CreatedBy")
+  createdAnnouncements   Announcement[]         @relation("CreatedAnnouncements")
+  filingsAdded           CaseFiling[]           @relation("FilingsAdded")
+  aiFilingReviews        FilingAiReview[]       @relation("FilingAiReviewActor")
+  commentsAuthored       CaseComment[]          @relation("CommentsAuthored")
+  requestsSubmitted      CaseActionRequest[]    @relation("RequestsSubmitted")
+  requestsReviewed       CaseActionRequest[]    @relation("RequestsReviewed")
+  notifications          Notification[]
+  pushSubscriptions      PushSubscription[]
+  contactTickets         ContactTicket[]        @relation("ContactTicketRequester")
+  assignedContactTickets ContactTicket[]        @relation("ContactTicketAssignee")
+  contactMessages        ContactMessage[]
+  deadlineReminders      DeadlineReminder[]
+  aopcsSubmitted         Aopc[]                 @relation("AopcSubmitted")
+  aopcsReviewed          Aopc[]                 @relation("AopcReviewed")
+  localAutomationTokens  LocalAutomationToken[]
 }
 
 model LocalAutomationToken {
-  id             String    @id @default(cuid())
-  userId         String
-  activeForUserId String?  @unique
-  name           String
-  tokenHash      String    @unique
-  tokenPrefix    String
-  publicKeyPem   String
-  createdAt      DateTime  @default(now())
-  expiresAt      DateTime
-  lastUsedAt     DateTime?
-  revokedAt      DateTime?
+  id              String    @id @default(cuid())
+  userId          String
+  activeForUserId String?   @unique
+  name            String
+  tokenHash       String    @unique
+  tokenPrefix     String
+  publicKeyPem    String
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -99,40 +99,41 @@ model VerificationToken {
 }
 
 model Case {
-  id                 String    @id @default(cuid())
-  caseNumber         String    @unique
-  title              String
-  type               String?
-  stage              String?
-  disclosures        String?
-  partyDetails       String    @default("[]")
-  assignedJudge      String?
-  courtFiledAt       DateTime?
-  initialFilingDue   DateTime?
-  discGiven          DateTime?
-  discDue            DateTime?
-  pretrial           DateTime?
-  otherDates         String?
-  outcome            String?
-  closedOn           DateTime?
-  appealBy           DateTime?
-  arraignmentAt      DateTime?
-  proofOfServiceAt   DateTime?
-  discoveryOrderAt   DateTime?
+  id                   String    @id @default(cuid())
+  caseNumber           String    @unique
+  title                String
+  type                 String?
+  stage                String?
+  disclosures          String?
+  partyDetails         String    @default("[]")
+  assignedJudge        String?
+  courtFiledAt         DateTime?
+  courtDocketUrl       String?
+  initialFilingDue     DateTime?
+  discGiven            DateTime?
+  discDue              DateTime?
+  pretrial             DateTime?
+  otherDates           String?
+  outcome              String?
+  closedOn             DateTime?
+  appealBy             DateTime?
+  arraignmentAt        DateTime?
+  proofOfServiceAt     DateTime?
+  discoveryOrderAt     DateTime?
   discoveryRequestedAt DateTime?
-  motionServedAt      DateTime?
-  verdictAt          DateTime?
-  sentenceAt         DateTime?
-  finalJudgmentAt    DateTime?
-  archived           Boolean   @default(false)
-  isDraft            Boolean   @default(false)
-    summary            String
-    division           String?
-    divisionGroup      String?
-  assignedAttorneyId String?
-  createdById        String
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  motionServedAt       DateTime?
+  verdictAt            DateTime?
+  sentenceAt           DateTime?
+  finalJudgmentAt      DateTime?
+  archived             Boolean   @default(false)
+  isDraft              Boolean   @default(false)
+  summary              String
+  division             String?
+  divisionGroup        String?
+  assignedAttorneyId   String?
+  createdById          String
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   assignedAttorney  User?               @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
   createdBy         User                @relation("CreatedBy", fields: [createdById], references: [id])
@@ -143,45 +144,54 @@ model Case {
   relatedFrom       Case[]              @relation("CaseRelations")
   aopcs             Aopc[]
   deadlineReminders DeadlineReminder[]
+  events            CaseEvent[]
+  evidence          CaseEvidence[]
+  tasks             CaseTask[]
+  aiRuns            CaseAiRun[]
 
   @@index([archived])
 }
 
 model CaseFiling {
-  id        String   @id @default(cuid())
-  caseId    String
-  title     String
-  url       String?
-  pdfData   String?
-  pdfFileName String?
-  addedById String
-  status    String   @default("ACCEPTED")
-  isInitial Boolean  @default(false)
+  id           String    @id @default(cuid())
+  caseId       String
+  title        String
+  url          String?
+  pdfData      String?
+  pdfFileName  String?
+  addedById    String
+  status       String    @default("ACCEPTED")
+  isInitial    Boolean   @default(false)
   reviewedById String?
-  reviewNote String?
-  reviewedAt DateTime?
-  createdAt DateTime @default(now())
+  reviewNote   String?
+  reviewedAt   DateTime?
+  supersedesId String?
+  revisionNote String?
+  createdAt    DateTime  @default(now())
 
-  case    Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  addedBy User @relation("FilingsAdded", fields: [addedById], references: [id])
-  aiReviews FilingAiReview[]
+  case       Case                 @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  addedBy    User                 @relation("FilingsAdded", fields: [addedById], references: [id])
+  supersedes CaseFiling?          @relation("CaseFilingVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  revisions  CaseFiling[]         @relation("CaseFilingVersions")
+  textIndex  CaseFilingTextIndex?
+  aiReviews  FilingAiReview[]
 
   @@index([status, createdAt])
 }
 
 model FilingAiReview {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   filingId            String
-  activeFilingId      String?  @unique
+  activeFilingId      String?   @unique
   requestedById       String
-  status              String   @default("RUNNING")
+  status              String    @default("RUNNING")
   modelId             String
   promptVersion       String
   sourceBundleVersion String
   documentSha256      String
   resultJson          String?
   failureCode         String?
-  createdAt           DateTime @default(now())
+  createdAt           DateTime  @default(now())
   completedAt         DateTime?
 
   filing      CaseFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
@@ -189,6 +199,37 @@ model FilingAiReview {
 
   @@index([filingId, createdAt])
   @@index([requestedById, createdAt])
+}
+
+model CaseFilingTextIndex {
+  id         String   @id @default(cuid())
+  filingId   String   @unique
+  sha256     String
+  pagesJson  String
+  searchText String
+  characters Int
+  indexedAt  DateTime @default(now())
+
+  filing CaseFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([sha256])
+}
+
+model LegalSource {
+  id            String   @id @default(cuid())
+  title         String
+  citation      String   @default("")
+  category      String
+  sourceUrl     String?
+  version       String   @default("")
+  content       String
+  isActive      Boolean  @default(true)
+  updatedById   String
+  updatedByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([category, isActive, updatedAt])
 }
 
 model CaseComment {
@@ -203,14 +244,110 @@ model CaseComment {
   author User? @relation("CommentsAuthored", fields: [authorId], references: [id])
 }
 
+model CaseEvent {
+  id             String    @id @default(cuid())
+  caseId         String
+  title          String
+  kind           String    @default("OFFICE")
+  startsAt       DateTime
+  endsAt         DateTime?
+  isCourtOrdered Boolean   @default(false)
+  details        String    @default("")
+  sourceUrl      String?
+  createdById    String
+  createdByName  String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, startsAt])
+  @@index([startsAt, isCourtOrdered])
+}
+
+model CaseEvidence {
+  id            String   @id @default(cuid())
+  caseId        String
+  title         String
+  kind          String   @default("DOCUMENT")
+  sourceName    String   @default("")
+  sourceUrl     String?
+  fileName      String?
+  sha256        String?
+  receivedAt    DateTime @default(now())
+  notes         String   @default("")
+  createdById   String
+  createdByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, receivedAt])
+  @@index([kind, createdAt])
+}
+
+model CaseTask {
+  id              String    @id @default(cuid())
+  caseId          String
+  title           String
+  details         String    @default("")
+  sourceReference String    @default("")
+  status          String    @default("OPEN")
+  dueAt           DateTime?
+  assignedToId    String?
+  assignedToName  String?
+  createdById     String
+  createdByName   String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, status, dueAt])
+  @@index([assignedToId, status, dueAt])
+}
+
+model CaseAiRun {
+  id                  String    @id @default(cuid())
+  caseId              String
+  requestedById       String
+  requestedByName     String
+  action              String
+  status              String    @default("QUEUED")
+  modelId             String
+  promptVersion       String
+  sourceBundleVersion String
+  sourceHash          String
+  cacheHit            Boolean   @default(false)
+  resultJson          String?
+  failureCode         String?
+  latencyMs           Int?
+  inputTokens         Int?
+  outputTokens        Int?
+  reviewerFeedback    String?
+  reviewerNote        String?
+  reviewedById        String?
+  reviewedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@index([status, createdAt])
+  @@index([sourceHash, promptVersion, modelId])
+}
+
 model CaseActionRequest {
   id            String    @id @default(cuid())
   kind          String
   caseId        String?
   status        String    @default("PENDING")
-    proposedData  String
-    division      String?
-    divisionGroup String?
+  proposedData  String
+  division      String?
+  divisionGroup String?
   requestedById String
   reviewedById  String?
   reviewNote    String?
@@ -254,19 +391,19 @@ model PushSubscription {
 }
 
 model ContactTicket {
-  id           String   @id @default(cuid())
-  subject      String
-  status       String   @default("OPEN")
-  division     String?
-  requesterId  String
-  assigneeId   String?
-  heldAt       DateTime?
-  closedAt     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String    @id @default(cuid())
+  subject     String
+  status      String    @default("OPEN")
+  division    String?
+  requesterId String
+  assigneeId  String?
+  heldAt      DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  requester User  @relation("ContactTicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  assignee  User? @relation("ContactTicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  requester User             @relation("ContactTicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  assignee  User?            @relation("ContactTicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   messages  ContactMessage[]
 
   @@index([requesterId, status, updatedAt])
@@ -324,25 +461,25 @@ model Announcement {
 }
 
 model RosterEntry {
-  id            String    @id @default(cuid())
-  name          String
-  discordUserId String?
-  robloxUserId  String?   @unique
-  robloxSynced  Boolean   @default(false)
-  robloxRoleId  String?
-  robloxRank    Int?
-  robloxRoleName String?
-  rankOverride  String?
+  id               String    @id @default(cuid())
+  name             String
+  discordUserId    String?
+  robloxUserId     String?   @unique
+  robloxSynced     Boolean   @default(false)
+  robloxRoleId     String?
+  robloxRank       Int?
+  robloxRoleName   String?
+  rankOverride     String?
   lastRobloxSyncAt DateTime?
-    rank          String?
-    unit          String?
-    divisionGroup String?
-  imageUrl      String?
-  about         String?
-  startDate     DateTime?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  rank             String?
+  unit             String?
+  divisionGroup    String?
+  imageUrl         String?
+  about            String?
+  startDate        DateTime?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
 
 model RevokedStaffAccess {
@@ -353,18 +490,18 @@ model RevokedStaffAccess {
 }
 
 model RobloxRosterSyncRun {
-  id             String   @id @default(cuid())
-  actorName      String
-  groupId        String
-  status         String   @default("PREVIEW")
-  previewData    String
-  additions      Int      @default(0)
-  updates        Int      @default(0)
-  inactivations  Int      @default(0)
-  exceptions     Int      @default(0)
-  createdAt      DateTime @default(now())
-  expiresAt      DateTime
-  appliedAt      DateTime?
+  id            String    @id @default(cuid())
+  actorName     String
+  groupId       String
+  status        String    @default("PREVIEW")
+  previewData   String
+  additions     Int       @default(0)
+  updates       Int       @default(0)
+  inactivations Int       @default(0)
+  exceptions    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  appliedAt     DateTime?
 
   @@index([createdAt])
   @@index([status, expiresAt])

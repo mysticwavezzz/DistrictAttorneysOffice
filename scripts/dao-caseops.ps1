@@ -6,22 +6,25 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "attorneys", "assign")]
+  [ValidateSet("setup", "save-token", "cases", "attorneys", "assign", "reconcile")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
   [string]$Scope = "mine",
 
   [string]$CaseNumber,
+  [string[]]$CaseNumbers,
   [string]$AssigneeId,
+  [string]$ExportPath,
+  [switch]$Local,
   [switch]$Apply
 )
 
 $ErrorActionPreference = "Stop"
-$script:DefaultBaseUrl = "https://districtattorneysoffice-production.up.railway.app"
+$script:DefaultBaseUrl = if ($Local) { "http://localhost:3000" } else { "https://districtattorneysoffice-production.up.railway.app" }
 $script:ConfigDirectory = Join-Path $env:LOCALAPPDATA "DistrictAttorneyCaseOps"
-$script:ConfigPath = Join-Path $script:ConfigDirectory "config.json"
-$script:CredentialPath = Join-Path $script:ConfigDirectory "credential.dpapi"
+$script:ConfigPath = Join-Path $script:ConfigDirectory $(if ($Local) { "config-local.json" } else { "config.json" })
+$script:CredentialPath = Join-Path $script:ConfigDirectory $(if ($Local) { "credential-local.dpapi" } else { "credential.dpapi" })
 $script:CertificateSubject = "CN=Harrison DAO Local CaseOps Device Key"
 
 function Ensure-ConfigDirectory {
@@ -34,7 +37,9 @@ function Get-LocalConfig {
   if (-not (Test-Path -LiteralPath $script:ConfigPath)) {
     throw "Run 'setup' first: pwsh -File .\scripts\dao-caseops.ps1 setup"
   }
-  return (Get-Content -LiteralPath $script:ConfigPath -Raw | ConvertFrom-Json)
+  $config = Get-Content -LiteralPath $script:ConfigPath -Raw | ConvertFrom-Json
+  if ($Local -and $config.baseUrl -ne "http://localhost:3000") { throw "The local profile must point to http://localhost:3000. Run setup -Local first." }
+  return $config
 }
 
 function Initialize-LocalKey {
@@ -189,39 +194,75 @@ switch ($Command) {
     $cases | Select-Object caseNumber, title, stage, division, divisionGroup, @{ Name = "Assigned"; Expression = { $_.assignedAttorney.displayName ?? "Unassigned" } }, @{ Name = "Submitted By"; Expression = { $_.createdBy.displayName } }, archived | Format-Table -AutoSize
     Write-Host "$($cases.Count) case(s). Scope: $Scope."
   }
+  "reconcile" {
+    $cases = Get-DaoCases -RequestedScope $Scope | Where-Object { -not $_.archived }
+    $today = [DateTimeOffset]::Now
+    $report = foreach ($case in $cases) {
+      $issues = [System.Collections.Generic.List[string]]::new()
+      if (-not $case.assignedAttorneyId) { $issues.Add("Unassigned") }
+      if (-not $case.courtFiledAt -and $case.initialFilingStatus -ne "ACCEPTED") { $issues.Add("Court filing not recorded") }
+      if (-not $case.stage) { $issues.Add("Stage not set") }
+      if ($case.initialFilingDue -and [DateTimeOffset]::Parse($case.initialFilingDue) -lt $today -and $case.initialFilingStatus -ne "ACCEPTED") { $issues.Add("Initial filing target overdue") }
+      [pscustomobject]@{
+        CaseNumber = $case.caseNumber
+        Title = $case.title
+        Division = $case.division
+        Attorney = if ($case.assignedAttorney) { $case.assignedAttorney.displayName } else { "Unassigned" }
+        Stage = $case.stage
+        CourtFiledAt = $case.courtFiledAt
+        InitialFilingStatus = $case.initialFilingStatus ?? "Not submitted"
+        LastFilingAt = $case.latestFilingAt
+        AopcCount = $case.aopcCount
+        ReviewFlags = $issues -join "; "
+      }
+    }
+    $report | Format-Table -AutoSize
+    $flagged = @($report | Where-Object ReviewFlags)
+    Write-Host "$($cases.Count) open case(s); $($flagged.Count) have reconciliation flags. This report is read-only."
+    if ($ExportPath) {
+      $parent = Split-Path -Parent $ExportPath
+      if ($parent -and -not (Test-Path -LiteralPath $parent)) { throw "Export folder does not exist: $parent" }
+      $report | Export-Csv -LiteralPath $ExportPath -NoTypeInformation -Encoding utf8
+      Write-Host "Reconciliation CSV saved to $ExportPath"
+    }
+  }
   "attorneys" {
     $result = Invoke-DaoApi -Method GET -Path "/api/automation/attorneys"
     $result.items | Select-Object displayName, id | Format-Table -AutoSize
     Write-Host "$($result.items.Count) eligible attorney(s). Use the ID when assigning."
   }
   "assign" {
-    if (-not $CaseNumber) { throw "Provide -CaseNumber." }
+    $requestedNumbers = @($CaseNumbers) + @($CaseNumber) | Where-Object { $_ } | Select-Object -Unique
+    if (-not $requestedNumbers.Count) { throw "Provide -CaseNumber or -CaseNumbers." }
     if (-not $AssigneeId) { throw "Provide -AssigneeId, or use UNASSIGNED to clear the assignment." }
-    $case = Get-DaoCases -RequestedScope "all" | Where-Object caseNumber -eq $CaseNumber | Select-Object -First 1
-    if (-not $case) { throw "Case $CaseNumber was not found in the cases this account may assign." }
+    $allCases = Get-DaoCases -RequestedScope "all"
+    $targets = foreach ($number in $requestedNumbers) {
+      $match = $allCases | Where-Object caseNumber -eq $number | Select-Object -First 1
+      if (-not $match) { throw "Case $number was not found in the cases this account may assign." }
+      $match
+    }
 
     $assignee = $null
     if ($AssigneeId -ne "UNASSIGNED") {
       $assignee = (Invoke-DaoApi -Method GET -Path "/api/automation/attorneys").items | Where-Object id -eq $AssigneeId | Select-Object -First 1
       if (-not $assignee) { throw "That attorney is not in the eligible list for this account." }
     }
-    $currentName = if ($case.assignedAttorney) { $case.assignedAttorney.displayName } else { "Unassigned" }
     $nextName = if ($assignee) { $assignee.displayName } else { "Unassigned" }
-    Write-Host "$($case.caseNumber) · $($case.title)"
-    Write-Host "Current assignment: $currentName"
-    Write-Host "Proposed assignment: $nextName"
+    $preview = foreach ($case in $targets) {
+      [pscustomobject]@{ CaseNumber = $case.caseNumber; Title = $case.title; CurrentAttorney = if ($case.assignedAttorney) { $case.assignedAttorney.displayName } else { "Unassigned" }; ProposedAttorney = $nextName }
+    }
+    $preview | Format-Table -AutoSize
     if (-not $Apply) {
-      Write-Host "Preview only. Add -Apply to make this assignment; PowerShell will ask for confirmation."
+      Write-Host "Preview only for $($targets.Count) case(s). Add -Apply to apply each assignment; PowerShell will ask for confirmation."
       break
     }
-    if ($PSCmdlet.ShouldProcess($case.caseNumber, "Assign to $nextName")) {
-      $payload = @{
-        expectedAssignedAttorneyId = $case.assignedAttorneyId
-        assignedAttorneyId = if ($assignee) { $assignee.id } else { $null }
-      } | ConvertTo-Json -Compress
-      $safeCaseNumber = [uri]::EscapeDataString($case.caseNumber)
-      $result = Invoke-DaoApi -Method POST -Path "/api/automation/cases/$safeCaseNumber/assignment" -Body $payload
-      if ($result.changed) { Write-Host "Assignment saved for $($result.case.caseNumber)." } else { Write-Host "No change. $($result.case.caseNumber) is already assigned to $nextName." }
+    foreach ($case in $targets) {
+      if ($PSCmdlet.ShouldProcess($case.caseNumber, "Assign to $nextName")) {
+        $payload = @{ expectedAssignedAttorneyId = $case.assignedAttorneyId; assignedAttorneyId = if ($assignee) { $assignee.id } else { $null } } | ConvertTo-Json -Compress
+        $safeCaseNumber = [uri]::EscapeDataString($case.caseNumber)
+        $result = Invoke-DaoApi -Method POST -Path "/api/automation/cases/$safeCaseNumber/assignment" -Body $payload
+        if ($result.changed) { Write-Host "Assignment saved for $($result.case.caseNumber)." } else { Write-Host "No change. $($result.case.caseNumber) is already assigned to $nextName." }
+      }
     }
   }
 }

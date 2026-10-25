@@ -11,6 +11,7 @@ const base = {
   tab: "ongoing" as const,
   q: "",
   status: "",
+  filingStatus: "",
   reviewOnly: false,
 };
 
@@ -59,5 +60,22 @@ describe("My Cases docket scope", () => {
   it("shows the complete docket for a sitewide case viewer", () => {
     const where = caseDocketWhere({ ...base, tiers: ["district_attorney"], ownerId: null });
     expect(where).toEqual({ AND: [{}, { archived: false }] });
+  });
+
+  it("keeps portal approval separate from an actual court filing date", () => {
+    const where = caseDocketWhere({ ...base, filingStatus: "approved" });
+    const conditions = Array.isArray(where?.AND) ? where.AND : [];
+    expect(conditions).toContainEqual({ courtFiledAt: null });
+    expect(conditions).toContainEqual({ filings: { some: { isInitial: true, status: "ACCEPTED" } } });
+  });
+
+  it("filters by actual court filing date rather than the portal filing decision", () => {
+    const where = caseDocketWhere({ ...base, filingStatus: "filed" });
+    expect(where).toEqual({ AND: [
+      { AND: [{ division: "Criminal Division" }, { divisionGroup: "1" }, {}] },
+      { assignedAttorneyId: "attorney" },
+      { archived: false },
+      { courtFiledAt: { not: null } },
+    ] });
   });
 });

@@ -25,6 +25,13 @@ export default async function AdminStatusPage() {
     getSiteConfiguration<Record<string, string[]>>("tierCapabilities", {}),
     getSiteConfiguration("crimeTipForm", CRIME_TIP_FORM),
   ]);
+  const failureWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [failedCaseAi, failedFilingAi, pdfPayloadRows] = await Promise.all([
+    prisma.caseAiRun.count({ where: { status: "FAILED", createdAt: { gte: failureWindow } } }).catch(() => 0),
+    prisma.filingAiReview.count({ where: { status: "FAILED", createdAt: { gte: failureWindow } } }).catch(() => 0),
+    prisma.$queryRaw<Array<{ bytes: bigint }>>`SELECT COALESCE(SUM(length("pdfData")), 0) AS bytes FROM "CaseFiling" WHERE "pdfData" IS NOT NULL`.catch(() => [{ bytes: BigInt(0) }]),
+  ]);
+  const storedPdfMegabytes = Number(pdfPayloadRows[0]?.bytes ?? 0n) / (1024 * 1024);
   let dbOk = false;
   try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch {}
   let robloxRoles: RobloxGroupRole[] = [];
@@ -67,6 +74,7 @@ export default async function AdminStatusPage() {
       <Result label="Google Forms delivery" ok={googleOk} detail={googleDetail}/>
       <Result label="Railway deployment" ok={Boolean(process.env.RAILWAY_DEPLOYMENT_ID || process.env.RAILWAY_GIT_COMMIT_SHA)} detail={process.env.RAILWAY_DEPLOYMENT_ID ? `Deployment ${process.env.RAILWAY_DEPLOYMENT_ID}; commit ${process.env.RAILWAY_GIT_COMMIT_SHA ?? "not provided"}.` : "Railway deployment metadata is unavailable in this runtime."}/>
     </tbody></table></div>
+    <h2>Storage, backups, and background work</h2><div className="report-metric-grid"><article><span>Stored case PDF payload</span><strong>{storedPdfMegabytes.toFixed(1)} MB</strong><small>Approximate base64 payload size in case filings.</small></article><article><span>AI jobs failed in 7 days</span><strong>{failedCaseAi + failedFilingAi}</strong><small>{failedCaseAi} case workbench · {failedFilingAi} filing pre-screen.</small></article><article><span>Database backup age</span><strong>Not reported</strong><small>Check the database service&apos;s volume Backups page.</small></article></div><p className="note-inline">Application storage totals do not include the SQLite database file, indexes, or Railway volume usage. The app cannot verify a completed Railway backup. See the project&apos;s restore procedure before changing production data.</p>
     <h2>Roblox roles detected for {session.user.username}</h2>
     {robloxRoles.length ? <ul>{robloxRoles.map((role)=><li key={`${role.groupId}:${role.roleId}`}>{role.groupName}: {role.roleName} <code>{role.roleId}</code></li>)}</ul> : <p>No roles detected.</p>}
     <h3>Permission tiers granted</h3>

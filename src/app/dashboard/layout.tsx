@@ -21,8 +21,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const hasDeveloperProfile = await hasActiveDeveloperProfile(session.user);
   const primaryNav: NavItem[] = [
     { label: "Overview", href: "/dashboard" },
+    ...((hasCapability(tiers, CAPABILITIES.CASES_CREATE) || hasCapability(tiers, CAPABILITIES.CASES_PROPOSE_EDIT)) ? [{ label: "Intake", href: "/dashboard/intake" }] : []),
     ...(mayViewCases ? [
       { label: "My Cases", href: "/dashboard/cases" },
+      ...((hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION)) ? [{ label: "Unassigned Queue", href: "/dashboard/workload" }] : []),
       { label: "Filing History", href: "/dashboard/filings" },
       ...(hasDeveloperProfile ? [{ label: "Document Creator", href: "/dashboard/templates" }] : []),
     ] : []),
@@ -33,6 +35,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ...((hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)) ? [{ label: "Staff Roster", href: "/dashboard/roster" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE) ? [{ label: "Public Releases", href: "/dashboard/announcements" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) ? [{ label: "Activity Log", href: "/dashboard/activity" }] : []),
+    ...((hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) ? [{ label: "Supervisor Reports", href: "/dashboard/reports" }] : []),
+    ...(hasCapability(tiers, CAPABILITIES.SETTINGS_MANAGE) ? [{ label: "AI Service", href: "/98981/ai" }] : []),
     { label: "Search", href: "/dashboard/search" },
   ];
 

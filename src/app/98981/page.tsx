@@ -94,6 +94,8 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
       <h1>Site Settings</h1>
       <p><Link className="govbtn-outline" href="/98981/roster-sync">Preview Roblox roster sync</Link></p>
       <p><Link className="govbtn-outline" href="/98981/analytics">Open first-party analytics</Link></p>
+      <p><Link className="govbtn-outline" href="/98981/ai">Configure AI model and review quality</Link></p>
+      <p><Link className="govbtn-outline" href="/98981/sources">Manage AI legal source library</Link></p>
       <p className="lede">
         This page is not linked from anywhere in the site and is only reachable by URL. It
         controls site-wide behavior, not any single user&apos;s account.

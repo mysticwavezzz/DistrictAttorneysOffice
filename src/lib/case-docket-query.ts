@@ -14,6 +14,7 @@ export function caseDocketWhere(input: {
   tab: "ongoing" | "archived";
   q: string;
   status: string;
+  filingStatus: string;
   reviewOnly: boolean;
 }): Prisma.CaseWhereInput | null {
   const visibility = caseVisibilityWhere(input.tiers, input.viewerId, input.viewerDivision, input.viewerGroup);
@@ -31,6 +32,11 @@ export function caseDocketWhere(input: {
     ] });
   }
   if (input.status) conditions.push({ stage: input.status });
+  if (input.filingStatus === "filed") conditions.push({ courtFiledAt: { not: null } });
+  if (["unfiled", "pending", "approved", "returned"].includes(input.filingStatus)) conditions.push({ courtFiledAt: null });
+  if (input.filingStatus === "pending") conditions.push({ filings: { some: { isInitial: true, status: "PENDING" } } });
+  if (input.filingStatus === "approved") conditions.push({ filings: { some: { isInitial: true, status: "ACCEPTED" } } });
+  if (input.filingStatus === "returned") conditions.push({ filings: { some: { isInitial: true, status: "REJECTED" } } });
   if (input.reviewOnly) conditions.push({ OR: [
     { actionRequests: { some: { status: "PENDING" } } },
     { filings: { some: { status: "PENDING" } } },

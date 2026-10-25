@@ -43,13 +43,24 @@ export async function GET(request: Request) {
       divisionGroup: true,
       assignedAttorneyId: true,
       archived: true,
+      courtFiledAt: true,
+      initialFilingDue: true,
       updatedAt: true,
       assignedAttorney: { select: { id: true, displayName: true } },
       createdBy: { select: { id: true, displayName: true } },
+      filings: { select: { isInitial: true, status: true, createdAt: true }, orderBy: [{ isInitial: "desc" }, { createdAt: "desc" }], take: 20 },
+      _count: { select: { aopcs: true } },
     },
   });
   const hasMore = records.length > limit;
-  const items = records.slice(0, limit);
+  const items = records.slice(0, limit).map((record) => ({
+    ...record,
+    filings: undefined,
+    initialFilingStatus: record.filings.find((filing) => filing.isInitial)?.status ?? null,
+    latestFilingAt: record.filings.reduce<Date | null>((latest, filing) => !latest || filing.createdAt > latest ? filing.createdAt : latest, null),
+    aopcCount: record._count.aopcs,
+    _count: undefined,
+  }));
   return NextResponse.json({
     items,
     nextCursor: hasMore ? items.at(-1)?.id ?? null : null,

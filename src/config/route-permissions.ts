@@ -6,6 +6,9 @@ export interface RouteRule {
 }
 
 export const PROTECTED_ROUTES: RouteRule[] = [
+  { prefix: "/dashboard/intake", capabilities: [CAPABILITIES.CASES_CREATE, CAPABILITIES.CASES_PROPOSE_EDIT] },
+  { prefix: "/dashboard/workload", capabilities: [CAPABILITIES.CASES_ASSIGN, CAPABILITIES.CASES_ASSIGN_DIVISION] },
+  { prefix: "/dashboard/reports", capabilities: [CAPABILITIES.CASES_VIEW_ALL, CAPABILITIES.CASES_VIEW_DIVISION] },
   { prefix: "/dashboard/cases/requests", capabilities: [CAPABILITIES.CASES_APPROVE_EDITS, CAPABILITIES.CASES_APPROVE_DIVISION] },
   { prefix: "/dashboard/templates", capabilities: [CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_VIEW_DIVISION] },
   { prefix: "/dashboard/cases", capabilities: [CAPABILITIES.CASES_VIEW, CAPABILITIES.CASES_VIEW_DIVISION] },

@@ -21,7 +21,7 @@ export default async function FileOnCasePage({ searchParams }: { searchParams: P
   const visibility = caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup);
   const cases = await prisma.case.findMany({
     where: { AND: [visibility ?? { id: "__no-access__" }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT) ? [] : [{ division: user.division ?? "__no_division__" }])] },
-    select: { id: true, caseNumber: true, title: true, isDraft: true },
+    select: { id: true, caseNumber: true, title: true, isDraft: true, filings: { where: { status: "REJECTED" }, select: { id: true, title: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 20 } },
     orderBy: { updatedAt: "desc" },
     take: 200,
   });
@@ -34,6 +34,8 @@ export default async function FileOnCasePage({ searchParams }: { searchParams: P
       <input type="hidden" name="returnTo" value="filings" />
       <div className="field"><label htmlFor="filing-case">Case</label><select id="filing-case" name="caseId" required defaultValue={selectedId}><option value="" disabled>Select a case</option>{cases.map((item) => <option key={item.id} value={item.id}>{item.caseNumber} · {item.title}{item.isDraft ? " (Draft)" : ""}</option>)}</select></div>
       <div className="field"><label htmlFor="filing-title">Document name</label><input id="filing-title" name="title" required maxLength={200} placeholder="Example: Supplemental report" /></div>
+      <div className="field"><label htmlFor="filing-supersedes">Replacement filing <span className="hint">Optional</span></label><select id="filing-supersedes" name="supersedesId" defaultValue=""><option value="">This is a new filing</option>{cases.flatMap((item) => item.filings.map((filing) => ({ ...filing, caseNumber: item.caseNumber })) ).map((filing) => <option key={filing.id} value={filing.id}>{filing.caseNumber} · {filing.title} · returned {filing.createdAt.toLocaleDateString()}</option>)}</select><small>Returned versions stay in the record. A replacement is linked to the returned filing.</small></div>
+      <div className="field"><label htmlFor="filing-revision-note">Correction made <span className="hint">Required for a replacement</span></label><textarea id="filing-revision-note" name="revisionNote" rows={2} maxLength={1200} placeholder="Describe the correction made to the returned filing." /></div>
       <div className="field"><label htmlFor="filing-pdf">Upload PDF (max 5 MB)</label><PdfUploadInput id="filing-pdf" name="pdf" required /></div>
       <div className="case-opening-controls"><Link href="/dashboard/filings" className="govbtn-outline">Cancel</Link><PendingSubmitButton label="Submit Filing" pendingLabel="Uploading PDF…" /></div>
     </form>}

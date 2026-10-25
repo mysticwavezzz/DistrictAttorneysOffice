@@ -125,10 +125,27 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   const autoReviewFilingId = aiReviewConfigured && !hasRunningAiReview
     ? visible.find((item) => item.kind === "filing" && item.aiReviewAutoEligible && !item.aiReview)?.id ?? null
     : null;
+  const triageTabs = [
+    { key: "all", label: "All inbox", allowed: true },
+    { key: "filing", label: "Filings", allowed: canReviewCases },
+    { key: "aopc", label: "AOPCs & reports", allowed: canReviewCases },
+    { key: "case", label: "Case requests", allowed: canReviewCases },
+    { key: "records", label: "Records requests", allowed: canReviewRecords },
+    { key: "contact", label: "Contact mail", allowed: canReviewContact },
+  ].filter((tab) => tab.allowed);
+  const typeCounts = new Map(items.map((item) => [item.kind, items.filter((candidate) => candidate.kind === item.kind).length]));
+  const tabHref = (key: string) => {
+    const params = new URLSearchParams();
+    if (key !== "all") params.set("type", key);
+    if (filters.age) params.set("age", filters.age);
+    if (selectedDivision) params.set("division", selectedDivision);
+    return `/dashboard/review${params.size ? `?${params.toString()}` : ""}`;
+  };
 
   return <div className="review-inbox">
     <p className="eyebrow">Staff workflow</p><h1>Review Inbox</h1>
     <p className="lede">One queue for pending case decisions, affidavit reviews, public records requests, and private Contact Us messages. Older items rise to the top.</p>
+    <nav className="review-triage-tabs" aria-label="Review queue tabs">{triageTabs.map((tab) => <Link key={tab.key} href={tabHref(tab.key)} aria-current={selectedType === tab.key ? "page" : undefined} className={selectedType === tab.key ? "on" : undefined}>{tab.label}{selectedType === "all" && tab.key !== "all" ? <span>{typeCounts.get(tab.key === "case" ? "case" : tab.key === "filing" ? "filing" : tab.key === "aopc" ? "aopc" : tab.key === "records" ? "records" : "contact") ?? 0}</span> : null}</Link>)}</nav>
     <form className="review-inbox-filters">
       <div className="field"><label htmlFor="review-type">Request type</label><select id="review-type" name="type" defaultValue={selectedType}><option value="all">All types</option>{canReviewCases && <><option value="case">Case requests</option><option value="filing">Case filings</option><option value="aopc">AOPCs</option></>}{canReviewRecords && <option value="records">Records requests</option>}{canReviewContact && <option value="contact">Contact Us</option>}</select></div>
       <div className="field"><label htmlFor="review-age">Waiting at least</label><select id="review-age" name="age" defaultValue={filters.age ?? ""}><option value="">Any age</option><option value="24">24 hours</option><option value="72">3 days</option><option value="168">7 days</option></select></div>

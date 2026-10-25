@@ -8,6 +8,8 @@ import { localUser, canReviewDivision } from "@/lib/case-access";
 import { notify } from "@/lib/notifications";
 import { runWithActionDebug } from "@/lib/action-debug";
 import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
+import { after } from "next/server";
+import { indexAcceptedCaseFiling } from "@/lib/filing-text-index";
 
 async function reviewAopcImpl(formData: FormData) {
   const session = await auth();
@@ -63,15 +65,22 @@ async function reviewFilingImpl(formData: FormData) {
       data: { status: decision, reviewedById: user.id, reviewedAt: new Date(), reviewNote: note || null },
     });
     if (!claimed.count) throw new Error("This filing has already been reviewed. Refresh the queue.");
-    await tx.case.update({ where: { id: filing.caseId }, data: { ...(decision === "ACCEPTED" && filing.isInitial ? { courtFiledAt: new Date(), initialFilingDue: null } : {}), updatedAt: new Date() } });
+    await tx.case.update({ where: { id: filing.caseId }, data: { updatedAt: new Date() } });
     await tx.caseComment.create({ data: {
       caseId: filing.caseId,
       body: filing.isInitial && decision === "ACCEPTED"
-        ? `Initial complaint approved and case filed with the court by ${session.user.displayName}.${note ? ` Review note: ${note}` : ""}`
+        ? `Initial complaint approved in the portal for court filing by ${session.user.displayName}. The actual court filing date and source must be recorded separately.${note ? ` Review note: ${note}` : ""}`
         : `Filing “${filing.title}” ${decision === "ACCEPTED" ? "approved" : "returned"} by ${session.user.displayName}.${note ? ` Review note: ${note}` : ""}`,
       isSystem: true,
     } });
   });
+
+  if (decision === "ACCEPTED" && filing.pdfData) {
+    after(async () => {
+      try { await indexAcceptedCaseFiling(filing.id); }
+      catch (error) { console.error(`[filing text index ${filing.id}] Search indexing failed`, error); }
+    });
+  }
 
   try {
     await notify({ userId: filing.addedById, type: "case_filing_review", title: decision === "ACCEPTED" ? "Your filing was approved" : "Your filing was returned", body: `${filing.case.caseNumber} · ${note || filing.title}`, link: `/dashboard/cases/${filing.caseId}#filings` });

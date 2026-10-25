@@ -10,11 +10,12 @@ import { canReviewDivision, localUser } from "@/lib/case-access";
 import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 import { decodeCasePdf } from "@/lib/filing-upload";
 import { extractFilingPdfText, FilingPdfTextError } from "@/lib/ai-filing-review/pdf-text";
-import { DEFAULT_GROQ_REVIEW_MODEL, FilingAiReviewError, runFilingAiReview } from "@/lib/ai-filing-review/review";
+import { FilingAiReviewError, runFilingAiReview } from "@/lib/ai-filing-review/review";
 import { FILING_REVIEW_PROMPT_VERSION } from "@/lib/ai-filing-review/review";
 import { FILING_REVIEW_SOURCE_VERSION } from "@/lib/ai-filing-review/authorities";
 import { buildCaseDocumentContext } from "@/lib/ai-filing-review/case-context";
 import { runWithActionDebug } from "@/lib/action-debug";
+import { getConfiguredGroqModel } from "@/lib/ai-model";
 
 const STALE_REVIEW_MS = 5 * 60_000;
 
@@ -51,7 +52,7 @@ async function runAiFilingReviewImpl(formData: FormData) {
 
   const pdfBytes = decodeCasePdf(filing.pdfData);
   const documentSha256 = createHash("sha256").update(pdfBytes).digest("hex");
-  const modelId = process.env.GROQ_MODEL || DEFAULT_GROQ_REVIEW_MODEL;
+  const modelId = await getConfiguredGroqModel();
   let run: { id: string };
   try {
     run = await prisma.filingAiReview.create({

@@ -10,10 +10,13 @@ import { caseFilingSchema, caseCommentSchema } from "@/lib/validation/case-extra
 import { localUser, canAccessCase, generateCaseNumber, canAssignCase, canEditCase, requiresCriminalAssigneeGroup } from "@/lib/case-access";
 import { requiresCriminalDivisionGroupForCaseCreation } from "@/lib/criminal-case-assignment";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
-import { readCasePdf } from "@/lib/filing-upload";
+import { readCasePdf, decodeCasePdf } from "@/lib/filing-upload";
+import { extractFilingPdfText } from "@/lib/ai-filing-review/pdf-text";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { runWithActionDebug } from "@/lib/action-debug";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
+import { parseDateTimeInTimeZone } from "@/lib/time-zone";
+import { logActivity } from "@/lib/activity-log";
 
 async function requireStaff() {
   const session = await auth();
@@ -282,6 +285,40 @@ async function fileCaseImpl(formData: FormData) {
   redirect(`/dashboard/cases/${id}#court-filing`);
 }
 
+async function recordCourtFilingImpl(formData: FormData) {
+  const { session, user } = await requireStaff();
+  const id = String(formData.get("caseId") ?? "").trim();
+  const filedDate = String(formData.get("filedDate") ?? "").trim();
+  const sourceUrlRaw = String(formData.get("courtDocketUrl") ?? "").trim();
+  if (!id || !filedDate || !sourceUrlRaw) throw new Error("Enter the court filing date and a source link.");
+  const caseRecord = await prisma.case.findUnique({ where: { id }, include: { filings: { where: { isInitial: true, status: "ACCEPTED" }, select: { id: true }, take: 1 } } });
+  const mayRecord = Boolean(caseRecord && canEditCase(session.user.tiers, user.division, caseRecord.division))
+    || Boolean(caseRecord && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && caseRecord.createdById === user.id);
+  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division, user.divisionGroup) || !mayRecord) throw new Error("Case not accessible.");
+  if (caseRecord.courtFiledAt) throw new Error("The court filing is already recorded.");
+  if (!caseRecord.filings.length) throw new Error("The initial complaint must be approved in the portal before recording its court filing.");
+  const courtDocketUrl = safeCourtSourceUrl(sourceUrlRaw);
+  const courtFiledAt = parseDateTimeInTimeZone(`${filedDate}T12:00`, "America/New_York");
+  if (!courtDocketUrl || !courtFiledAt || courtFiledAt.getTime() > Date.now() + 60_000) throw new Error("Enter a valid source link and a filing date that has occurred.");
+  await prisma.$transaction(async (tx) => {
+    const update = await tx.case.updateMany({ where: { id, courtFiledAt: null }, data: { courtFiledAt, courtDocketUrl, initialFilingDue: null, updatedAt: new Date() } });
+    if (!update.count) throw new Error("The court filing was recorded by another staff member. Refresh this case.");
+    await tx.caseComment.create({ data: { caseId: id, isSystem: true, body: `Initial complaint filed with the court on ${filedDate}. Court record: ${courtDocketUrl}. Recorded by ${session.user.displayName}.` } });
+  });
+  await logActivity(session.user.displayName, "Recorded actual court filing date and source", "Case", caseRecord.caseNumber);
+  revalidatePath("/dashboard/cases");
+  revalidatePath("/dashboard/search");
+  revalidatePath("/dashboard/reports");
+  revalidatePath("/dashboard/cases/calendar");
+  revalidatePath(`/dashboard/cases/${id}`);
+  redirect(`/dashboard/cases/${id}#court-filing`);
+}
+
+function safeCourtSourceUrl(value: string) {
+  try { const parsed = new URL(value); return ["https:", "http:"].includes(parsed.protocol) ? parsed.toString() : null; }
+  catch { return null; }
+}
+
 async function updateCaseImpl(formData: FormData) {
   const { session, user } = await requireStaff();
 
@@ -471,7 +508,10 @@ async function updateDeadlineReminderStateImpl(formData: FormData) {
   const caseRecord = await prisma.case.findUnique({ where: { id: caseId } });
   if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division, user.divisionGroup)) throw new Error("Case not accessible");
   const currentDeadline = getProceduralDeadlines(caseRecord).find((deadline) => deadline.key === deadlineType);
-  if (currentDeadline?.dueDate.getTime() !== dueDate.getTime()) throw new Error("That deadline has changed. Refresh the calendar and try again.");
+  const eventId = deadlineType.startsWith("case_event_") ? deadlineType.slice("case_event_".length) : "";
+  const currentEvent = eventId ? await prisma.caseEvent.findFirst({ where: { id: eventId, caseId }, select: { startsAt: true } }) : null;
+  const currentDate = currentDeadline?.dueDate ?? currentEvent?.startsAt;
+  if (currentDate?.getTime() !== dueDate.getTime()) throw new Error("That deadline has changed. Refresh the calendar and try again.");
 
   const identity = { userId: user.id, caseId, deadlineType, dueDate };
   const reminder = await prisma.deadlineReminder.upsert({ where: { userId_caseId_deadlineType_dueDate: identity }, create: identity, update: {} });
@@ -487,6 +527,7 @@ async function updateDeadlineReminderStateImpl(formData: FormData) {
 }
 export async function createCase(formData: FormData) { return runWithActionDebug("createCase", [formData], () => createCaseImpl(formData)); }
 export async function fileCase(formData: FormData) { return runWithActionDebug("fileCase", [formData], () => fileCaseImpl(formData)); }
+export async function recordCourtFiling(formData: FormData) { return runWithActionDebug("recordCourtFiling", [formData], () => recordCourtFilingImpl(formData)); }
 export async function updateCase(formData: FormData) { return runWithActionDebug("updateCase", [formData], () => updateCaseImpl(formData)); }
 export async function deleteCase(formData: FormData) { return runWithActionDebug("deleteCase", [formData], () => deleteCaseImpl(formData)); }
 export async function bulkUpdateCases(formData: FormData) { return runWithActionDebug("bulkUpdateCases", [formData], () => bulkUpdateCasesImpl(formData)); }
@@ -510,9 +551,35 @@ async function addFilingImpl(formData: FormData) {
   const pdf = await readCasePdf(formData.get("pdf"));
   if (!pdf) throw new Error("Upload a PDF to file this document.");
 
+  const supersedesId = String(formData.get("supersedesId") ?? "").trim();
+  const correctionNote = String(formData.get("revisionNote") ?? "").trim().slice(0, 1200);
+  let revisionNote: string | null = null;
+  if (supersedesId) {
+    const prior = await prisma.caseFiling.findFirst({ where: { id: supersedesId, caseId, status: "REJECTED" }, select: { id: true, title: true, pdfData: true } });
+    if (!prior) throw new Error("Choose a returned filing from this case.");
+    if (!correctionNote) throw new Error("Explain what was corrected before submitting a replacement.");
+    const nextBytes = decodeCasePdf(pdf.pdfData);
+    let comparison = "Selectable-text comparison unavailable. Review both PDFs manually.";
+    if (prior.pdfData) {
+      try {
+        const [before, after] = await Promise.all([extractFilingPdfText(decodeCasePdf(prior.pdfData)), extractFilingPdfText(nextBytes)]);
+        const oldWords = before.pages.map((page) => page.text).join(" ").match(/\S+\s*/g) ?? [];
+        const newWords = after.pages.map((page) => page.text).join(" ").match(/\S+\s*/g) ?? [];
+        let prefix = 0;
+        while (prefix < oldWords.length && prefix < newWords.length && oldWords[prefix] === newWords[prefix]) prefix += 1;
+        let suffix = 0;
+        while (suffix < oldWords.length - prefix && suffix < newWords.length - prefix && oldWords[oldWords.length - 1 - suffix] === newWords[newWords.length - 1 - suffix]) suffix += 1;
+        const removed = oldWords.slice(prefix, oldWords.length - suffix).join("").trim().slice(0, 900);
+        const added = newWords.slice(prefix, newWords.length - suffix).join("").trim().slice(0, 900);
+        comparison = removed || added ? `Selectable-text comparison — removed: ${removed || "(none)"}; added: ${added || "(none)"}.` : "No selectable-text differences detected.";
+      } catch { /* Keep the replacement and let staff compare the PDFs visually. */ }
+    }
+    revisionNote = `Correction note: ${correctionNote}\n${comparison}`;
+  }
+
   const requiresApproval = shouldRequireFilingApproval(session.user.tiers, user.division);
   await prisma.caseFiling.create({
-    data: { caseId, title: parsed.data.title, url: null, pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName, addedById: user.id, status: requiresApproval ? "PENDING" : "ACCEPTED" },
+    data: { caseId, title: parsed.data.title, url: null, pdfData: pdf.pdfData, pdfFileName: pdf.pdfFileName, addedById: user.id, status: requiresApproval ? "PENDING" : "ACCEPTED", supersedesId: supersedesId || null, revisionNote },
   });
 
   try {
