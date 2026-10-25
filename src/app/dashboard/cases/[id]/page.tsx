@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser, canAccessCase, canViewCases, canEditCase, canAssignCase, canReviewDivision } from "@/lib/case-access";
 import { CASE_STATUSES, caseStatusColor } from "@/config/case-statuses";
-import { updateCase, deleteCase, deleteFiling, addComment, fileCase, recordCourtFiling } from "../actions";
+import { updateCase, deleteCase, deleteFiling, addComment, fileCase, recordCourtFiling, recordAdditionalCourtFiling } from "../actions";
 import { submitCaseRequest } from "../requests/actions";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { RemoveButton } from "@/components/remove-button";
@@ -37,7 +37,7 @@ type CaseWithRelations = Prisma.CaseGetPayload<{
   include: {
     assignedAttorney: true;
     createdBy: true;
-    filings: { select: { id: true; title: true; url: true; pdfFileName: true; status: true; isInitial: true; reviewedAt: true; reviewNote: true; revisionNote: true; supersedesId: true; addedById: true; createdAt: true; addedBy: { select: { displayName: true } }; supersedes: { select: { id: true; title: true } }; revisions: { select: { id: true; title: true; status: true } } } };
+    filings: { select: { id: true; title: true; url: true; pdfFileName: true; status: true; isInitial: true; reviewedAt: true; submittedAt: true; filedAt: true; courtFilingUrl: true; reviewNote: true; revisionNote: true; supersedesId: true; addedById: true; createdAt: true; addedBy: { select: { displayName: true } }; supersedes: { select: { id: true; title: true } }; revisions: { select: { id: true; title: true; status: true } } } };
     comments: { include: { author: true } };
     relatedTo: true;
     relatedFrom: true;
@@ -69,7 +69,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       include: {
         assignedAttorney: true,
         createdBy: true,
-        filings: { select: { id: true, title: true, url: true, pdfFileName: true, status: true, isInitial: true, reviewedAt: true, reviewNote: true, revisionNote: true, supersedesId: true, addedById: true, createdAt: true, addedBy: { select: { displayName: true } }, supersedes: { select: { id: true, title: true } }, revisions: { select: { id: true, title: true, status: true } } }, orderBy: { createdAt: "desc" } },
+        filings: { select: { id: true, title: true, url: true, pdfFileName: true, status: true, isInitial: true, reviewedAt: true, submittedAt: true, filedAt: true, courtFilingUrl: true, reviewNote: true, revisionNote: true, supersedesId: true, addedById: true, createdAt: true, addedBy: { select: { displayName: true } }, supersedes: { select: { id: true, title: true } }, revisions: { select: { id: true, title: true, status: true } } }, orderBy: { createdAt: "desc" } },
         comments: { include: { author: true }, orderBy: { createdAt: "asc" } },
         relatedTo: true,
         relatedFrom: true,
@@ -173,10 +173,20 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         <ul className="case-filings-list">
           {visibleFilings.map((f) => (
             <li className="case-filing-row" key={f.id}>
-              <div className="case-filing-info"><strong>{f.title} <span className={`pill ${f.status === "ACCEPTED" ? "pill-green" : f.status === "PENDING" ? "pill-gold" : f.status === "DRAFT" ? "pill-muted" : "pill-red"}`}>{f.status === "ACCEPTED" ? "Approved" : f.status === "PENDING" ? "Pending approval" : f.status === "DRAFT" ? "Draft complaint" : "Returned"}</span>{f.isInitial && <span className="pill pill-navy">Initial</span>}{f.supersedes && <span className="pill pill-muted">Replacement</span>}</strong><span>{f.pdfFileName ?? "Document"} · Submitted by {f.addedBy.displayName} · {dateTimeFormatter.format(f.createdAt)}</span>{f.supersedes && <span>Replaces returned version: {f.supersedes.title}</span>}{f.revisionNote && <span className="note-inline">{f.revisionNote}</span>}{f.revisions.length > 0 && <span>Replacement submitted: {f.revisions.map((revision) => `${revision.title} (${revision.status.toLowerCase()})`).join(", ")}</span>}{f.reviewNote && f.status !== "ACCEPTED" && <span className="note-inline">Review note: {f.reviewNote}</span>}</div>
+            <div className="case-filing-info" id={`filing-${f.id}`}><strong>{f.title} <span className={`pill ${f.status === "ACCEPTED" ? "pill-green" : f.status === "PENDING" ? "pill-gold" : f.status === "DRAFT" ? "pill-muted" : "pill-red"}`}>{f.status === "ACCEPTED" ? "Approved" : f.status === "PENDING" ? "Pending approval" : f.status === "DRAFT" ? "Draft complaint" : "Returned"}</span>{f.isInitial && <span className="pill pill-navy">Initial</span>}{f.supersedes && <span className="pill pill-muted">Replacement</span>}</strong><span>{f.pdfFileName ?? "Document"} · Submitted by {f.addedBy.displayName}</span>
+                <ol className="filing-status-timeline" aria-label={`${f.title} status timeline`}>
+                  <li><span>Submitted</span><time dateTime={f.submittedAt?.toISOString()}>{f.submittedAt ? dateTimeFormatter.format(f.submittedAt) : f.status === "DRAFT" ? `Draft saved ${dateTimeFormatter.format(f.createdAt)}` : "Submission date unavailable"}</time></li>
+                  <li><span>{f.status === "REJECTED" ? "Returned" : f.status === "ACCEPTED" ? "Approved / accepted" : f.status === "DRAFT" ? "Awaiting submission" : "Awaiting approval"}</span><time>{f.reviewedAt ? dateTimeFormatter.format(f.reviewedAt) : "Not recorded"}</time></li>
+                  <li><span>Filed with court</span><time>{f.filedAt || (f.isInitial ? caseRecord.courtFiledAt : null) ? dateTimeFormatter.format(f.filedAt ?? caseRecord.courtFiledAt!) : "Not recorded"}</time>{(f.courtFilingUrl || (f.isInitial ? caseRecord.courtDocketUrl : null)) && <a href={f.courtFilingUrl ?? caseRecord.courtDocketUrl!} target="_blank" rel="noreferrer noopener">Court source ↗</a>}</li>
+                </ol>
+                {f.status === "PENDING" && <span className="filing-gap-alert">Submitted for portal review. The approval date will appear when a reviewer acts.</span>}
+                {f.status === "ACCEPTED" && !f.filedAt && !(f.isInitial && caseRecord.courtFiledAt) && <span className="filing-gap-alert">Approved in the portal. The court filing date has not been recorded.</span>}
+                {f.supersedes && <span>Replaces returned version: {f.supersedes.title}</span>}{f.revisionNote && <span className="note-inline">{f.revisionNote}</span>}{f.revisions.length > 0 && <span>Replacement submitted: {f.revisions.map((revision) => `${revision.title} (${revision.status.toLowerCase()})`).join(", ")}</span>}{f.reviewNote && f.status !== "ACCEPTED" && <span className="note-inline">Review note: {f.reviewNote}</span>}
+              </div>
               <div className="case-filing-actions">
                 {f.pdfFileName && <a href={`/api/cases/filings/${f.id}/pdf`} target="_blank" rel="noreferrer noopener" className="govbtn-outline">View PDF</a>}
                 {f.url && <a href={f.url} target="_blank" rel="noreferrer noopener" className="govbtn-outline">Open link</a>}
+                {canFileCourt && f.status === "ACCEPTED" && !f.isInitial && !f.filedAt && <details className="filing-record-form"><summary>Record court filing</summary><form action={recordAdditionalCourtFiling}><input type="hidden" name="filingId" value={f.id}/><label htmlFor={`filed-date-${f.id}`}>Court filing date</label><input id={`filed-date-${f.id}`} name="filedDate" type="date" required max={new Date().toISOString().slice(0, 10)}/><label htmlFor={`filed-source-${f.id}`}>Court record link</label><input id={`filed-source-${f.id}`} name="courtFilingUrl" type="url" maxLength={2000} required placeholder="https://discord.com/channels/…"/><button className="govbtn-outline" type="submit">Save filing date</button></form></details>}
                 {((f.status === "PENDING" && f.addedById === user.id) || (f.status !== "PENDING" && canEdit)) && <RemoveButton id={f.id} action={deleteFiling} label={f.status === "PENDING" ? "Withdraw" : "Remove"} confirmMessage={`${f.status === "PENDING" ? "Withdraw" : "Remove"} the filing “${f.title}”?`} className="linklike case-filing-remove" />}
               </div>
             </li>
@@ -284,6 +294,8 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       {canFileDocument && (!isCourtFiled || !caseRecord.assignedJudge || overdueCount > 0 || Boolean(nextDeadline)) && <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn-outline">File a document</Link>}
       {canPropose && <CaseSectionLink href="#propose-edit" className="govbtn-outline">Propose an edit</CaseSectionLink>}
       <Link href={`/dashboard/cases/${caseRecord.id}/workbench`} className="govbtn-outline">AI &amp; case tools</Link>
+      <Link href={`/dashboard/cases/${caseRecord.id}/readiness`} className="govbtn-outline">Court readiness</Link>
+      <Link href={`/dashboard/cases/${caseRecord.id}/handoff`} className="govbtn-outline">Handoff summary</Link>
       <Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link>
       {session.user.tiers.includes("developer_profile") && <Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link>}
     </div></div>
@@ -296,7 +308,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     </div>
   </details>;
   const caseNavigation = <nav className="case-section-nav" aria-label="Case sections">
-    <CaseSectionLink href="#court-filing">Court filing</CaseSectionLink><CaseSectionLink href="#overview">People</CaseSectionLink><CaseSectionLink href="#filings">Filings</CaseSectionLink><CaseSectionLink href="#deadlines">Deadlines</CaseSectionLink><CaseSectionLink href="#activity">History</CaseSectionLink><CaseSectionLink href="#related">Related</CaseSectionLink><Link href={`/dashboard/cases/${caseRecord.id}/workbench`}>Case workbench</Link>{canEdit ? <CaseSectionLink href="#edit-case">Manage case</CaseSectionLink> : canPropose ? <CaseSectionLink href="#propose-edit">Propose edit</CaseSectionLink> : null}
+    <CaseSectionLink href="#court-filing">Court filing</CaseSectionLink><CaseSectionLink href="#overview">People</CaseSectionLink><CaseSectionLink href="#filings">Filings</CaseSectionLink><CaseSectionLink href="#deadlines">Deadlines</CaseSectionLink><CaseSectionLink href="#activity">History</CaseSectionLink><CaseSectionLink href="#related">Related</CaseSectionLink><Link href={`/dashboard/cases/${caseRecord.id}/readiness`}>Court readiness</Link><Link href={`/dashboard/cases/${caseRecord.id}/handoff`}>Handoff summary</Link><Link href={`/dashboard/cases/${caseRecord.id}/workbench`}>Case workbench</Link>{canEdit ? <CaseSectionLink href="#edit-case">Manage case</CaseSectionLink> : canPropose ? <CaseSectionLink href="#propose-edit">Propose edit</CaseSectionLink> : null}
   </nav>;
 
   if (!canEdit) {

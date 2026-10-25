@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
 import { localUser, generateCaseNumber, canAccessCase, canReviewDivision } from "@/lib/case-access";
+import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 
@@ -114,10 +115,15 @@ async function reviewCaseRequestImpl(formData: FormData) {
       if (!parsed.success) throw new Error("The submitted case data is invalid and cannot be approved.");
       const caseData = parsed.data;
       const parties = typeof data.partyDetails === "string" ? data.partyDetails : "[]";
-      const assignedAttorneyId = typeof data.assignedAttorneyId === "string" ? data.assignedAttorneyId : request.requestedById;
-      const assignedAttorney = await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { division: true, divisionGroup: true } });
+      const assignedAttorneyId = emptyToNull(caseData.assignedAttorneyId);
+      const assignedAttorney = assignedAttorneyId ? await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { id: true, division: true, divisionGroup: true } }) : null;
       const caseGroup = requestDivision === "Criminal Division" ? requestGroup ?? assignedAttorney?.divisionGroup : null;
-      if (requestDivision === "Criminal Division" && requestGroup && caseGroup !== assignedAttorney?.divisionGroup) throw new Error("The selected attorney must be assigned to the same Criminal Division group as this case request.");
+      if (assignedAttorneyId && (!assignedAttorney || assignedAttorney.division !== requestDivision)) throw new Error("The selected attorney is no longer eligible for this case division.");
+      if (requestDivision === "Criminal Division" && requestGroup && assignedAttorney && caseGroup !== assignedAttorney.divisionGroup) throw new Error("The selected attorney must be assigned to the same Criminal Division group as this case request.");
+      if (assignedAttorney) {
+        const eligible = await getDivisionCaseAssignees(requestDivision, { divisionGroup: caseGroup, restrictToGroup: requestDivision === "Criminal Division" && Boolean(caseGroup) });
+        if (!eligible.some((attorney) => attorney.id === assignedAttorney.id)) throw new Error("The selected attorney is no longer on the active eligible roster. Update the assignment and resubmit.");
+      }
       const filing = data.initialFiling && typeof data.initialFiling === "object"
         ? data.initialFiling as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string }
         : null;
@@ -163,7 +169,7 @@ async function reviewCaseRequestImpl(formData: FormData) {
         });
         if (filing?.title && (filing.url || filing.pdfData)) {
           await tx.caseFiling.create({
-            data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById, isInitial: true, status: "PENDING" },
+            data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById, isInitial: true, status: "PENDING", submittedAt: request.createdAt },
           });
         }
         return caseRecord;

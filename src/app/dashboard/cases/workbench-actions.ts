@@ -15,6 +15,12 @@ import { getDocumentTemplate } from "@/config/document-templates";
 const MAX_TITLE = 180;
 const SAFE_EVIDENCE_KINDS = new Set(["DOCUMENT", "TEXT_RECORD", "COURT_TRANSCRIPT", "PHOTOGRAPH", "VIDEO", "OTHER"]);
 const SAFE_EVENT_KINDS = new Set(["COURT_HEARING", "COURT_DEADLINE", "OFFICE_TARGET", "OTHER"]);
+const READINESS_TASKS: Record<string, { title: string; details: string }> = {
+  "witness-availability": { title: "Confirm witness availability and attendance", details: "Confirm each listed witness can attend and record any scheduling issue." },
+  "exhibits": { title: "Review and prepare exhibits", details: "Check the exhibit list, source links, and any foundation or disclosure issues." },
+  "filings": { title: "Confirm required filings and service", details: "Check required filings, portal review status, court filing dates, and service records." },
+  "motions": { title: "Review pending motions and response dates", details: "Identify pending motions, response deadlines, and any hearing dates." },
+};
 
 async function requireCaseEditor(caseId: string) {
   const session = await auth();
@@ -99,6 +105,23 @@ export async function addAcceptedCaseTask(formData: FormData) {
   await prisma.caseTask.create({ data: { caseId, title, details, sourceReference, status: "OPEN", assignedToId: assignee.id, assignedToName: assignee.displayName, createdById: user.id, createdByName: session.user.displayName } });
   await logActivity(session.user.displayName, "Accepted and assigned case task", "Case", caseId);
   revalidatePath(`/dashboard/cases/${caseId}/workbench`);
+  revalidatePath(`/dashboard/cases/${caseId}/readiness`);
+}
+
+export async function addReadinessTask(formData: FormData) {
+  const caseId = String(formData.get("caseId") ?? "").trim();
+  const key = String(formData.get("key") ?? "").trim();
+  const task = READINESS_TASKS[key];
+  if (!task) throw new Error("Choose a valid readiness check.");
+  const { session, user } = await requireCaseEditor(caseId);
+  const existing = await prisma.caseTask.findFirst({ where: { caseId, sourceReference: `readiness:${key}`, status: { in: ["OPEN", "DONE"] } }, select: { id: true } });
+  if (!existing) {
+    await prisma.caseTask.create({ data: { caseId, title: task.title, details: task.details, sourceReference: `readiness:${key}`, status: "OPEN", createdById: user.id, createdByName: session.user.displayName } });
+    await prisma.caseComment.create({ data: { caseId, isSystem: true, body: `Court readiness check added: ${task.title}. Added by ${session.user.displayName}.` } });
+    await logActivity(session.user.displayName, "Added court readiness check", "Case", caseId);
+  }
+  revalidatePath(`/dashboard/cases/${caseId}/readiness`);
+  revalidatePath(`/dashboard/cases/${caseId}/workbench`);
 }
 
 export async function updateCaseTask(formData: FormData) {
@@ -111,6 +134,7 @@ export async function updateCaseTask(formData: FormData) {
   await prisma.caseTask.update({ where: { id: taskId }, data: { status } });
   await logActivity(session.user.displayName, `Updated case task to ${status.toLowerCase()}`, "Case", task.caseId);
   revalidatePath(`/dashboard/cases/${task.caseId}/workbench`);
+  revalidatePath(`/dashboard/cases/${task.caseId}/readiness`);
 }
 
 async function processAiRun(runId: string, action: CaseAiAction, sources: Awaited<ReturnType<typeof buildCaseAiSources>>, modelId: string) {

@@ -165,8 +165,11 @@ model CaseFiling {
   reviewedById String?
   reviewNote   String?
   reviewedAt   DateTime?
+  submittedAt  DateTime?
   supersedesId String?
   revisionNote String?
+  filedAt      DateTime?
+  courtFilingUrl String?
   createdAt    DateTime  @default(now())
 
   case       Case                 @relation(fields: [caseId], references: [id], onDelete: Cascade)

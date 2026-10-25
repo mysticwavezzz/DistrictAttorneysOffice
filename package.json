@@ -1,6 +1,6 @@
 {
   "name": "da-office-website",
-  "version": "1.0.28",
+  "version": "1.0.29",
   "private": true,
   "engines": {
     "node": ">=20.16.0"

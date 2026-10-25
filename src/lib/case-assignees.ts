@@ -23,7 +23,7 @@ export function isAssignableAttorneyRank(rank: string | null | undefined): boole
 export async function getDivisionCaseAssignees(
   division: string | null | undefined,
   options: { divisionGroup?: string | null; restrictToGroup?: boolean } = {},
-): Promise<{ id: string; displayName: string }[]> {
+): Promise<{ id: string; displayName: string; rank: string | null; divisionGroup: string | null }[]> {
   const entries = await prisma.rosterEntry.findMany({
     where: {
       isActive: true,
@@ -35,7 +35,7 @@ export async function getDivisionCaseAssignees(
     orderBy: { name: "asc" },
   });
 
-  const assignees = new Map<string, { id: string; displayName: string }>();
+  const assignees = new Map<string, { id: string; displayName: string; rank: string | null; divisionGroup: string | null }>();
   for (const entry of entries) {
     if (!isAssignableAttorneyRank(entry.rank)) continue;
     if (!entry.robloxUserId && !entry.discordUserId) continue;
@@ -82,7 +82,7 @@ export async function getDivisionCaseAssignees(
       }
     }
 
-    assignees.set(user.id, { id: user.id, displayName: user.displayName || entry.name });
+    assignees.set(user.id, { id: user.id, displayName: user.displayName || entry.name, rank: entry.rank ?? null, divisionGroup: entry.divisionGroup ?? null });
   }
 
   return [...assignees.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
