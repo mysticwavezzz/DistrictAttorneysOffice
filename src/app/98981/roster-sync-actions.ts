@@ -6,105 +6,17 @@ import { runWithActionDebug } from "@/lib/action-debug";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
-import { PERMISSION_TIERS } from "@/lib/permissions/tiers";
-import { fetchRobloxGroupMembers, type RobloxGroupMember } from "@/lib/roblox/groups";
-import { ROBLOX_DA_GROUP_ID, ROBLOX_TIER_ROLE_MAPPINGS } from "@/config/roblox-role-mappings";
-import { normalizeRobloxTierRoleMappings } from "@/config/role-mapping-migrations";
-import { getSiteConfiguration } from "@/lib/site-settings";
+import { fetchRobloxGroupMembers } from "@/lib/roblox/groups";
+import { ROBLOX_DA_GROUP_ID } from "@/config/roblox-role-mappings";
+import { buildRobloxRosterSyncPreview, type Candidate, type SyncPreview } from "@/lib/roblox/automatic-roster-sync";
 
-const SYNC_TIERS: ReadonlySet<string> = new Set([
-  PERMISSION_TIERS.SECRETARY,
-  PERMISSION_TIERS.SECRETARY_SUPERVISOR,
-  PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY,
-  PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY,
-  PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY,
-  PERMISSION_TIERS.EXECUTIVE_SECRETARY,
-  PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY,
-  PERMISSION_TIERS.DISTRICT_ATTORNEY,
-]);
 const PREVIEW_MINUTES = 15;
 const syncPath = "/98981/roster-sync";
-
-type Candidate = RobloxGroupMember & { unitBefore: string | null };
-type SyncPreview = {
-  fetchedCount: number;
-  eligibleCount: number;
-  additions: Candidate[];
-  updates: (Candidate & { entryId: string; oldName: string; oldRank: string | null; wasActive: boolean; wasSynced: boolean })[];
-  inactivations: { entryId: string; name: string; username: string; oldRank: string | null; newRank: string; newRoleId: number | null; rankNumber: number | null; reason: string }[];
-  unchanged: (Candidate & { entryId: string })[];
-  exceptions: { username?: string; userId?: string; reason: string }[];
-};
 
 async function requireAdmin() {
   const session = await auth();
   if (!session?.user || !hasCapability(session.user.tiers, CAPABILITIES.SETTINGS_MANAGE)) throw new Error("Forbidden");
   return session;
-}
-
-async function buildPreview(members: RobloxGroupMember[]): Promise<SyncPreview> {
-  const savedMappings = await getSiteConfiguration("robloxTierRoleMappings", ROBLOX_TIER_ROLE_MAPPINGS);
-  const mappings = normalizeRobloxTierRoleMappings(savedMappings);
-  const eligibleRoleIds = new Set(mappings
-    .filter((mapping) => mapping.groupId === ROBLOX_DA_GROUP_ID && SYNC_TIERS.has(mapping.tier))
-    .flatMap((mapping) => mapping.roleIds));
-  if (!eligibleRoleIds.size) throw new Error("No ADA-or-higher Roblox role IDs are configured for the District Attorney group. No roster changes were prepared.");
-
-  const [entries, revokedAccounts] = await Promise.all([
-    prisma.rosterEntry.findMany({ select: { id: true, name: true, rank: true, rankOverride: true, robloxRoleName: true, unit: true, robloxUserId: true, robloxSynced: true, robloxRoleId: true, robloxRank: true, isActive: true } }),
-    prisma.revokedStaffAccess.findMany({ select: { robloxUserId: true } }),
-  ]);
-  const revokedIds = new Set(revokedAccounts.map((account) => account.robloxUserId));
-  const byRobloxId = new Map(entries.flatMap((entry) => entry.robloxUserId ? [[entry.robloxUserId, entry] as const] : []));
-  const byName = new Map<string, typeof entries>();
-  for (const entry of entries) {
-    const key = entry.name.trim().toLocaleLowerCase("en-US");
-    byName.set(key, [...(byName.get(key) ?? []), entry]);
-  }
-  const snapshotIds = new Set(members.map((member) => member.userId));
-  const currentMembers = new Map(members.map((member) => [member.userId, member]));
-  const preview: SyncPreview = { fetchedCount: members.length, eligibleCount: 0, additions: [], updates: [], inactivations: [], unchanged: [], exceptions: [] };
-
-  for (const member of members) {
-    if (revokedIds.has(member.userId)) continue;
-    const eligible = eligibleRoleIds.has(member.roleId);
-    const existing = byRobloxId.get(member.userId);
-    if (!eligible) {
-      if (existing?.robloxSynced && existing.isActive) preview.inactivations.push({ entryId: existing.id, name: existing.name, username: member.username, oldRank: existing.rank, newRank: member.roleName, newRoleId: member.roleId, rankNumber: member.rank, reason: "Roblox group role is below the configured ADA threshold." });
-      continue;
-    }
-    preview.eligibleCount++;
-    const nameMatches = existing ? [] : byName.get(member.username.trim().toLocaleLowerCase("en-US")) ?? [];
-    if (nameMatches.length > 1) {
-      preview.exceptions.push({ username: member.username, userId: member.userId, reason: "Multiple roster entries have this Roblox username. Link the correct Roblox user ID manually before syncing." });
-      continue;
-    }
-    const matched = existing ?? nameMatches[0];
-    if (matched?.robloxUserId && matched.robloxUserId !== member.userId) {
-      preview.exceptions.push({ username: member.username, userId: member.userId, reason: "A roster record with this username is linked to a different Roblox user ID. Review and correct the identity link before syncing." });
-      continue;
-    }
-    const candidate: Candidate = { ...member, unitBefore: matched?.unit ?? null };
-    if (!matched) {
-      preview.additions.push(candidate);
-      continue;
-    }
-    const needsUpdate = matched.name !== member.username || matched.rank !== (matched.rankOverride ?? member.roleName) || matched.robloxRoleName !== member.roleName || matched.robloxUserId !== member.userId || matched.robloxRoleId !== String(member.roleId) || matched.robloxRank !== member.rank || !matched.isActive || !matched.robloxSynced;
-    if (needsUpdate) preview.updates.push({ ...candidate, entryId: matched.id, oldName: matched.name, oldRank: matched.rank, wasActive: matched.isActive, wasSynced: matched.robloxSynced });
-    else preview.unchanged.push({ ...candidate, entryId: matched.id });
-  }
-
-  for (const entry of entries) {
-    if (!entry.robloxSynced || !entry.isActive || !entry.robloxUserId) continue;
-    if (snapshotIds.has(entry.robloxUserId)) {
-      const member = currentMembers.get(entry.robloxUserId)!;
-      if (eligibleRoleIds.has(member.roleId)) continue;
-      // The role-change operation above already records this entry.
-      continue;
-    }
-    preview.inactivations.push({ entryId: entry.id, name: entry.name, username: entry.robloxUserId, oldRank: entry.rank, newRank: "Not in group", newRoleId: null, rankNumber: null, reason: "Roblox account is no longer a member of the configured group." });
-  }
-  return preview;
 }
 
 async function previewRobloxRosterSyncImpl() {
@@ -113,7 +25,7 @@ async function previewRobloxRosterSyncImpl() {
   try {
     // A complete paginated snapshot is required before any removal can be proposed.
     const members = await fetchRobloxGroupMembers(ROBLOX_DA_GROUP_ID);
-    const preview = await buildPreview(members);
+    const preview = await buildRobloxRosterSyncPreview(members);
     run = await prisma.robloxRosterSyncRun.create({
       data: {
         actorName: session.user.displayName,
@@ -144,7 +56,7 @@ async function applyRobloxRosterSyncImpl(formData: FormData) {
     const approvedRun = await prisma.robloxRosterSyncRun.findUnique({ where: { id } });
     if (!approvedRun || approvedRun.actorName !== session.user.displayName || approvedRun.groupId !== String(ROBLOX_DA_GROUP_ID) || approvedRun.status !== "PREVIEW" || approvedRun.expiresAt <= now) throw new Error("This preview expired or was already applied. Create a fresh preview.");
     const liveMembers = await fetchRobloxGroupMembers(ROBLOX_DA_GROUP_ID);
-    const livePreview = await buildPreview(liveMembers);
+    const livePreview = await buildRobloxRosterSyncPreview(liveMembers);
     const signature = (data: SyncPreview) => JSON.stringify({
       additions: data.additions.map((item) => [item.userId, item.roleId, item.roleName]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       updates: data.updates.map((item) => [item.entryId, item.userId, item.roleId, item.roleName]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
