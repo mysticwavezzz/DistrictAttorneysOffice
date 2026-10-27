@@ -380,7 +380,10 @@ async function updateCaseImpl(formData: FormData) {
   const requestedAssignee = requestedAssigneeId ? await prisma.user.findUnique({ where: { id: requestedAssigneeId }, select: { id: true, division: true, divisionGroup: true } }) : null;
   if (requestedAssigneeId && (!requestedAssignee || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && requestedAssignee.division !== user.division))) throw new Error("Invalid assignee");
   if (requestedAssigneeId && session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && requestedAssignee?.divisionGroup !== user.divisionGroup) throw new Error("You can only assign cases to attorneys in your Criminal Division group.");
-  if (requiresCriminalAssigneeGroup(existing.division, canAssign, existing.assignedAttorneyId, requestedAssigneeId) && !requestedAssignee?.divisionGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN)) throw new Error("Assign the selected attorney to Criminal Division Group 1 or 2 before assigning this case.");
+  const chiefAssistantSelfAssignment = existing.division === "Criminal Division"
+    && requestedAssigneeId === user.id
+    && session.user.tiers.includes("chief_assistant_district_attorney");
+  if (requiresCriminalAssigneeGroup(existing.division, canAssign, existing.assignedAttorneyId, requestedAssigneeId) && !requestedAssignee?.divisionGroup && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && !chiefAssistantSelfAssignment) throw new Error("Assign the selected attorney to Criminal Division Group 1 or 2 before assigning this case.");
   const nextAssignee = requestedAssigneeId;
   const caseNumber = emptyToNull(data.caseNumber) ?? existing.caseNumber;
   const relatedIds = await resolveRelatedCaseIds(formData.get("relatedCaseNumbers"), id);
