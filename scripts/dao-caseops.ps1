@@ -6,7 +6,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "attorneys", "assign", "reconcile")]
+  [ValidateSet("setup", "save-token", "cases", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
@@ -15,6 +15,7 @@ param(
   [string]$CaseNumber,
   [string[]]$CaseNumbers,
   [string]$AssigneeId,
+  [string[]]$CommentIds,
   [string]$ExportPath,
   [switch]$Local,
   [switch]$Apply
@@ -224,6 +225,29 @@ switch ($Command) {
       if ($parent -and -not (Test-Path -LiteralPath $parent)) { throw "Export folder does not exist: $parent" }
       $report | Export-Csv -LiteralPath $ExportPath -NoTypeInformation -Encoding utf8
       Write-Host "Reconciliation CSV saved to $ExportPath"
+    }
+  }
+  "case-comments" {
+    $result = Invoke-DaoApi -Method GET -Path "/api/automation/case-comments"
+    $items = @($result.items)
+    $items | Select-Object id, @{ Name = "Case"; Expression = { $_.case.caseNumber } }, @{ Name = "Title"; Expression = { $_.case.title } }, createdAt, @{ Name = "Text"; Expression = { $_.body } } | Format-List
+    Write-Host "$($items.Count) manual note(s) authored by this account in accessible Criminal Division cases. Read-only."
+  }
+  "delete-case-comments" {
+    $ids = @($CommentIds) | Where-Object { $_ } | Select-Object -Unique
+    if (-not $ids.Count) { throw "Provide one or more exact -CommentIds from the case-comments list." }
+    $available = (Invoke-DaoApi -Method GET -Path "/api/automation/case-comments").items
+    $targets = @($available | Where-Object { $ids -contains $_.id })
+    if ($targets.Count -ne $ids.Count) { throw "Every requested ID must be a manual note authored by this account in an accessible Criminal Division case. No changes were made." }
+    $targets | Select-Object id, @{ Name = "Case"; Expression = { $_.case.caseNumber } }, @{ Name = "Title"; Expression = { $_.case.title } }, createdAt, @{ Name = "Text"; Expression = { $_.body } } | Format-List
+    if (-not $Apply) {
+      Write-Host "Preview only. Add -Apply to remove exactly these notes. System history and court records cannot be removed by this command."
+      break
+    }
+    if ($PSCmdlet.ShouldProcess("$($ids.Count) selected note(s)", "Permanently delete only manual notes authored by this account")) {
+      $body = @{ ids = $ids } | ConvertTo-Json -Compress
+      $result = Invoke-DaoApi -Method DELETE -Path "/api/automation/case-comments" -Body $body
+      Write-Host "Removed $($result.deletedCount) selected manual note(s)."
     }
   }
   "attorneys" {

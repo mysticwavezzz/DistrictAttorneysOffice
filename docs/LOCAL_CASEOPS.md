@@ -74,3 +74,11 @@ Use `-AssigneeId UNASSIGNED` to preview or apply unassignment. Assignment reques
 The credential can only be created from the authenticated `M_ysticWavezzz` owner account, is bound server-side to that account, and the API rechecks live Roblox group roles and the current roster before returning case data or changing an assignment. Each request is signed by the Windows certificate key; copying the token or public certificate to another computer is not enough to sign requests. The token is stored encrypted for the current Windows user and expires after 90 days. Revoke it immediately if the computer or Windows account is compromised.
 
 The API exposes only case listing, eligible attorney listing, and case reassignment. Reconciliation adds filing-status and due-date fields to the authorized case listing. It does not expose filing upload, case creation, review decisions, or approval actions.
+
+List manual notes written by the signed-in account on accessible Criminal Division cases, then preview or remove selected IDs. Deletion rejects system history, notes by other staff, and notes outside the Criminal Division.
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 case-comments
+pwsh -File .\scripts\dao-caseops.ps1 delete-case-comments -CommentIds ID1,ID2
+pwsh -File .\scripts\dao-caseops.ps1 delete-case-comments -CommentIds ID1,ID2 -Apply
+```
