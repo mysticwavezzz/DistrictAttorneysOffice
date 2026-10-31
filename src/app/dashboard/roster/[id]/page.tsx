@@ -58,26 +58,6 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
             <label htmlFor="name">Name</label>
             <input type="text" id="name" name="name" required maxLength={100} defaultValue={entry.name} readOnly={entry.robloxSynced} />
           </div>
-      {canControl && entry.unit === "Criminal Division" && isAssignableAttorneyRank(entry.rank) && entry.robloxUserId && <div className="field" style={{ marginTop: 12 }}>
-        <label htmlFor="onboardingRoute">Attorney onboarding route</label>
-        <select id="onboardingRoute" name="onboardingRoute" defaultValue={entry.onboardingRoute ?? (entry.isProsecutorInTraining ? "TRAINING" : "UNASSIGNED")}>
-          <option value="UNASSIGNED">Not enrolled</option>
-          <option value="TRAINING">Prosecutor in Training</option>
-          <option value="EXPERIENCED">Experienced attorney, orientation only</option>
-        </select>
-        <label htmlFor="trainingExemptionReason">Experience review note <span className="hint">(required for experienced route)</span></label>
-        <textarea id="trainingExemptionReason" name="trainingExemptionReason" rows={2} maxLength={1000} defaultValue={entry.trainingExemptionReason ?? ""} placeholder="Briefly record the prior criminal case work or appearances reviewed." />
-        <p className="hint">The experienced route requires a group placement and a supervisor&apos;s written reason. Both routes require office orientation before staff access opens.</p>
-        <label style={{ display: "flex", gap: 9, alignItems: "center" }}>
-          <input type="checkbox" name="isProsecutorInTraining" defaultChecked={entry.isProsecutorInTraining} />
-          <span>Prosecutor-in-Training <span className="hint">(restrict this account to the Learning Course until completion)</span></span>
-        </label>
-        {entry.orientationPending && <p role="status" className="hint">Orientation acknowledgment is pending. Group {entry.divisionGroup ?? "not placed"}.</p>}
-        {entry.orientationAcknowledgedAt && <p className="hint">Orientation acknowledged {entry.orientationAcknowledgedAt.toLocaleDateString()}.</p>}
-        {entry.onboardingRoute && <p className="hint">Onboarding route: {entry.onboardingRoute === "TRAINING" ? "Prosecutor in Training" : "Experienced attorney"}{entry.trainingSupervisor ? ` · reviewed by ${entry.trainingSupervisor}` : ""}.</p>}
-        {entry.trainingExemptionReason && <p className="hint">Experience review: {entry.trainingExemptionReason}</p>}
-        {entry.trainingPlacementStatus === "PLACED_RANK_REVIEW" && <p role="status" className="hint">Training is complete. A pre-existing rank was preserved; leadership should review the rank before independent assignment.</p>}
-      </div>}
           <div className="field">
             <label htmlFor="rank">Rank</label>
             <input type="text" id="rank" value={entry.rank ?? "Not assigned"} readOnly />
@@ -94,6 +74,33 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
             groupHint="(Group 1 or 2; sets the employee’s case-review team)"
           />
         </div>
+        {canControl && entry.unit === "Criminal Division" && isAssignableAttorneyRank(entry.rank) && entry.robloxUserId && <section className="roster-onboarding-panel" aria-labelledby="onboarding-heading">
+          <h2 id="onboarding-heading">Criminal Division onboarding</h2>
+          <div className="roster-onboarding-grid">
+            <div className="field">
+              <label htmlFor="onboardingRoute">Attorney onboarding route</label>
+              <select id="onboardingRoute" name="onboardingRoute" defaultValue={entry.onboardingRoute ?? (entry.isProsecutorInTraining ? "TRAINING" : "UNASSIGNED")}>
+                <option value="UNASSIGNED">Not enrolled</option>
+                <option value="TRAINING">Prosecutor in Training</option>
+                <option value="EXPERIENCED">Experienced attorney, orientation only</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="trainingExemptionReason">Experience review note <span className="hint">(required for experienced route)</span></label>
+              <textarea id="trainingExemptionReason" name="trainingExemptionReason" rows={2} maxLength={1000} defaultValue={entry.trainingExemptionReason ?? ""} placeholder="Briefly record the prior criminal case work or appearances reviewed." />
+            </div>
+            <p className="hint roster-onboarding-wide">The experienced route requires a group placement and a supervisor&apos;s written reason. Both routes require office orientation before staff access opens.</p>
+            <label className="checkbox-row roster-onboarding-wide">
+              <input type="checkbox" name="isProsecutorInTraining" defaultChecked={entry.isProsecutorInTraining} />
+              <span>Prosecutor-in-Training <span className="hint">(restrict this account to the Learning Course until completion)</span></span>
+            </label>
+            {entry.orientationPending && <p role="status" className="hint roster-onboarding-wide">Orientation acknowledgment is pending. Group {entry.divisionGroup ?? "not placed"}.</p>}
+            {entry.orientationAcknowledgedAt && <p className="hint roster-onboarding-wide">Orientation acknowledged {entry.orientationAcknowledgedAt.toLocaleDateString()}.</p>}
+            {entry.onboardingRoute && <p className="hint roster-onboarding-wide">Onboarding route: {entry.onboardingRoute === "TRAINING" ? "Prosecutor in Training" : "Experienced attorney"}{entry.trainingSupervisor ? ` · reviewed by ${entry.trainingSupervisor}` : ""}.</p>}
+            {entry.trainingExemptionReason && <p className="hint roster-onboarding-wide">Experience review: {entry.trainingExemptionReason}</p>}
+            {entry.trainingPlacementStatus === "PLACED_RANK_REVIEW" && <p role="status" className="hint roster-onboarding-wide">Training is complete. A pre-existing rank was preserved; leadership should review the rank before independent assignment.</p>}
+          </div>
+        </section>}
         <div className="field-row">
           <div className="field">
             <label htmlFor="discordUserId">

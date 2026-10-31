@@ -1068,6 +1068,8 @@ table.stat td {
   border-bottom: 1px solid var(--bd-lt);
 }
 
+table.stat td small { display: block; margin-top: 2px; }
+
 table.stat td:last-child,
 table.stat tbody th:last-child {
   border-right: 0;
@@ -1224,6 +1226,7 @@ table.stat tbody tr.table-empty-row td {
 
 .field input[type="text"],
 .field input:not([type]),
+.field input[type="url"],
 .field input[type="date"],
 .field input[type="datetime-local"],
 .field select,
@@ -1238,12 +1241,14 @@ table.stat tbody tr.table-empty-row td {
 
 .field input[type="text"],
 .field input:not([type]),
+.field input[type="url"],
 .field input[type="date"],
 .field input[type="datetime-local"],
 .field select { min-height: 36px; }
 
 .field input[type="text"]:focus,
 .field input:not([type]):focus,
+.field input[type="url"]:focus,
 .field input[type="date"]:focus,
 .field input[type="datetime-local"]:focus,
 .field select:focus,
@@ -1927,6 +1932,12 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .case-file-form .case-opening-controls { align-items: center; }
 .review-inbox-filters { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)) auto auto; align-items: end; gap: 10px; margin: 16px 0; padding: 14px; border: 1px solid var(--bd); background: var(--box-alt); }
 .review-inbox-filters .field { min-width: 0; margin: 0; }
+.review-triage-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 16px; }
+.review-triage-tabs a { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--bd); border-radius: 4px; background: var(--box); color: var(--ink); text-decoration: none; }
+.review-triage-tabs a:hover, .review-triage-tabs a:focus-visible { border-color: var(--navy); background: var(--box-alt); }
+.review-triage-tabs a.on { border-color: var(--navy); background: var(--navy); color: #fff; }
+.review-triage-tabs a span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: 10px; background: var(--chip-bg); color: var(--chip-ink); font-size: 11px; line-height: 1; }
+.review-triage-tabs a.on span { background: #fff; color: var(--navy-dk); }
 .review-inbox-count { color: var(--ink-soft); font-size: 12px; }
 .review-inbox-list { display: grid; gap: 12px; }
 .review-inbox-card { min-width: 0; padding: 14px; border: 1px solid var(--bd); border-left: 4px solid var(--navy); background: var(--box); }
@@ -2365,6 +2376,15 @@ button:disabled { cursor: wait; opacity: .7; }
 @media (max-width: 640px) { .release-pdf-only iframe { height: 100dvh; } }
 .roster-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%, 270px),1fr)); gap:16px; margin:16px 0 22px; }
 .roster-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; border:1px solid var(--bd); border-radius:8px; padding:18px; background:var(--paper); }
+.roster-onboarding-panel { margin: 4px 0 14px; padding: 14px; border: 1px solid var(--bd); background: var(--box-alt); }
+.roster-onboarding-panel h2 { margin: 0 0 12px; font-size: 15px; }
+.roster-onboarding-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 0 16px; }
+.roster-onboarding-grid .field { min-width: 0; }
+.roster-onboarding-wide { grid-column: 1 / -1; }
+.roster-onboarding-grid > .hint { margin: 0 0 10px; color: var(--ink-soft); }
+.roster-onboarding-grid .checkbox-row { display: flex; align-items: center; gap: 9px; margin: 4px 0 10px; }
+.roster-onboarding-grid .checkbox-row input { flex: 0 0 auto; }
+.roster-onboarding-grid .checkbox-row .hint { color: var(--ink-soft); font-weight: normal; }
 .roster-card img { width:54px; height:54px; object-fit:cover; border-radius:50%; float:right; }
 .roster-card h4, .roster-card p { margin:0; overflow-wrap:anywhere; }
 .roster-card-badges { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
@@ -3008,4 +3028,6 @@ details > summary::after {
   .handoff-evidence-list { grid-template-columns: 1fr; }
   .training-progress { grid-template-columns: 1fr 1fr; }
   .training-card, .training-question, .training-feedback { padding: 13px; }
+  .roster-onboarding-grid { grid-template-columns: 1fr; }
+  .roster-onboarding-wide { grid-column: auto; }
 }
