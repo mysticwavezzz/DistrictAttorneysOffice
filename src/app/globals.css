@@ -21,7 +21,6 @@
   --ink-dim: #4a463c;
   --ink-soft: #5a5344;
   --link: #1a3e8c;
-  --link-v: #5b3a86;
   --up: #2c5a2e;
   --down: #8e2f22;
   --prov: #8a6a12;
@@ -63,7 +62,6 @@
   --ink-dim: #c8c4b3;
   --ink-soft: #a099a3;
   --link: #92b2f2;
-  --link-v: #c0a4e8;
   --up: #82c480;
   --down: #e5927e;
   --prov: #ddc26e;
@@ -105,17 +103,14 @@ video {
   height: auto;
 }
 
-/* Both :where()'d to zero specificity: visited (declared second) still
-   wins over unvisited for a plain link via source order, but neither
-   can ever outrank a class-styled link (buttons, nav tabs, cards,
-   pills), which used to happen because :visited's element+pseudo-class
-   specificity beat a single class like .govbtn. */
+/* Keep links visually consistent after they have been visited. Both
+   selectors have zero specificity so component styles can still apply. */
 :where(a) {
   color: var(--link);
 }
 
 :where(a:visited) {
-  color: var(--link-v);
+  color: var(--link);
 }
 
 a:focus-visible {
@@ -2970,7 +2965,7 @@ details > summary::after {
 .handoff-facts > div { display: grid; gap: 4px; min-width: 0; padding: 12px; border: 1px solid var(--bd); background: var(--paper); }
 .handoff-facts dt { color: var(--ink-soft); font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .handoff-facts dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
-.handoff-assignment-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.handoff-assignment-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
 .handoff-assignment-form .field { flex: 1 1 260px; }
 .handoff-last-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; }
 .handoff-last-action time { color: var(--ink-soft); font-size: 12px; }
