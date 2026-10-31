@@ -77,6 +77,7 @@ export const authConfig = {
       session.user.displayName = token.identityProvider === "roblox" ? token.username ?? "" : token.displayName ?? token.username ?? "";
       session.user.avatarUrl = token.avatarUrl ?? null;
       session.user.tiers = token.tiers ?? [];
+      session.user.groupTiers = (token as typeof token & { groupTiers?: PermissionTier[] }).groupTiers ?? [];
       return session;
     },
   },

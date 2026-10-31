@@ -21,6 +21,8 @@ export const CAPABILITIES = {
   REQUESTS_VIEW: "requests:view",
   ACTIVITY_VIEW: "activity:view",
   SETTINGS_MANAGE: "settings:manage",
+  TRAINING_VIEW: "training:view",
+  ORIENTATION_VIEW: "orientation:view",
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];

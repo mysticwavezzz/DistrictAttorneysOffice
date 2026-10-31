@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyRosterRankOverride, canAssignStaffRank, canControlStaff, replaceGroupRankTier } from "./staff-rank-control";
+import { applyRosterRankOverride, canAssignStaffRank, canControlStaff, effectiveRosterRank, replaceGroupRankTier } from "./staff-rank-control";
+
+it("uses a manual roster rank override when determining the effective staff rank", () => {
+  expect(effectiveRosterRank("Assistant District Attorney", "Senior Assistant District Attorney")).toBe("Senior Assistant District Attorney");
+  expect(effectiveRosterRank("Assistant District Attorney", null)).toBe("Assistant District Attorney");
+});
 
 describe("staff rank and removal authority", () => {
   it("replaces a Roblox DA rank while preserving unrelated law-enforcement access", () => {

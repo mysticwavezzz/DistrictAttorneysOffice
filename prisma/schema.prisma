@@ -42,6 +42,38 @@ model User {
   aopcsSubmitted         Aopc[]                 @relation("AopcSubmitted")
   aopcsReviewed          Aopc[]                 @relation("AopcReviewed")
   localAutomationTokens  LocalAutomationToken[]
+  trainingAttempts       TrainingAttempt[]
+}
+
+model TrainingAttempt {
+  id                 String    @id @default(cuid())
+  userId             String
+  activeForUserId    String?   @unique
+  status             String    @default("IN_PROGRESS")
+  currentPhase       Int       @default(1)
+  phaseAnswersJson   String    @default("{}")
+  phaseResultsJson   String    @default("[]")
+  mockCaseId         String?
+    mockCaseVersion    String?
+    mockCaseSnapshotJson String?
+    mockSeed           Int?
+    bankVersion        String?
+    placedGroup        String?
+  mockAnswersJson    String    @default("{}")
+  mockResultJson     String?
+    decisionLogJson    String    @default("[]")
+    mockFailures       Int       @default(0)
+    needsSupervisorReview Boolean @default(false)
+    supervisorReviewedAt DateTime?
+    supervisorReviewedBy String?
+    supervisorReviewNote String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  completedAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
 }
 
 model LocalAutomationToken {
@@ -481,6 +513,15 @@ model RosterEntry {
   about            String?
   startDate        DateTime?
   isActive         Boolean   @default(true)
+  isProsecutorInTraining Boolean @default(false)
+    onboardingRoute  String?
+    trainingSupervisor String?
+    trainingExemptionReason String?
+    trainingPlacementStatus String?
+    orientationPending Boolean @default(false)
+    orientationAcknowledgedAt DateTime?
+    trainingGraduatedAt DateTime?
+    trainingAutoRankOverride Boolean @default(false)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }

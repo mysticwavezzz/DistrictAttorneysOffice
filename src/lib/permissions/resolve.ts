@@ -38,6 +38,7 @@ export function resolveTiersFromRoleMappings(
 }
 
 export function capabilitiesForTiers(tiers: PermissionTier[]): Set<Capability> {
+  if (tiers.includes("prosecutor_in_training")) return new Set([CAPABILITIES.DASHBOARD_VIEW, CAPABILITIES.TRAINING_VIEW]);
   if (tiers.includes(DEVELOPER_PROFILE_TIER)) return new Set(Object.values(CAPABILITIES));
   const capabilities = new Set<Capability>();
   const denied = new Set<Capability>();

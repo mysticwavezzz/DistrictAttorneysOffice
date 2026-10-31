@@ -6,6 +6,8 @@ export interface RouteRule {
 }
 
 export const PROTECTED_ROUTES: RouteRule[] = [
+  { prefix: "/dashboard/learning", capabilities: [CAPABILITIES.TRAINING_VIEW] },
+  { prefix: "/dashboard/orientation", capabilities: [CAPABILITIES.ORIENTATION_VIEW] },
   { prefix: "/dashboard/intake", capabilities: [CAPABILITIES.CASES_CREATE, CAPABILITIES.CASES_PROPOSE_EDIT] },
   { prefix: "/dashboard/workload", capabilities: [CAPABILITIES.CASES_ASSIGN, CAPABILITIES.CASES_ASSIGN_DIVISION] },
   { prefix: "/dashboard/reports", capabilities: [CAPABILITIES.CASES_VIEW_ALL, CAPABILITIES.CASES_VIEW_DIVISION] },

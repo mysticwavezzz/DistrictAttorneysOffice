@@ -38,7 +38,7 @@ export async function buildRobloxRosterSyncPreview(members: RobloxGroupMember[])
   if (!eligibleRoleIds.size) throw new Error("No ADA-or-higher Roblox role IDs are configured for the District Attorney group. No roster changes were applied.");
 
   const [entries, revokedAccounts] = await Promise.all([
-    prisma.rosterEntry.findMany({ select: { id: true, name: true, rank: true, rankOverride: true, robloxRoleName: true, unit: true, robloxUserId: true, robloxSynced: true, robloxRoleId: true, robloxRank: true, isActive: true } }),
+    prisma.rosterEntry.findMany({ select: { id: true, name: true, rank: true, rankOverride: true, trainingAutoRankOverride: true, robloxRoleName: true, unit: true, robloxUserId: true, robloxSynced: true, robloxRoleId: true, robloxRank: true, isActive: true } }),
     prisma.revokedStaffAccess.findMany({ select: { robloxUserId: true } }),
   ]);
   const revokedIds = new Set(revokedAccounts.map((account) => account.robloxUserId));
@@ -76,7 +76,8 @@ export async function buildRobloxRosterSyncPreview(members: RobloxGroupMember[])
       preview.additions.push(candidate);
       continue;
     }
-    const needsUpdate = matched.name !== member.username || matched.rank !== (matched.rankOverride ?? member.roleName) || matched.robloxRoleName !== member.roleName || matched.robloxUserId !== member.userId || matched.robloxRoleId !== String(member.roleId) || matched.robloxRank !== member.rank || !matched.isActive || !matched.robloxSynced;
+    const trainingOverrideCaughtUp = matched.trainingAutoRankOverride && member.roleName === "Assistant District Attorney";
+    const needsUpdate = matched.name !== member.username || matched.rank !== (matched.rankOverride ?? member.roleName) || matched.robloxRoleName !== member.roleName || matched.robloxUserId !== member.userId || matched.robloxRoleId !== String(member.roleId) || matched.robloxRank !== member.rank || !matched.isActive || !matched.robloxSynced || trainingOverrideCaughtUp;
     if (needsUpdate) preview.updates.push({ ...candidate, entryId: matched.id, oldName: matched.name, oldRank: matched.rank, wasActive: matched.isActive, wasSynced: matched.robloxSynced });
     else preview.unchanged.push({ ...candidate, entryId: matched.id });
   }
@@ -129,10 +130,12 @@ export async function runAutomaticRobloxRosterSync(): Promise<void> {
 
       for (const change of allTargets) {
         const item = change.item;
-        const existing = change.kind === "update" ? await tx.rosterEntry.findUnique({ where: { id: change.item.entryId }, select: { rankOverride: true } }) : null;
+        const existing = change.kind === "update" ? await tx.rosterEntry.findUnique({ where: { id: change.item.entryId }, select: { rankOverride: true, trainingAutoRankOverride: true } }) : null;
+        const clearTrainingOverride = Boolean(existing?.trainingAutoRankOverride && item.roleName === "Assistant District Attorney");
         const syncedFields = {
           name: item.username,
-          rank: existing?.rankOverride ?? item.roleName,
+          rank: clearTrainingOverride ? item.roleName : existing?.rankOverride ?? item.roleName,
+          ...(clearTrainingOverride ? { rankOverride: null, trainingAutoRankOverride: false } : {}),
           robloxRoleName: item.roleName,
           robloxUserId: item.userId,
           robloxSynced: true,

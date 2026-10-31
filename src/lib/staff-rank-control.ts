@@ -40,6 +40,10 @@ export function tierForRosterRank(rank: string): PermissionTier | null {
   return RANK_TIERS[rank] ?? null;
 }
 
+export function effectiveRosterRank(rank: string | null | undefined, rankOverride: string | null | undefined): string | null {
+  return rankOverride || rank || null;
+}
+
 export function applyRosterRankOverride(tiers: PermissionTier[], rankOverride: string | null): PermissionTier[] {
   if (!rankOverride) return tiers;
   const tier = tierForRosterRank(rankOverride);

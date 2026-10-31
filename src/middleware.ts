@@ -6,6 +6,7 @@ import { hasAnyCapability } from "@/lib/permissions/resolve";
 import { env } from "@/lib/env";
 import { shouldRedirectToMaintenance } from "@/lib/maintenance-access";
 import { applyRosterRankOverride } from "@/lib/staff-rank-control";
+import { DEVELOPER_PROFILE_TIER, PERMISSION_TIERS } from "@/lib/permissions/tiers";
 
 const { auth } = NextAuth(authConfig);
 
@@ -84,12 +85,31 @@ export default auth(async (req) => {
       url.searchParams.set("robloxUserId", effectiveUser.robloxUserId);
       const status = await fetch(url, { cache: "no-store", headers: { "x-staff-access-check": env.AUTH_SECRET } });
       if (!status.ok) throw new Error(`Staff access check returned ${status.status}`);
-      const access = await status.json() as { revoked: boolean; rankOverride: string | null };
-      effectiveUser = access.revoked ? null : { ...effectiveUser, tiers: applyRosterRankOverride(effectiveUser.tiers, access.rankOverride) };
+      const access = await status.json() as { revoked: boolean; rankOverride: string | null; isProsecutorInTraining?: boolean; orientationPending?: boolean };
+      effectiveUser = access.revoked ? null : { ...effectiveUser, tiers: access.isProsecutorInTraining
+        ? [PERMISSION_TIERS.PROSECUTOR_IN_TRAINING]
+        : access.orientationPending ? [PERMISSION_TIERS.ATTORNEY_ORIENTATION_PENDING]
+        : [...new Set([...applyRosterRankOverride(effectiveUser.groupTiers ?? effectiveUser.tiers.filter((tier) => tier !== PERMISSION_TIERS.PROSECUTOR_IN_TRAINING), access.rankOverride), ...(effectiveUser.tiers.includes(DEVELOPER_PROFILE_TIER) ? [DEVELOPER_PROFILE_TIER] : [])])] };
     } catch (error) {
       console.error("Failed to verify staff access in middleware", error);
       effectiveUser = null;
     }
+  }
+
+  if (effectiveUser?.tiers.includes(PERMISSION_TIERS.PROSECUTOR_IN_TRAINING)
+    && !pathname.startsWith("/dashboard/learning")
+    && !pathname.startsWith("/api/training/")
+    && !pathname.startsWith("/api/auth/")
+    && pathname !== "/login") {
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "This account is restricted to the Criminal Division learning course." }, { status: 403 });
+    return NextResponse.redirect(new URL("/dashboard/learning", req.nextUrl.origin));
+  }
+  if (effectiveUser?.tiers.includes(PERMISSION_TIERS.ATTORNEY_ORIENTATION_PENDING)
+    && !pathname.startsWith("/dashboard/orientation")
+    && !pathname.startsWith("/api/auth/")
+    && pathname !== "/login") {
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Complete attorney orientation before using staff tools." }, { status: 403 });
+    return NextResponse.redirect(new URL("/dashboard/orientation", req.nextUrl.origin));
   }
 
   const maintenance = await getMaintenanceConfiguration(req.nextUrl.origin);
@@ -134,7 +154,7 @@ export default auth(async (req) => {
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|api/staff-access/status|api/site-settings/status).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

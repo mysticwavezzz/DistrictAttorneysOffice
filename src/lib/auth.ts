@@ -57,13 +57,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // A roster removal revokes even an already signed-in browser. This check
       // runs on every server auth request and precedes Developer Profile access.
       let rankOverride: string | null;
+      let isProsecutorInTraining = false;
       try {
         const [revoked, roster] = await Promise.all([
           prisma.revokedStaffAccess.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { robloxUserId: true } }),
-          prisma.rosterEntry.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { rankOverride: true, isActive: true } }),
+          prisma.rosterEntry.findUnique({ where: { robloxUserId: token.robloxUserId }, select: { rankOverride: true, isActive: true, isProsecutorInTraining: true } }),
         ]);
         if (revoked) return null;
         rankOverride = roster?.isActive ? roster.rankOverride : null;
+        isProsecutorInTraining = Boolean(roster?.isActive && roster.isProsecutorInTraining);
       } catch (error) {
         console.error("Could not verify staff access controls", error);
         return null;
@@ -108,7 +110,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           username: token.username,
           robloxUserId: token.robloxUserId,
         });
-        const tiers = withDeveloperProfile(token.identityProvider, token.username, baseTiers, developerEnabled);
+        const tiers = isProsecutorInTraining
+          ? ["prosecutor_in_training"] as PermissionTier[]
+          : withDeveloperProfile(token.identityProvider, token.username, baseTiers, developerEnabled);
         token.tiers = [...tiers, ...capabilityMarkersForTiers(tiers, custom.configuredTierCapabilities ?? {})] as PermissionTier[];
       }
 

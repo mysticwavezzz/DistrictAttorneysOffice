@@ -52,8 +52,8 @@ describe("getDivisionCaseAssignees", () => {
     const result = await getDivisionCaseAssignees("Civil Division");
 
     expect(result).toEqual([
-      { id: "user-101", displayName: "Existing Attorney" },
-      { id: "user-102", displayName: "New Attorney" },
+      { id: "user-101", displayName: "Existing Attorney", rank: "Assistant District Attorney", divisionGroup: null },
+      { id: "user-102", displayName: "New Attorney", rank: "Supervisory Assistant District Attorney", divisionGroup: null },
     ]);
     expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ unit: "Civil Division", isActive: true }) }));
     expect(mocks.create).toHaveBeenCalledWith({ data: expect.objectContaining({ robloxUserId: "102", discordUserId: "discord-102", tiers: "", division: "Civil Division" }) });

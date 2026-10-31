@@ -15,6 +15,7 @@ import { RANKS, type RankOption } from "@/config/ranks";
 import { UNITS, type UnitOption } from "@/config/units";
 import { canAssignStaffRank, canControlStaff, replaceGroupRankTier } from "@/lib/staff-rank-control";
 import { parseStoredTiers } from "@/lib/contact-mail";
+import { isAssignableAttorneyRank } from "@/lib/case-assignees";
 
 async function requireManager() {
   const session = await auth();
@@ -55,6 +56,7 @@ async function addRosterEntryImpl(formData: FormData) {
       startDate: toDate(data.startDate),
       imageUrl: emptyToNull(data.imageUrl),
       about: emptyToNull(data.about),
+      orientationPending: data.unit === "Criminal Division" && isAssignableAttorneyRank(data.rank),
     },
   });
 
@@ -71,7 +73,7 @@ async function updateRosterEntryImpl(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing roster entry id");
 
-  const previous = await prisma.rosterEntry.findUnique({ where: { id }, select: { robloxUserId: true, unit: true, divisionGroup: true, robloxSynced: true, name: true, rank: true } });
+  const previous = await prisma.rosterEntry.findUnique({ where: { id }, select: { robloxUserId: true, unit: true, divisionGroup: true, robloxSynced: true, name: true, rank: true, isProsecutorInTraining: true, isActive: true, orientationAcknowledgedAt: true, onboardingRoute: true } });
   if (!previous) throw new Error("Roster entry not found. Refresh the roster and try again.");
   const raw = Object.fromEntries(formData);
   // Synced entries may legitimately have no configured rank. Preserve the
@@ -82,10 +84,25 @@ async function updateRosterEntryImpl(formData: FormData) {
   }
   const data = parsed.data;
   const current = previous;
+  const requestedOnboardingRoute = String(raw.onboardingRoute ?? "UNASSIGNED");
+  const isProsecutorInTraining = raw.isProsecutorInTraining === "on" || requestedOnboardingRoute === "TRAINING";
+  const onboardingRoute = isProsecutorInTraining ? "TRAINING" : requestedOnboardingRoute === "EXPERIENCED" ? "EXPERIENCED" : null;
+  const exemptionReason = String(raw.trainingExemptionReason ?? "").trim();
   const mayManageCurrent = Boolean(current && (canManageRosterInDivision(session.user.tiers, user.division, current.unit)
     || canManageUnassignedRosterEntry(session.user.tiers, user.division, current.unit, current.rank)));
   if (!current || !mayManageCurrent || !canManageRosterInDivision(session.user.tiers, user.division, data.unit)) throw new Error("You can only assign unassigned staff to your division or edit entries already in your division.");
   if (data.divisionGroup && data.unit !== "Criminal Division") throw new Error("Groups 1 and 2 are only available in the Criminal Division.");
+  if (requestedOnboardingRoute !== "UNASSIGNED" && requestedOnboardingRoute !== "EXPERIENCED" && requestedOnboardingRoute !== "TRAINING") throw new Error("Select a valid attorney onboarding route.");
+  if (requestedOnboardingRoute === "EXPERIENCED" && (!current.isActive || !current.robloxUserId || data.unit !== "Criminal Division" || !isAssignableAttorneyRank(current.rank) || !data.divisionGroup || exemptionReason.length < 20)) {
+    throw new Error("For the experienced route, record an active linked Criminal Division attorney, assign Group 1 or 2, and give at least 20 characters explaining the supervisor's experience review.");
+  }
+  if (isProsecutorInTraining && (!current.robloxUserId || current.robloxUserId !== data.robloxUserId || !current.isActive || data.unit !== "Criminal Division" || !isAssignableAttorneyRank(current.rank))) {
+    throw new Error("A trainee must be an active, linked Criminal Division attorney before course access can be enabled.");
+  }
+  if ((isProsecutorInTraining !== current.isProsecutorInTraining || onboardingRoute !== current.onboardingRoute)
+    && !canControlStaff(session.user.tiers, session.user.providerUserId, user.division, current)) {
+    throw new Error("Only authorized leadership may change the attorney onboarding route or Prosecutor-in-Training access.");
+  }
   const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
   if (data.unit && !divisions.some((unit) => unit.value === data.unit)) throw new Error("Select a configured division");
   if (!current.robloxSynced && data.robloxUserId && await prisma.revokedStaffAccess.findUnique({ where: { robloxUserId: data.robloxUserId } })) throw new Error("This Roblox account has been removed from site access.");
@@ -102,6 +119,13 @@ async function updateRosterEntryImpl(formData: FormData) {
       startDate: toDate(data.startDate),
       imageUrl: emptyToNull(data.imageUrl),
       about: emptyToNull(data.about),
+      isProsecutorInTraining,
+      onboardingRoute,
+      trainingSupervisor: onboardingRoute === "EXPERIENCED" ? session.user.displayName : isProsecutorInTraining ? session.user.displayName : null,
+      trainingExemptionReason: onboardingRoute === "EXPERIENCED" ? exemptionReason : null,
+      orientationPending: isProsecutorInTraining ? false : data.unit === "Criminal Division" && isAssignableAttorneyRank(current.rank) && !current.orientationAcknowledgedAt,
+      ...(onboardingRoute === "EXPERIENCED" || isProsecutorInTraining ? { trainingPlacementStatus: null } : {}),
+      ...(isProsecutorInTraining ? { trainingGraduatedAt: null } : {}),
     },
   });
 
@@ -117,6 +141,7 @@ async function updateRosterEntryImpl(formData: FormData) {
   }
 
   await logActivity(session.user.displayName, "edited", "roster entry", current.robloxSynced ? current.name : data.name);
+  if (isProsecutorInTraining !== current.isProsecutorInTraining) await logActivity(session.user.displayName, isProsecutorInTraining ? "enrolled" : "removed from training", "criminal division course", current.name);
   revalidatePath("/dashboard/roster");
   revalidatePath("/contacts");
   redirect("/dashboard/roster");
@@ -156,7 +181,7 @@ async function setRosterActiveImpl(formData: FormData) {
   const current = await prisma.rosterEntry.findUnique({ where: { id }, select: { unit: true, robloxSynced: true } });
   if (!current || !canManageRosterInDivision(session.user.tiers, user.division, current.unit)) throw new Error("You can only manage roster entries in your assigned division.");
   if (current.robloxSynced) throw new Error("Active membership is managed by Roblox group sync. Remove the member from the Roblox group and run a sync to mark them inactive.");
-  const entry = await prisma.rosterEntry.update({ where: { id }, data: { isActive } });
+  const entry = await prisma.rosterEntry.update({ where: { id }, data: { isActive, ...(!isActive ? { isProsecutorInTraining: false } : {}) } });
   await logActivity(session.user.displayName, isActive ? "reactivated" : "deactivated", "roster entry", entry.name);
   revalidatePath("/dashboard/roster");
   revalidatePath("/contacts");
@@ -175,7 +200,7 @@ async function setRosterRankOverrideImpl(formData: FormData) {
   }
   const nextRank = requestedRank || entry.robloxRoleName || entry.rank;
   await prisma.$transaction(async (tx) => {
-    await tx.rosterEntry.update({ where: { id }, data: { rank: nextRank, rankOverride: requestedRank || null, robloxRoleName: entry.robloxSynced ? entry.robloxRoleName ?? entry.rank : null } });
+    await tx.rosterEntry.update({ where: { id }, data: { rank: nextRank, rankOverride: requestedRank || null, trainingAutoRankOverride: false, robloxRoleName: entry.robloxSynced ? entry.robloxRoleName ?? entry.rank : null } });
     if (entry.robloxUserId) {
       const linked = await tx.user.findUnique({ where: { robloxUserId: entry.robloxUserId }, select: { tiers: true } });
       if (linked) await tx.user.update({ where: { robloxUserId: entry.robloxUserId }, data: { tiers: replaceGroupRankTier(parseStoredTiers(linked.tiers), nextRank).join(",") } });
@@ -221,3 +246,49 @@ export async function removeRosterEntry(formData: FormData) { return runWithActi
 export async function setRosterRankOverride(formData: FormData) { return runWithActionDebug("setRosterRankOverride", [formData], () => setRosterRankOverrideImpl(formData)); }
 export async function setRosterActive(formData: FormData) { return runWithActionDebug("setRosterActive", [formData], () => setRosterActiveImpl(formData)); }
 export async function updateCriminalGroupAssignment(formData: FormData) { return runWithActionDebug("updateCriminalGroupAssignment", [formData], () => updateCriminalGroupAssignmentImpl(formData)); }
+
+async function placeTrainingGraduateImpl(formData: FormData) {
+  const { session, user } = await requireManager();
+  const id = String(formData.get("id") ?? "");
+  const divisionGroup = String(formData.get("divisionGroup") ?? "");
+  if (!id || !["1", "2"].includes(divisionGroup)) throw new Error("Choose a valid Criminal Division group.");
+  const entry = await prisma.rosterEntry.findUnique({ where: { id } });
+  if (!entry || !entry.isActive || entry.unit !== "Criminal Division" || entry.trainingPlacementStatus !== "PLACEMENT_PENDING" || !entry.isProsecutorInTraining) throw new Error("This trainee is no longer awaiting placement.");
+  if (!canManageRosterInDivision(session.user.tiers, user.division, entry.unit) && !(user.division === "Criminal Division" && user.divisionGroup === divisionGroup && hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION))) throw new Error("You cannot place trainees in this group.");
+  const supervisors = await prisma.rosterEntry.count({ where: { isActive: true, unit: "Criminal Division", divisionGroup, rank: { in: ["Senior Assistant District Attorney", "Supervisory Assistant District Attorney", "Chief Assistant District Attorney", "Deputy District Attorney", "District Attorney"] } } });
+  if (!supervisors) throw new Error("That group has no active supervising attorney. Choose a staffed group.");
+  const linkedUser = entry.robloxUserId ? await prisma.user.findUnique({ where: { robloxUserId: entry.robloxUserId }, select: { id: true } }) : null;
+  if (!linkedUser) throw new Error("The trainee must sign in once before placement can be completed.");
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    const attempt = await tx.trainingAttempt.findUnique({ where: { activeForUserId: linkedUser.id } });
+    if (!attempt || attempt.status !== "PLACEMENT_PENDING") throw new Error("The passed mock-trial record is missing; placement was not changed.");
+    await tx.trainingAttempt.update({ where: { id: attempt.id }, data: { status: "COMPLETED", activeForUserId: null, placedGroup: divisionGroup, completedAt: now } });
+    const rankNeedsReview = Boolean(entry.rankOverride && entry.rankOverride !== "Assistant District Attorney") || (!entry.robloxSynced && entry.rank !== "Assistant District Attorney");
+    const addTrainingOverride = entry.robloxSynced && !entry.rankOverride && entry.rank !== "Assistant District Attorney";
+    await tx.rosterEntry.update({ where: { id: entry.id }, data: { isProsecutorInTraining: false, divisionGroup, trainingPlacementStatus: rankNeedsReview ? "PLACED_RANK_REVIEW" : "PLACED", trainingGraduatedAt: now, orientationPending: true, ...(addTrainingOverride ? { rankOverride: "Assistant District Attorney", trainingAutoRankOverride: true } : {}) } });
+    await tx.user.update({ where: { id: linkedUser.id }, data: { division: "Criminal Division", divisionGroup } });
+    await tx.activityLog.create({ data: { actorName: session.user.displayName, action: "placed passed trainee in Criminal Division group; orientation required", targetType: "roster entry", targetLabel: `${entry.name} · Group ${divisionGroup}` } });
+  });
+  revalidatePath("/dashboard/roster");
+}
+
+export async function placeTrainingGraduate(formData: FormData) { return runWithActionDebug("placeTrainingGraduate", [formData], () => placeTrainingGraduateImpl(formData)); }
+
+async function reviewTrainingAttemptImpl(formData: FormData) {
+  const { session, user } = await requireManager();
+  const attemptId = String(formData.get("attemptId") ?? "");
+  const note = String(formData.get("reviewNote") ?? "").trim();
+  if (!attemptId || note.length < 5) throw new Error("Add a short note documenting the supervisor review.");
+  const attempt = await prisma.trainingAttempt.findUnique({ where: { id: attemptId }, include: { user: { select: { robloxUserId: true } } } });
+  if (!attempt || !attempt.needsSupervisorReview || attempt.status !== "MOCK" || !attempt.user.robloxUserId) throw new Error("This course attempt is not awaiting supervisor review.");
+  const roster = await prisma.rosterEntry.findUnique({ where: { robloxUserId: attempt.user.robloxUserId } });
+  if (!roster || roster.unit !== "Criminal Division" || !canManageRosterInDivision(session.user.tiers, user.division, roster.unit)) throw new Error("You cannot review this Criminal Division attempt.");
+  await prisma.$transaction([
+    prisma.trainingAttempt.update({ where: { id: attempt.id }, data: { needsSupervisorReview: false, supervisorReviewedAt: new Date(), supervisorReviewedBy: session.user.displayName, supervisorReviewNote: note } }),
+    prisma.activityLog.create({ data: { actorName: session.user.displayName, action: "reviewed attorney training mock-trial attempts", targetType: "roster entry", targetLabel: roster.name } }),
+  ]);
+  revalidatePath("/dashboard/roster");
+}
+
+export async function reviewTrainingAttempt(formData: FormData) { return runWithActionDebug("reviewTrainingAttempt", [formData], () => reviewTrainingAttemptImpl(formData)); }

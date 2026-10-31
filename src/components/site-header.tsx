@@ -25,6 +25,7 @@ interface SiteHeaderProps {
 export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps = {}) {
   const session = await auth();
   const isStaff = Boolean(session?.user?.providerUserId);
+  const isTrainee = Boolean(session?.user?.tiers.includes("prosecutor_in_training"));
   const linkedDiscordUserId = session?.user?.robloxUserId
     ? (await prisma.user.findUnique({ where: { robloxUserId: session.user.robloxUserId }, select: { discordUserId: true } }))?.discordUserId ?? null
     : null;
@@ -50,9 +51,9 @@ export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps 
               <>
                 {!staffNav && canViewDashboard && <Link href="/dashboard">Staff Dashboard</Link>}
                 <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}>
-                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} identityProvider={session!.user.identityProvider} providerUserId={session!.user.providerUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} canToggleDeveloperProfile={isDeveloperProfileIdentity(session!.user.identityProvider, session!.user.username)} linkedDiscordUserId={linkedDiscordUserId} />
+                  <ProfileMenu displayName={session!.user.displayName} username={session!.user.username} identityProvider={session!.user.identityProvider} providerUserId={session!.user.providerUserId} avatarUrl={session!.user.avatarUrl} initialTiers={session!.user.tiers} canToggleDeveloperProfile={!isTrainee && isDeveloperProfileIdentity(session!.user.identityProvider, session!.user.username)} linkedDiscordUserId={linkedDiscordUserId} />
                 </SessionProvider>
-                <NotificationBell />
+                {!isTrainee && <NotificationBell />}
               </>
             ) : (
               <Link href="/login">Staff Login</Link>
@@ -83,12 +84,12 @@ export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps 
 
       <nav className="nav" aria-label={staffNav ? "Staff navigation" : "Primary"}>
         <NavTabsScroller items={navItems} />
-        {staffNav ? (
+        {staffNav && staffTools.length > 0 ? (
           <details className="staff-tools-menu">
             <summary>More</summary>
             <div className="staff-tools-panel">{staffTools.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}</div>
           </details>
-        ) : (!isStaff || canViewDashboard) && (
+        ) : !staffNav && (!isStaff || canViewDashboard) && (
           <div className="nav-group">
             <span className="nav-group-label">Staff</span>
             {canViewDashboard ? (

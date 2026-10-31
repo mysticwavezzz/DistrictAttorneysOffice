@@ -8,18 +8,20 @@ import { RoleSyncPoller } from "@/components/role-sync-poller";
 import { canViewCases } from "@/lib/case-access";
 import { shareMetadata } from "@/lib/share-metadata";
 import { hasActiveDeveloperProfile } from "@/lib/developer-profile-access";
+import { getOnboardingAccessTiers } from "@/lib/onboarding-access";
 
 export const metadata = { ...shareMetadata("Staff Portal", "Staff workspace for assigned cases, filings, deadlines, and office workflows.", "/dashboard"), robots: { index: false, follow: false } };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.providerUserId) redirect("/login?callbackUrl=/dashboard");
-  if (!hasCapability(session.user.tiers, CAPABILITIES.DASHBOARD_VIEW)) redirect("/login?error=forbidden");
-
-  const tiers = session.user.tiers;
+  const tiers = await getOnboardingAccessTiers(session.user.robloxUserId, session.user.tiers);
+  if (!hasCapability(tiers, CAPABILITIES.DASHBOARD_VIEW)) redirect("/login?error=forbidden");
+  const isTrainee = tiers.includes("prosecutor_in_training");
+  const orientationPending = tiers.includes("attorney_orientation_pending");
   const mayViewCases = canViewCases(tiers);
   const hasDeveloperProfile = await hasActiveDeveloperProfile(session.user);
-  const primaryNav: NavItem[] = [
+  const primaryNav: NavItem[] = isTrainee ? [{ label: "Learning Course", href: "/dashboard/learning" }] : orientationPending ? [{ label: "Attorney Orientation", href: "/dashboard/orientation" }] : [
     { label: "Overview", href: "/dashboard" },
     ...((hasCapability(tiers, CAPABILITIES.CASES_CREATE) || hasCapability(tiers, CAPABILITIES.CASES_PROPOSE_EDIT)) ? [{ label: "Intake", href: "/dashboard/intake" }] : []),
     ...(mayViewCases ? [
@@ -29,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       ...(hasDeveloperProfile ? [{ label: "Document Creator", href: "/dashboard/templates" }] : []),
     ] : []),
   ];
-  const staffTools: NavItem[] = [
+  const staffTools: NavItem[] = isTrainee || orientationPending ? [] : [
     ...((hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW)) ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
     ...(mayViewCases ? [{ label: "Deadline Calendar", href: "/dashboard/cases/calendar" }] : []),
     ...((hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)) ? [{ label: "Staff Roster", href: "/dashboard/roster" }] : []),
@@ -38,6 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ...((hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) ? [{ label: "Supervisor Reports", href: "/dashboard/reports" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.SETTINGS_MANAGE) ? [{ label: "AI Service", href: "/98981/ai" }] : []),
     { label: "Search", href: "/dashboard/search" },
+    ...(mayViewCases ? [{ label: "Criminal Division Orientation", href: "/dashboard/orientation" }] : []),
   ];
 
   return (
@@ -48,9 +51,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <main className="paper" id="main">{children}</main>
       </div>
       <SiteFooter />
-      <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}>
+      {!isTrainee && !orientationPending && <SessionProvider session={session} refetchOnWindowFocus={false} refetchInterval={0}>
         <RoleSyncPoller />
-      </SessionProvider>
+      </SessionProvider>}
     </div>
   );
 }

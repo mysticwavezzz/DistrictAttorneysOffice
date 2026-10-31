@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { RANKS, isLeadershipRank } from "@/config/ranks";
 import { UNITS } from "@/config/units";
-import { addRosterEntry, removeRosterEntry, setRosterActive, updateCriminalGroupAssignment } from "./actions";
+import { addRosterEntry, removeRosterEntry, setRosterActive, updateCriminalGroupAssignment, placeTrainingGraduate, reviewTrainingAttempt } from "./actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { getSiteConfiguration } from "@/lib/site-settings";
@@ -83,6 +83,13 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
     (!filters.q || `${entry.name} ${linkedDiscordId(entry) ?? ""}`.toLowerCase().includes(filters.q.toLowerCase())) &&
     (!filters.rank || entry.rank === filters.rank) && (!filters.unit || entry.unit === filters.unit) && (!filters.group || entry.divisionGroup === filters.group)
   );
+  const pendingTrainingPlacements = entries.filter((entry) => entry.isActive && entry.unit === "Criminal Division" && entry.isProsecutorInTraining && entry.trainingPlacementStatus === "PLACEMENT_PENDING");
+  const pendingTrainingReviews = canManageAll || canManageDivision || canManageOwnGroup
+    ? await prisma.trainingAttempt.findMany({ where: { status: "MOCK", needsSupervisorReview: true }, include: { user: { select: { robloxUserId: true } } }, orderBy: { updatedAt: "asc" } }).then((attempts) => attempts.flatMap((attempt) => {
+      const entry = entries.find((item) => item.robloxUserId === attempt.user.robloxUserId && item.unit === "Criminal Division" && (!canManageOwnGroup || canManageDivision || canManageAll || item.divisionGroup === viewerGroup));
+      return entry ? [{ attempt, entry }] : [];
+    }))
+    : [];
   const vacantUnits = new Set(divisions.filter((division) => !entries.some((entry) => entry.unit === division.value)).map((division) => division.value));
   const officeRanks = new Set(["District Attorney", "Deputy District Attorney", "Chief of Staff"]);
   if (!canManageAll && canManageDivision) {
@@ -143,6 +150,28 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
       <DashboardFoldPersistence accountId={user.id} />
       <h1>Staff Roster</h1>
       {hasCapability(session.user.tiers, CAPABILITIES.SETTINGS_MANAGE) && <p><Link className="govbtn-outline" href="/98981/roster-sync">Roblox roster sync</Link></p>}
+
+      {pendingTrainingPlacements.length > 0 && (canManageAll || canManageDivision || canManageOwnGroup) && <section className="formbox" aria-labelledby="training-placement-heading">
+        <h2 id="training-placement-heading">Passed course, awaiting group placement</h2>
+        <p className="hint">Choose a group with an active supervisor. Placement never assigns a live case; the graduate must complete orientation before staff access opens.</p>
+        {pendingTrainingPlacements.map((entry) => <FormWithPendingSubmit key={entry.id} action={placeTrainingGraduate} submitLabel={`Place ${entry.name}`} pendingLabel="Placing…" className="formbox">
+          <input type="hidden" name="id" value={entry.id} />
+          <p><strong>{entry.name}</strong> passed the final mock trial. The course result remains recorded.</p>
+          <div className="field"><label htmlFor={`placement-${entry.id}`}>Criminal Division group</label><select id={`placement-${entry.id}`} name="divisionGroup" defaultValue={canManageOwnGroup && !canManageDivision && !canManageAll ? user.divisionGroup ?? "" : ""} required>
+            {!(canManageOwnGroup && !canManageDivision && !canManageAll) && <option value="" disabled>Select group</option>}
+            {(canManageOwnGroup && !canManageDivision && !canManageAll ? [user.divisionGroup!] : ["1", "2"]).map((group) => <option key={group} value={group}>Group {group}</option>)}
+          </select></div>
+        </FormWithPendingSubmit>)}
+      </section>}
+      {pendingTrainingReviews.length > 0 && <section className="formbox" aria-labelledby="training-review-heading">
+        <h2 id="training-review-heading">Mock trials awaiting supervisor review</h2>
+        <p className="hint">Two unsuccessful full mock trials trigger a coaching review. Recording the review clears the flag but does not change the trainee’s answers or score.</p>
+        {pendingTrainingReviews.map(({ attempt, entry }) => <FormWithPendingSubmit key={attempt.id} action={reviewTrainingAttempt} submitLabel="Record review" pendingLabel="Saving…" className="formbox">
+          <input type="hidden" name="attemptId" value={attempt.id} />
+          <p><strong>{entry.name}</strong> · {attempt.mockFailures} unsuccessful full mock trials.</p>
+          <div className="field"><label htmlFor={`review-note-${attempt.id}`}>Supervisor review note</label><textarea id={`review-note-${attempt.id}`} name="reviewNote" rows={2} minLength={5} maxLength={1000} required /></div>
+        </FormWithPendingSubmit>)}
+      </section>}
 
       <details className="dashboard-fold roster-filter-fold" data-fold-key="roster-filters" open={Boolean(filters.q || filters.rank || filters.unit || filters.group || (filters.active && filters.active !== "all"))}>
       <summary><span className="dashboard-fold-title">Search and filter staff</span></summary>

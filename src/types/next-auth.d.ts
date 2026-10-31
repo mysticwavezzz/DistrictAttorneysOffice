@@ -13,6 +13,7 @@ declare module "next-auth" {
       displayName: string;
       avatarUrl: string | null;
       tiers: PermissionTier[];
+      groupTiers: PermissionTier[];
     } & DefaultSession["user"];
   }
 }
