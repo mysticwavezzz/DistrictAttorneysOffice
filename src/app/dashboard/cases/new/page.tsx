@@ -3,15 +3,15 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { CaseOpeningForm } from "@/components/case-opening-form";
-import type { RevisionDraft } from "@/components/case-opening-form";
-import { localUser, canAssignCase } from "@/lib/case-access";
+import type { IntakeDraft, RevisionDraft } from "@/components/case-opening-form";
+import { localUser, canAssignCase, caseVisibilityWhere } from "@/lib/case-access";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
 import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 
 export const metadata = staffPageMetadata("Open a Case", "Create an unfiled case record and submit its initial complaint to the court.", "/dashboard/cases/new");
 
-export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ reviseRequestId?: string }> }) {
+export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ reviseRequestId?: string; intakeTicketId?: string }> }) {
   const session = await auth();
   if (!session?.user || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT))) {
     redirect("/login?error=forbidden");
@@ -30,7 +30,19 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
   }) : [];
 
   let revision: RevisionDraft | undefined;
-  const { reviseRequestId } = await searchParams;
+  const { reviseRequestId, intakeTicketId } = await searchParams;
+  let intakeDraft: IntakeDraft | undefined;
+  if (intakeTicketId) {
+    if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) || user.division !== "Criminal Division" || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN_DIVISION) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN))) redirect("/dashboard/intake");
+    const ticket = await prisma.contactTicket.findFirst({ where: { id: intakeTicketId, category: "INVESTIGATOR_INTAKE", intakeStatus: "APPROVED", linkedCaseId: null }, include: { aopcs: { where: { status: "ACCEPTED" }, orderBy: { createdAt: "asc" }, select: { documentType: true, title: true, subject: true, narrative: true, pdfData: true, pdfFileName: true } } } });
+    if (!ticket || !ticket.aopcs[0]) redirect("/dashboard/review?type=investigator");
+    const acceptedAopc = ticket.aopcs.find((doc) => doc.documentType === "AOPC" && doc.pdfData);
+    const sourceDocument = ticket.aopcs.find((doc) => doc.documentType === "INVESTIGATIVE_REPORT") ?? acceptedAopc ?? ticket.aopcs[0];
+    const defendant = sourceDocument.subject;
+    const visibility = caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup);
+    const possibleDuplicates = visibility ? await prisma.case.findMany({ where: { archived: false, division: "Criminal Division", AND: [visibility], OR: [{ title: { contains: defendant } }, { partyDetails: { contains: defendant } }] }, select: { id: true, caseNumber: true, title: true, stage: true }, orderBy: { updatedAt: "desc" }, take: 8 }) : [];
+    intakeDraft = { ticketId: ticket.id, title: `People v. ${defendant}`.slice(0, 200), defendant, summary: `Source: investigator intake ${ticket.id}. ${sourceDocument.narrative}`.slice(0, 4000), requiresAopc: !acceptedAopc, approvedAopcTitle: acceptedAopc?.title ?? null, possibleDuplicates };
+  }
   if (reviseRequestId) {
     const request = user ? await prisma.caseActionRequest.findFirst({
       where: { id: reviseRequestId, requestedById: user.id, kind: "CREATE", status: "REJECTED" },
@@ -79,5 +91,5 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
     };
   }
 
-  return <CaseOpeningForm officerName={session.user.displayName} canCreate={hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE)} canAssign={canAssign} reviewersCanAutoApprove={reviewersCanAutoApprove} attorneys={attorneys} revision={revision} />;
+  return <CaseOpeningForm officerName={session.user.displayName} canCreate={hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE)} canAssign={canAssign} reviewersCanAutoApprove={reviewersCanAutoApprove} attorneys={attorneys} revision={revision} intakeDraft={intakeDraft} />;
 }

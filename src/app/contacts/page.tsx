@@ -21,7 +21,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const user = await localUser(session.user);
   if (!user) redirect("/login?callbackUrl=/contacts");
   const tickets = await prisma.contactTicket.findMany({
-    where: { requesterId: user.id },
+    where: { requesterId: user.id, category: "CONTACT" },
     select: { id: true, subject: true, status: true, division: true, createdAt: true, updatedAt: true, messages: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, body: true, createdAt: true, author: { select: { id: true, username: true } } } } },
     orderBy: { updatedAt: "desc" },
   });

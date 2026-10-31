@@ -53,6 +53,13 @@ async function createCaseImpl(formData: FormData) {
   const data = parsed.data;
   const canAssign = canAssignCase(session.user.tiers, user.division);
   const canCreate = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
+  const intakeTicketId = String(formData.get("intakeTicketId") ?? "").trim();
+  let intakeTicket: { id: string; subject: string; aopcs: { documentType: string; title: string; pdfData: string | null; pdfFileName: string | null }[] } | null = null;
+  if (intakeTicketId) {
+    if (!canCreate || user.division !== "Criminal Division" || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN_DIVISION) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN))) throw new Error("A Criminal Division supervisor with case assignment authority must open a case from investigator intake.");
+    intakeTicket = await prisma.contactTicket.findFirst({ where: { id: intakeTicketId, category: "INVESTIGATOR_INTAKE", intakeStatus: "APPROVED", linkedCaseId: null }, select: { id: true, subject: true, aopcs: { where: { status: "ACCEPTED" }, orderBy: { createdAt: "asc" }, select: { documentType: true, title: true, pdfData: true, pdfFileName: true } } } });
+    if (!intakeTicket || intakeTicket.aopcs.length === 0) throw new Error("This investigator intake is not approved or has already been converted.");
+  }
   const assignedAttorneyId = canAssign ? emptyToNull(data.assignedAttorneyId) : null;
   const assignedAttorney = assignedAttorneyId ? await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { id: true, division: true, divisionGroup: true } }) : null;
   if (assignedAttorneyId && (!assignedAttorney || (assignedAttorneyId !== user.id && assignedAttorney.division !== user.division))) throw new Error("Choose an attorney in your division.");
@@ -66,8 +73,12 @@ async function createCaseImpl(formData: FormData) {
     if (name.length > 100 || !allowedPartyRoles.has(role)) throw new Error("Check the party names and roles.");
     return { name, role };
   });
-  const pdf = await readCasePdf(formData.get("initialPdf"));
+  const uploadedPdf = await readCasePdf(formData.get("initialPdf"));
   const filingTitle = String(formData.get("initialFilingTitle") ?? "").trim().slice(0, 200);
+  const approvedAopc = intakeTicket?.aopcs.find((document) => document.documentType === "AOPC" && document.pdfData);
+  if (intakeTicket && !approvedAopc && !uploadedPdf) throw new Error("This approved intake contains an investigative report but no AOPC. Attach a separate AOPC PDF before opening the case.");
+  if (intakeTicket && !approvedAopc && !/aopc|probable cause/i.test(filingTitle)) throw new Error("Name the required initial filing as an AOPC or probable-cause affidavit.");
+  const pdf = uploadedPdf ?? (approvedAopc ? { pdfData: approvedAopc.pdfData!, pdfFileName: approvedAopc.pdfFileName ?? "Affidavit of Probable Cause.pdf" } : null);
   const reviseRequestId = emptyToNull(String(formData.get("reviseRequestId") ?? ""));
   type PreviousFiling = { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string };
   let previousRequest: Awaited<ReturnType<typeof prisma.caseActionRequest.findUnique>> = null;
@@ -86,7 +97,7 @@ async function createCaseImpl(formData: FormData) {
     }
   }
   const initialFiling = pdf
-    ? { title: filingTitle || pdf.pdfFileName, url: null, ...pdf }
+    ? { title: filingTitle || (approvedAopc?.title ?? pdf.pdfFileName), url: null, ...pdf }
     : previousFiling
       ? { ...previousFiling, title: filingTitle || previousFiling.title || "Initial Filing" }
       : null;
@@ -179,6 +190,12 @@ async function createCaseImpl(formData: FormData) {
         data: { caseId: caseRecord.id, title: initialFiling.title, url: initialFiling.url, pdfData: initialFiling.pdfData, pdfFileName: initialFiling.pdfFileName, addedById: user.id, status: "DRAFT", isInitial: true },
       });
     }
+    if (intakeTicket) {
+      const converted = await tx.contactTicket.updateMany({ where: { id: intakeTicket.id, intakeStatus: "APPROVED", linkedCaseId: null }, data: { linkedCaseId: caseRecord.id, intakeStatus: "CONVERTED", updatedAt: new Date() } });
+      if (!converted.count) throw new Error("This investigator intake was already converted. Refresh and review the case list.");
+      await tx.aopc.updateMany({ where: { intakeTicketId: intakeTicket.id, status: "ACCEPTED" }, data: { linkedCaseId: caseRecord.id } });
+      await tx.contactMessage.create({ data: { ticketId: intakeTicket.id, authorId: user.id, body: `This intake was opened as ${caseRecord.caseNumber}. The case record is unfiled until the charging document is filed with the court.` } });
+    }
     await tx.caseComment.create({ data: { caseId: caseRecord.id, body: `Case opened as an unfiled staff record by ${session.user.displayName}.`, isSystem: true } });
     return caseRecord;
   });
@@ -199,6 +216,10 @@ async function createCaseImpl(formData: FormData) {
 
   revalidatePath("/dashboard/cases");
   revalidatePath("/dashboard/filings");
+  if (intakeTicket) {
+    revalidatePath(`/investigator/intake/tickets/${intakeTicket.id}`);
+    revalidatePath(`/dashboard/intake/tickets/${intakeTicket.id}`);
+  }
   redirect(`/dashboard/cases/${created.id}`);
 }
 

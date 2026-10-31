@@ -134,6 +134,16 @@ async function updateNotificationSettingsImpl(formData: FormData) {
   revalidatePath("/98981");
 }
 
+async function saveInvestigatorIntakeAccessImpl(formData: FormData) {
+  const session = await requireSettingsManager();
+  const ids = Array.from(new Set(String(formData.get("investigatorRobloxIds") ?? "").split(/[\s,]+/).map((id) => id.trim()).filter(Boolean)));
+  if (ids.length > 200 || ids.some((id) => !/^\d{5,25}$/.test(id))) throw new Error("Enter up to 200 numeric Roblox user IDs, separated by commas or new lines.");
+  await updateSiteConfiguration("investigatorIntakeRobloxIds", ids);
+  await recordSettingsAudit(session.user.displayName, "Updated investigator intake access", `Authorized ${ids.length} Roblox account${ids.length === 1 ? "" : "s"}.`);
+  revalidatePath("/98981");
+  revalidatePath("/investigator/intake");
+}
+
 function parseJsonField(formData: FormData, name: string): unknown {
   try {
     return JSON.parse(String(formData.get(name) ?? ""));
@@ -368,6 +378,7 @@ export async function updateWebsiteVersion(formData: FormData) { return runWithA
 export async function addCrimeTipBlacklistEntry(formData: FormData) { return runWithActionDebug("addCrimeTipBlacklistEntry", [formData], () => addCrimeTipBlacklistEntryImpl(formData)); }
 export async function removeCrimeTipBlacklistEntry(formData: FormData) { return runWithActionDebug("removeCrimeTipBlacklistEntry", [formData], () => removeCrimeTipBlacklistEntryImpl(formData)); }
 export async function updateNotificationSettings(formData: FormData) { return runWithActionDebug("updateNotificationSettings", [formData], () => updateNotificationSettingsImpl(formData)); }
+export async function saveInvestigatorIntakeAccess(formData: FormData) { return runWithActionDebug("saveInvestigatorIntakeAccess", [formData], () => saveInvestigatorIntakeAccessImpl(formData)); }
 export async function saveApplicationConfiguration(formData: FormData) { return runWithActionDebug("saveApplicationConfiguration", [formData], () => saveApplicationConfigurationImpl(formData)); }
 export async function saveConfigurationBackup() { return runWithActionDebug("saveConfigurationBackup", [], () => saveConfigurationBackupImpl()); }
 export async function restoreConfigurationBackup(formData: FormData) { return runWithActionDebug("restoreConfigurationBackup", [formData], () => restoreConfigurationBackupImpl(formData)); }

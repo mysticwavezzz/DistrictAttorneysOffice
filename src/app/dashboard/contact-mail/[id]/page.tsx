@@ -18,7 +18,7 @@ export default async function ContactTicketPage({ params }: { params: Promise<{ 
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
   const { id } = await params;
-  const ticket = await prisma.contactTicket.findUnique({ where: { id }, include: { requester: { select: { id: true, username: true, robloxUserId: true } }, assignee: { select: { id: true, username: true } }, messages: { orderBy: { createdAt: "asc" }, include: { author: { select: { id: true, username: true } } } } } });
+  const ticket = await prisma.contactTicket.findFirst({ where: { id, category: "CONTACT" }, include: { requester: { select: { id: true, username: true, robloxUserId: true } }, assignee: { select: { id: true, username: true } }, messages: { orderBy: { createdAt: "asc" }, include: { author: { select: { id: true, username: true } } } } } });
   if (!ticket || !canViewContactMail(session.user.tiers, user.id, ticket)) notFound();
   const canRoute = canRouteContactMail(session.user.tiers);
   const isAssignee = ticket.assigneeId === user.id;

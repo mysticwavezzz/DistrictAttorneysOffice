@@ -36,13 +36,18 @@ function discordLinkMessage(result: string, linkedId: string | null): string {
   return messages[result] ?? "Discord linking could not be completed. Please try again.";
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ discordLink?: string }> }) {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ discordLink?: string; notificationView?: string }> }) {
   const session = await auth();
   if (!session?.user?.providerUserId) redirect("/login?callbackUrl=/settings");
   const query = await searchParams;
+  const notificationView = ["unread", "read", "all"].includes(query.notificationView ?? "") ? query.notificationView! : "unread";
   const canManageLocalAutomation = await hasActiveDeveloperProfile(session.user);
   const user = await localUser(session.user);
-  const notifications = user ? await prisma.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 }) : [];
+  const [notifications, unreadNotifications, readNotifications] = user ? await Promise.all([
+    prisma.notification.findMany({ where: { userId: user.id, ...(notificationView === "all" ? {} : { isRead: notificationView === "read" }) }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+    prisma.notification.count({ where: { userId: user.id, isRead: true } }),
+  ]) : [[], 0, 0];
   const muted = new Set((user?.mutedTypes ?? "").split(",").filter(Boolean));
   const pushMuted = new Set((user?.pushMutedTypes ?? "").split(",").filter(Boolean));
   const grouped = NOTIFICATION_TYPES.map((type) => ({ ...type, items: notifications.filter((item) => item.type === type.value) })).filter((group) => group.items.length);
@@ -73,7 +78,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <Link className="govbtn-outline" href="/settings/local-automation">Manage local access</Link>
         </section>}
         <section id="notifications" aria-labelledby="notifications-heading">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><h2 id="notifications-heading">Notifications</h2>{notifications.some((item) => !item.isRead) && <form action={markAllNotificationsRead}><button className="linklike" type="submit">Mark all as read</button></form>}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}><h2 id="notifications-heading">Notifications</h2>{unreadNotifications > 0 && <form action={markAllNotificationsRead}><button className="linklike" type="submit">Mark all as read</button></form>}</div>
           {!env.DISCORD_DM_NOTIFICATIONS && <p className="message" role="status">Discord direct messages are disabled. In-site notifications remain available here.</p>}
           <form action={updateNotificationPreferences} className="formbox">
             <h3>Notification preferences</h3><p className="note-inline">Muted types will no longer create notifications for you.</p>
@@ -83,8 +88,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <BrowserPushSettings publicKey={env.VAPID_PUBLIC_KEY} />
             <button className="govbtn" type="submit">Save notification preferences</button>
           </form>
-          <h3>Recent notifications</h3>
-          {!notifications.length ? <div className="message">No notifications yet.</div> : <div className="release-list">{[...grouped.map((group) => ({ label: group.label, items: group.items })), ...(other.length ? [{ label: "Other", items: other }] : [])].map((group) => <section key={group.label}><h4>{group.label}</h4>{group.items.map((item) => <article className="release-card" key={item.id}><div className="release-card-body"><span className="release-card-date">{dateFormatter.format(item.createdAt)} {!item.isRead && <span className="pill pill-navy">New</span>}</span><strong className="release-card-title">{item.title}</strong>{item.body && <span className="release-card-excerpt">{item.body}</span>}<div style={{ display: "flex", gap: 12, marginTop: 6 }}>{item.link && <Link className="release-card-more" href={item.link}>Open &rarr;</Link>}{!item.isRead && <form action={markNotificationRead}><input type="hidden" name="id" value={item.id}/><button type="submit" className="linklike">Mark read</button></form>}</div></div></article>)}</section>)}</div>}
+          <div className="notification-history-tabs" role="tablist" aria-label="Notification history">
+            <Link href="/settings?notificationView=unread#notifications" aria-current={notificationView === "unread" ? "page" : undefined}>Unread <span>{unreadNotifications}</span></Link>
+            <Link href="/settings?notificationView=read#notifications" aria-current={notificationView === "read" ? "page" : undefined}>Read <span>{readNotifications}</span></Link>
+            <Link href="/settings?notificationView=all#notifications" aria-current={notificationView === "all" ? "page" : undefined}>All</Link>
+          </div>
+          <h3>{notificationView === "unread" ? "Unread notifications" : notificationView === "read" ? "Read notifications" : "All notifications"}</h3>
+          {!notifications.length ? <div className="message">{notificationView === "unread" ? "You’re all caught up." : "No notifications in this view."}</div> : <div className="release-list">{[...grouped.map((group) => ({ label: group.label, items: group.items })), ...(other.length ? [{ label: "Other", items: other }] : [])].map((group) => <section key={group.label}><h4>{group.label}</h4>{group.items.map((item) => <article className={`release-card notification-history-card ${item.isRead ? "is-read" : "is-unread"}`} key={item.id}><div className="release-card-body"><span className="release-card-date">{dateFormatter.format(item.createdAt)} {!item.isRead && <span className="pill pill-navy">Unread</span>}</span><strong className="release-card-title">{item.title}</strong>{item.body && <span className="release-card-excerpt">{item.body}</span>}<div style={{ display: "flex", gap: 12, marginTop: 6 }}>{item.link && <Link className="release-card-more" href={item.link}>Open &rarr;</Link>}{!item.isRead && <form action={markNotificationRead}><input type="hidden" name="id" value={item.id}/><button type="submit" className="linklike">Mark read</button></form>}</div></div></article>)}</section>)}</div>}
         </section>
       </main>
     </div><SiteFooter />

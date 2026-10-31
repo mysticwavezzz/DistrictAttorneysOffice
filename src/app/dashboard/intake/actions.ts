@@ -17,6 +17,8 @@ export async function submitIntakeReport(formData: FormData) {
   const user = await localUser(session.user);
   if (!user) throw new Error("Staff account not found.");
   const title = String(formData.get("title") ?? "").trim().slice(0, 180);
+  const documentType = String(formData.get("documentType") ?? "");
+  if (documentType !== "AOPC" && documentType !== "INVESTIGATIVE_REPORT") throw new Error("Choose AOPC or Investigative Report.");
   const reportId = String(formData.get("reportId") ?? "").trim().slice(0, 100);
   const targetUnit = String(formData.get("targetUnit") ?? "");
   const subject = String(formData.get("subject") ?? "").trim().slice(0, 180);
@@ -30,6 +32,7 @@ export async function submitIntakeReport(formData: FormData) {
   const linkedCaseId = String(formData.get("linkedCaseId") ?? "").trim();
   const pdf = await readCasePdf(formData.get("pdf"));
   if (!title || !subject || narrative.length < 20 || !AOPC_TARGET_UNITS.includes(targetUnit) || (!pdf && !documentUrl)) throw new Error("Complete the title, target division, subject, narrative, and attach a PDF or source link.");
+  if (documentType === "AOPC" && !pdf) throw new Error("An AOPC must include its PDF. A source link alone is not enough.");
 
   if (linkedCaseId) {
     const visibility = caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup);
@@ -38,7 +41,7 @@ export async function submitIntakeReport(formData: FormData) {
   }
 
   const item = await prisma.aopc.create({ data: {
-    title, reportId: reportId || null, targetUnit, subject, narrative,
+    title, documentType, reportId: reportId || null, targetUnit, subject, narrative,
     documentUrl, pdfData: pdf?.pdfData ?? null, pdfFileName: pdf?.pdfFileName ?? null,
     status: "PENDING", submittedById: user.id, linkedCaseId: linkedCaseId || null,
   } });

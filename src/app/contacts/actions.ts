@@ -59,7 +59,7 @@ async function sendContactReplyImpl(ticketId: string, formData: FormData): Promi
   const { user, tiers } = await currentIdentity();
   const body = String(formData.get("message") ?? "").trim();
   if (!ticketId || body.length < 1 || body.length > 8000) throw new Error("Write a message within the 8,000-character limit.");
-  const ticket = await prisma.contactTicket.findUnique({ where: { id: ticketId }, select: { id: true, requesterId: true, assigneeId: true, status: true, subject: true } });
+  const ticket = await prisma.contactTicket.findFirst({ where: { id: ticketId, category: "CONTACT" }, select: { id: true, requesterId: true, assigneeId: true, status: true, subject: true } });
   if (!ticket || (!canViewAllContactMail(tiers) && ticket.requesterId !== user.id && ticket.assigneeId !== user.id)) throw new Error("This ticket is not available to your account.");
   if (ticket.status === "CLOSED") throw new Error("This ticket is closed.");
   const replyLimit = await checkRateLimit(`contact-ticket-reply:${user.id}`, { limit: 12, windowMs: 60 * 60 * 1000 });
@@ -81,7 +81,7 @@ async function manageContactTicketImpl(ticketId: string, formData: FormData): Pr
   if (!canRouteContactMail(tiers)) throw new Error("Only division supervisors and above can route tickets.");
   const targetAssigneeId = String(formData.get("assigneeId") ?? "").trim() || null;
   const action = String(formData.get("ticketAction") ?? "");
-  const ticket = await prisma.contactTicket.findUnique({ where: { id: ticketId }, select: { id: true, status: true, assigneeId: true, subject: true } });
+  const ticket = await prisma.contactTicket.findFirst({ where: { id: ticketId, category: "CONTACT" }, select: { id: true, status: true, assigneeId: true, subject: true } });
   if (!ticket) throw new Error("Ticket not found.");
   if (targetAssigneeId) {
     const target = await prisma.user.findUnique({ where: { id: targetAssigneeId }, select: { id: true, tiers: true } });

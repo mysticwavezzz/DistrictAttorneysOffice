@@ -26,7 +26,7 @@ export function NotificationBell() {
 
     async function load() {
       try {
-        const res = await fetch("/api/notifications", { cache: "no-store" });
+        const res = await fetch("/api/notifications?view=unread", { cache: "no-store" });
         if (!res.ok || cancelled) return;
         const data = await res.json();
         setUnreadCount(data.unreadCount ?? 0);
@@ -56,7 +56,7 @@ export function NotificationBell() {
       const data = await response.json() as { markedIds?: string[] };
       const markedIds = new Set(data.markedIds ?? []);
       if (!markedIds.size) return;
-      setItems((current) => current.map((item) => markedIds.has(item.id) ? { ...item, isRead: true } : item));
+      setItems((current) => current.filter((item) => !markedIds.has(item.id)));
       setUnreadCount((count) => Math.max(0, count - markedIds.size));
     }).catch(() => { /* Read-on-visit is best effort; the manual action remains available. */ });
     return () => { cancelled = true; };
@@ -73,9 +73,22 @@ export function NotificationBell() {
       const data = await response.json() as { markedIds?: string[] };
       const markedIds = new Set(data.markedIds ?? []);
       if (!markedIds.size) return;
-      setItems((current) => current.map((item) => markedIds.has(item.id) ? { ...item, isRead: true } : item));
+      setItems((current) => current.filter((item) => !markedIds.has(item.id)));
       setUnreadCount((count) => Math.max(0, count - markedIds.size));
     } catch { /* Leave the item unread so the user can retry. */ }
+  }
+
+  async function markAllAsRead() {
+    try {
+      const response = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAll: true }),
+      });
+      if (!response.ok) return;
+      setItems([]);
+      setUnreadCount(0);
+    } catch { /* Leave the inbox unchanged if the request fails. */ }
   }
 
   useEffect(() => {
@@ -120,8 +133,9 @@ export function NotificationBell() {
 
       {open && (
         <div className="notif-panel">
+          <div className="notif-panel-heading"><strong>Unread</strong>{unreadCount > 0 && <button type="button" className="notif-mark-read" onClick={() => void markAllAsRead()}>Mark all read</button>}</div>
           {items.length === 0 ? (
-            <div className="notif-empty">No notifications yet.</div>
+            <div className="notif-empty">You’re all caught up.</div>
           ) : (
             items.map((n) => (
               <div key={n.id} className="notif-item-row">
@@ -134,7 +148,7 @@ export function NotificationBell() {
             ))
           )}
           <Link href="/settings#notifications" className="notif-viewall" onClick={() => setOpen(false)}>
-            Notifications &amp; preferences
+            Notification history &amp; preferences
           </Link>
         </div>
       )}

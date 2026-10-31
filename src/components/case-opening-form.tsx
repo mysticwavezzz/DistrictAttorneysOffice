@@ -26,6 +26,7 @@ export type RevisionDraft = {
   filingTitle: string;
   filingName: string;
 };
+export type IntakeDraft = { ticketId: string; title: string; defendant: string; summary: string; requiresAopc: boolean; approvedAopcTitle: string | null; possibleDuplicates: { id: string; caseNumber: string; title: string; stage: string | null }[] };
 
 export function CaseOpeningForm({
   officerName,
@@ -34,6 +35,7 @@ export function CaseOpeningForm({
   reviewersCanAutoApprove,
   attorneys,
   revision,
+  intakeDraft,
 }: {
   officerName: string;
   canCreate: boolean;
@@ -41,13 +43,14 @@ export function CaseOpeningForm({
   reviewersCanAutoApprove: boolean;
   attorneys: { id: string; displayName: string }[];
   revision?: RevisionDraft;
+  intakeDraft?: IntakeDraft;
 }) {
   const [step, setStep] = useState(0);
-  const [parties, setParties] = useState<Party[]>(revision?.parties.length ? revision.parties : [{ name: "", role: "Defendant" }]);
-  const [caseTitle, setCaseTitle] = useState(revision?.title ?? "");
+  const [parties, setParties] = useState<Party[]>(revision?.parties.length ? revision.parties : [{ name: intakeDraft?.defendant ?? "", role: "Defendant" }]);
+  const [caseTitle, setCaseTitle] = useState(revision?.title ?? intakeDraft?.title ?? "");
   const [caseType, setCaseType] = useState(revision?.type || "Criminal");
   const [judge, setJudge] = useState(revision?.assignedJudge ?? "");
-  const [documentName, setDocumentName] = useState(revision?.filingTitle ?? "");
+  const [documentName, setDocumentName] = useState(revision?.filingTitle ?? (intakeDraft?.requiresAopc ? "Affidavit of Probable Cause (AOPC)" : intakeDraft?.approvedAopcTitle ?? ""));
   const [validationError, setValidationError] = useState("");
 
   function advance() {
@@ -78,6 +81,7 @@ export function CaseOpeningForm({
 
       {revision && <p className="message" role="status"><strong>Returned for revision.</strong> {revision.rejectionNote || "Update the submission and resubmit it for review."}</p>}
       {revision && <p className="message" role="note">Resubmitting returns this request to the leadership review queue.</p>}
+      {intakeDraft && <div className="message investigator-case-source"><strong>Approved investigator intake.</strong> Confirm the defendant and case title, then review possible duplicates. {intakeDraft.requiresAopc ? "This intake contains an investigative report only. Attach a separate AOPC PDF as the initial filing; the report cannot be used in its place." : "The approved AOPC PDF will be attached as the initial filing."}{intakeDraft.possibleDuplicates.length > 0 && <div><p>Possible existing cases to check before opening:</p><ul>{intakeDraft.possibleDuplicates.map((item) => <li key={item.id}><a href={`/dashboard/cases/${item.id}`} target="_blank" rel="noreferrer">{item.caseNumber} · {item.title}</a>{item.stage ? ` · ${item.stage}` : ""}</li>)}</ul></div>}</div>}
       {!revision && canCreate && !reviewersCanAutoApprove && (
         <p className="message" role="note">Opening the case creates an unfiled record. When you press File on the case page, the initial complaint will go to your division’s review inbox.</p>
       )}
@@ -109,8 +113,10 @@ export function CaseOpeningForm({
       }}>
         {validationError && <p className="message error" role="alert">{validationError}</p>}
         {revision && <input type="hidden" name="reviseRequestId" value={revision.requestId} />}
+        {intakeDraft && <input type="hidden" name="intakeTicketId" value={intakeDraft.ticketId} />}
         {revision?.caseNumber && <input type="hidden" name="caseNumber" value={revision.caseNumber} />}
         {revision && <input type="hidden" name="summary" value={revision.summary} />}
+        {intakeDraft && <input type="hidden" name="summary" value={intakeDraft.summary} />}
         <fieldset hidden={step !== 0}>
           <legend>Case information</legend>
           <div className="field-row">
@@ -147,10 +153,10 @@ export function CaseOpeningForm({
 
         <fieldset hidden={step !== 2}>
           <legend>Initial filing</legend>
-          <p className="note-inline">Upload the initial complaint or supporting document as a PDF. If this request already has a PDF, leave the upload empty to keep it or choose a replacement.</p>
+          <p className="note-inline">{intakeDraft?.requiresAopc ? "Attach the separate AOPC PDF. The approved investigative report is supporting material and cannot be filed as the AOPC." : intakeDraft?.approvedAopcTitle ? "The approved intake AOPC will be attached automatically. Add a different initial PDF only if needed." : "Upload the initial complaint or charging document as a PDF. If this request already has a PDF, leave the upload empty to keep it or choose a replacement."}</p>
           {revision?.filingName && <p className="message">Current attachment: {revision.filingTitle || revision.filingName}</p>}
           <div className="field"><label htmlFor="initial-filing-title">Document name</label><input id="initial-filing-title" name="initialFilingTitle" maxLength={200} placeholder="Example: Charging complaint" value={documentName} onChange={(event) => setDocumentName(event.target.value)} /></div>
-          <div className="field"><label htmlFor="initial-pdf">Upload PDF (max 5 MB)</label><PdfUploadInput id="initial-pdf" name="initialPdf" /></div>
+          <div className="field"><label htmlFor="initial-pdf">{intakeDraft?.requiresAopc ? "Separate AOPC PDF (required)" : intakeDraft?.approvedAopcTitle ? "Replace attached AOPC PDF (optional)" : "Upload PDF (max 5 MB)"}</label><PdfUploadInput id="initial-pdf" name="initialPdf" required={Boolean(intakeDraft?.requiresAopc)} /></div>
         </fieldset>
 
         <fieldset hidden={step !== 3}>
@@ -161,7 +167,7 @@ export function CaseOpeningForm({
             <p><strong>Parties</strong><span>{parties.filter((party) => party.name.trim()).map((party) => `${party.name.trim()} (${party.role})`).join(", ") || "None listed"}</span></p>
             <p><strong>Initial filing</strong><span>{documentName || revision?.filingName || "No PDF attached"}</span></p>
             <p><strong>Submitting officer</strong><span>{officerName}</span></p>
-            <p><strong>Next step</strong><span>{revision ? "Resubmission for review" : canCreate ? "Save unfiled case, then file the complaint" : "Reviewer approval before the case record is created"}</span></p>
+            <p><strong>Next step</strong><span>{revision ? "Resubmission for review" : canCreate ? `Save unfiled case, then file ${intakeDraft ? "the AOPC" : "the initial document"}` : "Reviewer approval before the case record is created"}</span></p>
             <p className="note-inline">{revision ? "Check your changes, then resubmit this request for another review." : canCreate ? "No court filing is created until you use File on the case page." : "Check the case information and parties before submitting."}</p>
           </div>
         </fieldset>

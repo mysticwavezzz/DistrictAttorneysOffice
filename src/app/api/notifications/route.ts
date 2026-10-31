@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { localUser } from "@/lib/case-access";
 import { runWithActionDebug } from "@/lib/action-debug";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.providerUserId) {
     return NextResponse.json({ unreadCount: 0, items: [] }, { status: 401 });
@@ -15,10 +15,12 @@ export async function GET() {
     return NextResponse.json({ unreadCount: 0, items: [] });
   }
 
+  const view = new URL(request.url).searchParams.get("view") ?? "unread";
+  const readFilter = view === "read" ? true : view === "all" ? undefined : false;
   const [unreadCount, items] = await Promise.all([
     prisma.notification.count({ where: { userId: user.id, isRead: false } }),
     prisma.notification.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, ...(readFilter === undefined ? {} : { isRead: readFilter }) },
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
@@ -33,15 +35,18 @@ async function markNotificationsRead(request: Request) {
   const user = await localUser(session.user);
   if (!user) return NextResponse.json({ error: "Account unavailable." }, { status: 403 });
 
-  let body: { id?: unknown; pathname?: unknown };
+  let body: { id?: unknown; pathname?: unknown; markAll?: unknown };
   try {
-    body = await request.json() as { id?: unknown; pathname?: unknown };
+    body = await request.json() as { id?: unknown; pathname?: unknown; markAll?: unknown };
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
   let ids: string[] = [];
-  if (typeof body.id === "string" && body.id.length <= 100) {
+  if (body.markAll === true) {
+    const result = await prisma.notification.updateMany({ where: { userId: user.id, isRead: false }, data: { isRead: true } });
+    return NextResponse.json({ markedCount: result.count });
+  } else if (typeof body.id === "string" && body.id.length <= 100) {
     const item = await prisma.notification.findFirst({ where: { id: body.id, userId: user.id, isRead: false }, select: { id: true } });
     if (item) ids = [item.id];
   } else if (typeof body.pathname === "string" && body.pathname.startsWith("/") && !body.pathname.startsWith("//") && !body.pathname.includes("\\")) {

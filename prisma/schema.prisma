@@ -428,10 +428,14 @@ model PushSubscription {
 model ContactTicket {
   id          String    @id @default(cuid())
   subject     String
+  category    String    @default("CONTACT")
   status      String    @default("OPEN")
+  intakeStatus String?
   division    String?
+  divisionGroup String?
   requesterId String
   assigneeId  String?
+  linkedCaseId String?
   heldAt      DateTime?
   closedAt    DateTime?
   createdAt   DateTime  @default(now())
@@ -440,6 +444,7 @@ model ContactTicket {
   requester User             @relation("ContactTicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   assignee  User?            @relation("ContactTicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   messages  ContactMessage[]
+  aopcs     Aopc[]
 
   @@index([requesterId, status, updatedAt])
   @@index([assigneeId, status, updatedAt])
@@ -554,6 +559,7 @@ model RobloxRosterSyncRun {
 model Aopc {
   id            String    @id @default(cuid())
   title         String
+  documentType  String    @default("AOPC")
   reportId      String?
   targetUnit    String
   subject       String
@@ -567,11 +573,13 @@ model Aopc {
   reviewNote    String?
   reviewedAt    DateTime?
   linkedCaseId  String?
+  intakeTicketId String?
   createdAt     DateTime  @default(now())
 
   submittedBy User  @relation("AopcSubmitted", fields: [submittedById], references: [id])
   reviewedBy  User? @relation("AopcReviewed", fields: [reviewedById], references: [id])
   linkedCase  Case? @relation(fields: [linkedCaseId], references: [id])
+  intakeTicket ContactTicket? @relation(fields: [intakeTicketId], references: [id], onDelete: SetNull)
 
   @@index([status])
 }

@@ -9,7 +9,7 @@ import { getSiteSettings } from "@/lib/site-settings";
 import { env } from "@/lib/env";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { ClearDataForm } from "./clear-data-form";
-import { updateMaintenanceSettings, updateWebsiteVersion, updateNotificationSettings, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup, addCrimeTipBlacklistEntry, removeCrimeTipBlacklistEntry } from "./actions";
+import { updateMaintenanceSettings, updateWebsiteVersion, updateNotificationSettings, saveInvestigatorIntakeAccess, saveApplicationConfiguration, saveConfigurationBackup, restoreConfigurationBackup, addCrimeTipBlacklistEntry, removeCrimeTipBlacklistEntry } from "./actions";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
 import { getSiteConfiguration } from "@/lib/site-settings";
@@ -57,7 +57,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     ...Object.fromEntries(ALL_TIERS.map((tier) => [tier, TIER_DEFINITIONS[tier].capabilities])),
     ...savedCapabilities,
   };
-  const [tipConfiguration, backups, auditLogs, tipBlacklist, maintenanceExemptTiers, maintenanceExemptUserIds, websiteVersionOverride, websiteVersion] = await Promise.all([
+  const [tipConfiguration, backups, auditLogs, tipBlacklist, maintenanceExemptTiers, maintenanceExemptUserIds, websiteVersionOverride, websiteVersion, investigatorRobloxIds] = await Promise.all([
     getSiteConfiguration("crimeTipForm", null),
     prisma.configurationBackup.findMany({ orderBy: { createdAt: "desc" }, take: 10 }).catch(() => []),
     prisma.settingsAuditLog.findMany({ where: auditWhere, orderBy: { createdAt: "desc" }, take: 100 }).catch(() => []),
@@ -66,6 +66,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     getSiteConfiguration<string[]>("maintenanceExemptDiscordUserIds", []),
     getSiteConfiguration<string>("websiteVersion", ""),
     getWebsiteVersion(),
+    getSiteConfiguration<string[]>("investigatorIntakeRobloxIds", []),
   ]);
   const websiteVersionOverrideForUi = websiteVersionOverride === "1.1.1" ? "" : websiteVersionOverride;
   const [robloxRoleMappings] = await Promise.all([
@@ -161,6 +162,11 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
 
       <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Staff Sign-In &amp; Permissions</span></summary>
       <p className="note-inline">Roblox OAuth is the only staff sign-in method. Law Enforcement access requires membership in the Law Enforcement Standards and Training Academy and at least one configured law-enforcement agency. Academy membership by itself grants no permissions. Discord is not used to grant permissions; stored Discord user IDs remain available only for identity linking and optional Discord notifications.</p>
+      </details>
+
+      <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Investigator Intake Access</span></summary>
+        <p className="note-inline">Only these Roblox accounts can open the separate investigator intake page. Access is empty by default and does not grant staff dashboard, case, roster, or filing permissions.</p>
+        <form action={saveInvestigatorIntakeAccess} className="formbox"><div className="field"><label htmlFor="investigatorRobloxIds">Authorized Roblox user IDs</label><textarea id="investigatorRobloxIds" name="investigatorRobloxIds" rows={5} maxLength={6000} defaultValue={investigatorRobloxIds.join("\n")} placeholder="One numeric Roblox user ID per line"/><small>{investigatorRobloxIds.length} account{investigatorRobloxIds.length === 1 ? "" : "s"} authorized</small></div><button className="govbtn" type="submit">Save investigator access</button></form>
       </details>
 
       <details className="dashboard-fold" open><summary><span className="dashboard-fold-title">Notifications</span></summary>

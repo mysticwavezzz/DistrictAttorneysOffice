@@ -14,7 +14,7 @@ import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 
 export const metadata = shareMetadata("Review Inbox", "Review pending case openings, requests, affidavits, and records workflows.", "/dashboard/review");
 
-type ReviewItem = { id: string; kind: "case" | "filing" | "records" | "aopc" | "contact"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string; details?: string; contact?: string; documentHref?: string; documentName?: string; aiReviewAutoEligible?: boolean; aiReview?: { status: string; createdAt: Date; resultJson: string | null; failureCode: string | null } };
+type ReviewItem = { id: string; kind: "case" | "filing" | "records" | "aopc" | "contact" | "investigator"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string; actionLabel?: string; details?: string; contact?: string; documentHref?: string; documentName?: string; aiReviewAutoEligible?: boolean; aiReview?: { status: string; createdAt: Date; resultJson: string | null; failureCode: string | null } };
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 export default async function ReviewInboxPage({ searchParams }: { searchParams: Promise<{ type?: string; age?: string; division?: string }> }) {
@@ -26,12 +26,13 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   const canReviewCases = canReviewAllCases || (canReviewDivisionCases && Boolean(viewer?.division) && (!session.user.tiers.includes("senior_assistant_district_attorney") || viewer?.division !== "Criminal Division" || Boolean(viewer.divisionGroup)));
   const canReviewRecords = hasCapability(session.user.tiers, CAPABILITIES.REQUESTS_VIEW);
   const canReviewAllContact = canViewAllContactMail(session.user.tiers);
-  const assignedMailCount = viewer ? await prisma.contactTicket.count({ where: { assigneeId: viewer.id, status: { not: "CLOSED" } } }) : 0;
+  const assignedMailCount = viewer ? await prisma.contactTicket.count({ where: { category: "CONTACT", assigneeId: viewer.id, status: { not: "CLOSED" } } }) : 0;
   const canReviewContact = canReviewAllContact || (hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW) && assignedMailCount > 0);
-  if (!canReviewCases && !canReviewRecords && !canReviewContact) redirect("/login?error=forbidden");
+  const canReviewInvestigator = canReviewAllCases || (canReviewDivisionCases && viewer?.division === "Criminal Division" && (!session.user.tiers.includes("senior_assistant_district_attorney") || Boolean(viewer.divisionGroup)));
+  if (!canReviewCases && !canReviewRecords && !canReviewContact && !canReviewInvestigator) redirect("/login?error=forbidden");
 
   const filters = await searchParams;
-  const selectedType = ["case", "filing", "records", "aopc", "contact"].includes(filters.type ?? "") ? filters.type! : "all";
+  const selectedType = ["case", "filing", "records", "aopc", "contact", "investigator"].includes(filters.type ?? "") ? filters.type! : "all";
   const ageHours = ["24", "72", "168"].includes(filters.age ?? "") ? Number(filters.age) : 0;
   const selectedDivision = (filters.division ?? "").trim().slice(0, 100);
   const now = Date.now();
@@ -40,7 +41,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
 
   if (canReviewContact && (selectedType === "all" || selectedType === "contact")) {
     const rows = await prisma.contactTicket.findMany({
-      where: { status: { not: "CLOSED" }, ...(canReviewAllContact ? {} : { assigneeId: viewer!.id }) },
+      where: { category: "CONTACT", status: { not: "CLOSED" }, ...(canReviewAllContact ? {} : { assigneeId: viewer!.id }) },
       include: { requester: { select: { username: true } }, assignee: { select: { username: true } }, messages: { orderBy: { createdAt: "desc" }, take: 1 } },
       orderBy: { updatedAt: "asc" }, take: 100,
     });
@@ -109,8 +110,23 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
     for (const row of rows) items.push({ id: row.id, kind: "records", title: row.name, summary: row.status === "NEW" ? "New public records request" : "Records request in progress", submittedBy: row.name, division: "Public requests", createdAt: row.createdAt, href: "/dashboard/review?type=records", details: row.details, contact: row.contact });
   }
   if (canReviewCases && (selectedType === "all" || selectedType === "aopc")) {
-    const rows = await prisma.aopc.findMany({ where: { status: "PENDING", ...(canReviewAllCases ? {} : { targetUnit: viewer!.division! }) }, select: { id: true, reportId: true, title: true, targetUnit: true, subject: true, narrative: true, documentUrl: true, pdfFileName: true, linkedCaseId: true, createdAt: true, submittedBy: { select: { displayName: true } } }, orderBy: { createdAt: "asc" }, take: 100 });
-    for (const row of rows) items.push({ id: row.id, kind: "aopc", title: row.reportId || row.title, summary: `${row.targetUnit} · ${row.subject}`, submittedBy: row.submittedBy.displayName, division: row.targetUnit, createdAt: row.createdAt, href: `/dashboard/cases${row.linkedCaseId ? `/${row.linkedCaseId}` : ""}`, details: row.narrative, documentHref: row.pdfFileName ? `/api/aopcs/${row.id}/pdf` : row.documentUrl ?? undefined, documentName: row.pdfFileName ?? undefined });
+    const rows = await prisma.aopc.findMany({ where: { status: "PENDING", intakeTicketId: null, ...(canReviewAllCases ? {} : { targetUnit: viewer!.division! }) }, select: { id: true, documentType: true, reportId: true, title: true, targetUnit: true, subject: true, narrative: true, documentUrl: true, pdfFileName: true, linkedCaseId: true, createdAt: true, submittedBy: { select: { displayName: true } } }, orderBy: { createdAt: "asc" }, take: 100 });
+    for (const row of rows) items.push({ id: row.id, kind: "aopc", title: row.reportId || row.title, summary: `${row.documentType === "AOPC" ? "Affidavit of Probable Cause (AOPC)" : "Investigative Report"} · ${row.targetUnit} · ${row.subject}`, submittedBy: row.submittedBy.displayName, division: row.targetUnit, createdAt: row.createdAt, href: `/dashboard/cases${row.linkedCaseId ? `/${row.linkedCaseId}` : ""}`, details: row.narrative, documentHref: row.pdfFileName ? `/api/aopcs/${row.id}/pdf` : row.documentUrl ?? undefined, documentName: row.pdfFileName ?? undefined });
+  }
+
+  if (canReviewInvestigator && (selectedType === "all" || selectedType === "investigator")) {
+    const isCriminalSada = session.user.tiers.includes("senior_assistant_district_attorney") && !canReviewAllCases;
+    const rows = await prisma.contactTicket.findMany({
+      where: { category: "INVESTIGATOR_INTAKE", status: { not: "CLOSED" }, intakeStatus: { notIn: ["DENIED", "CONVERTED"] }, ...(canReviewAllCases ? {} : { assigneeId: viewer!.id, divisionGroup: isCriminalSada ? viewer!.divisionGroup! : undefined }) },
+      include: { requester: { select: { displayName: true } }, assignee: { select: { displayName: true } }, aopcs: { select: { status: true, reportId: true, title: true, subject: true } }, messages: { orderBy: { createdAt: "desc" }, take: 1 } },
+      orderBy: { updatedAt: "asc" }, take: 100,
+    });
+    for (const row of rows) {
+      if (!canReviewDivision(session.user.tiers, viewer?.division, "Criminal Division", viewer?.divisionGroup, row.divisionGroup) || (row.requesterId === viewer?.id && !session.user.tiers.includes("developer_profile"))) continue;
+      const pending = row.aopcs.filter((doc) => doc.status === "PENDING" || doc.status === "RETURNED").length;
+      const approved = row.intakeStatus === "APPROVED";
+      items.push({ id: row.id, kind: "investigator", title: row.subject, summary: `${approved ? "Approved · Ready to open as a case" : `${row.intakeStatus ?? "OPEN"} · ${pending} report${pending === 1 ? "" : "s"} awaiting review`}${row.assignee ? ` · ${row.assignee.displayName}` : " · Unassigned"}`, submittedBy: row.requester.displayName, division: "Criminal Division", createdAt: row.createdAt, href: approved ? `/dashboard/cases/new?intakeTicketId=${encodeURIComponent(row.id)}` : `/dashboard/intake/tickets/${row.id}`, actionLabel: approved ? "Open approved report as case" : "Review intake ticket", details: row.messages[0]?.body });
+    }
   }
 
   const divisions = Array.from(new Set(items.map((item) => item.division).filter((value) => value && value !== "Unassigned"))).sort();
@@ -132,8 +148,10 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
     { key: "case", label: "Case requests", allowed: canReviewCases },
     { key: "records", label: "Records requests", allowed: canReviewRecords },
     { key: "contact", label: "Contact mail", allowed: canReviewContact },
+    { key: "investigator", label: "Investigator intake", allowed: canReviewInvestigator },
   ].filter((tab) => tab.allowed);
-  const typeCounts = new Map(items.map((item) => [item.kind, items.filter((candidate) => candidate.kind === item.kind).length]));
+  const typeCounts = new Map<ReviewItem["kind"], number>();
+  for (const item of items) typeCounts.set(item.kind, (typeCounts.get(item.kind) ?? 0) + 1);
   const tabHref = (key: string) => {
     const params = new URLSearchParams();
     if (key !== "all") params.set("type", key);
@@ -144,23 +162,24 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
 
   return <div className="review-inbox">
     <p className="eyebrow">Staff workflow</p><h1>Review Inbox</h1>
-    <p className="lede">One queue for pending case decisions, affidavit reviews, public records requests, and private Contact Us messages. Older items rise to the top.</p>
-    <nav className="review-triage-tabs" aria-label="Review queue tabs">{triageTabs.map((tab) => <Link key={tab.key} href={tabHref(tab.key)} aria-current={selectedType === tab.key ? "page" : undefined} className={selectedType === tab.key ? "on" : undefined}>{tab.label}{selectedType === "all" && tab.key !== "all" ? <span>{typeCounts.get(tab.key === "case" ? "case" : tab.key === "filing" ? "filing" : tab.key === "aopc" ? "aopc" : tab.key === "records" ? "records" : "contact") ?? 0}</span> : null}</Link>)}</nav>
+    <p className="lede">One queue for pending case decisions, reports, filings, and office requests. Older items rise to the top.</p>
+    <nav className="review-triage-tabs" aria-label="Review queue tabs">{triageTabs.map((tab) => <Link key={tab.key} href={tabHref(tab.key)} aria-current={selectedType === tab.key ? "page" : undefined} className={selectedType === tab.key ? "on" : undefined}>{tab.label}{selectedType === "all" && tab.key !== "all" ? <span>{typeCounts.get(tab.key as ReviewItem["kind"]) ?? 0}</span> : null}</Link>)}</nav>
     <form className="review-inbox-filters">
-      <div className="field"><label htmlFor="review-type">Request type</label><select id="review-type" name="type" defaultValue={selectedType}><option value="all">All types</option>{canReviewCases && <><option value="case">Case requests</option><option value="filing">Case filings</option><option value="aopc">AOPCs</option></>}{canReviewRecords && <option value="records">Records requests</option>}{canReviewContact && <option value="contact">Contact Us</option>}</select></div>
+      <div className="field"><label htmlFor="review-type">Request type</label><select id="review-type" name="type" defaultValue={selectedType}><option value="all">All types</option>{canReviewCases && <><option value="case">Case requests</option><option value="filing">Case filings</option><option value="aopc">AOPCs</option></>}{canReviewRecords && <option value="records">Records requests</option>}{canReviewContact && <option value="contact">Contact Us</option>}{canReviewInvestigator && <option value="investigator">Investigator intake</option>}</select></div>
       <div className="field"><label htmlFor="review-age">Waiting at least</label><select id="review-age" name="age" defaultValue={filters.age ?? ""}><option value="">Any age</option><option value="24">24 hours</option><option value="72">3 days</option><option value="168">7 days</option></select></div>
       <div className="field"><label htmlFor="review-division">Division / queue</label><select id="review-division" name="division" defaultValue={selectedDivision}><option value="">All queues</option>{divisions.map((division) => <option key={division} value={division}>{division}</option>)}</select></div>
       <button type="submit" className="govbtn">Filter</button><Link href="/dashboard/review" className="govbtn-outline">Clear</Link>
     </form>
-    <p className="review-inbox-count" aria-live="polite">{visible.length} item{visible.length === 1 ? "" : "s"} need review</p>
+    <p className="review-inbox-count" aria-live="polite">{visible.length} item{visible.length === 1 ? "" : "s"} in this queue</p>
     {visible.length ? <div className="review-inbox-list">{visible.map((item) => {
       const hours = Math.floor((now - item.createdAt.getTime()) / 3_600_000);
       const urgency = hours >= 72 ? "Urgent" : hours >= 24 ? "Waiting" : "New";
       return <article className="review-inbox-card" key={`${item.kind}-${item.id}`}>
-        <header><div><span className={`pill ${urgency === "Urgent" ? "pill-red" : urgency === "Waiting" ? "pill-gold" : "pill-navy"}`}>{urgency}</span> <span className="pill pill-muted">{item.kind === "case" ? "Case request" : item.kind === "filing" ? "Case filing" : item.kind === "aopc" ? "AOPC" : item.kind === "contact" ? "Contact Us" : "Records request"}</span></div><time dateTime={item.createdAt.toISOString()}>{dateFormat.format(item.createdAt)}</time></header>
+        <header><div><span className={`pill ${urgency === "Urgent" ? "pill-red" : urgency === "Waiting" ? "pill-gold" : "pill-navy"}`}>{urgency}</span> <span className="pill pill-muted">{item.kind === "case" ? "Case request" : item.kind === "filing" ? "Case filing" : item.kind === "aopc" ? "AOPC" : item.kind === "contact" ? "Contact Us" : item.kind === "investigator" ? "Investigator intake" : "Records request"}</span></div><time dateTime={item.createdAt.toISOString()}>{dateFormat.format(item.createdAt)}</time></header>
         <h2>{item.title}</h2><p>{item.summary}</p><dl><div><dt>Submitted by</dt><dd>{item.submittedBy}</dd></div><div><dt>Division / queue</dt><dd>{item.division}</dd></div><div><dt>Waiting</dt><dd>{hours < 24 ? `${Math.max(0, hours)} hours` : `${Math.floor(hours / 24)} days`}</dd></div></dl>
         {item.details && item.kind !== "records" && <p className="review-item-details">{item.details}</p>}
-        {item.kind === "contact" ? <><p className="review-item-details">{item.details}</p><Link className="govbtn" href={item.href}>Open private conversation</Link></>
+        {item.kind === "investigator" ? <Link className="govbtn" href={item.href}>{item.actionLabel ?? "Review intake ticket"}</Link>
+          : item.kind === "contact" ? <><p className="review-item-details">{item.details}</p><Link className="govbtn" href={item.href}>Open private conversation</Link></>
           : item.kind === "filing" ? <details className="review-aopc-detail" open><summary>{item.summary.startsWith("Initial complaint") ? "Initial case filing review" : "Filing review"}</summary>{item.documentHref && <p><a href={item.documentHref} target="_blank" rel="noopener noreferrer">View {item.documentName ?? "submitted PDF"} ↗</a></p>}{item.summary.startsWith("Initial complaint") && <p className="note-inline">Approval files the case with the court. Deadlines are entered manually on the case record.</p>}
             <FilingAiReviewPanel filingId={item.id} configured={aiReviewConfigured} review={item.aiReview ?? null} autoStart={item.id === autoReviewFilingId} autoEligible={item.aiReviewAutoEligible ?? false} />
             <form action={reviewFiling} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><input type="hidden" name="decision" value="ACCEPTED"/><button type="submit" className="govbtn">{item.summary.startsWith("Initial complaint") ? "Approve and file case" : "Approve filing"}</button></form><form action={reviewFiling} className="review-aopc-form"><input type="hidden" name="id" value={item.id}/><input type="hidden" name="decision" value="REJECTED"/><div className="field"><label htmlFor={`filing-review-note-${item.id}`}>Reason for return <span className="hint">Required</span></label><textarea id={`filing-review-note-${item.id}`} name="note" rows={2} maxLength={1000} required/></div><button type="submit" className="govbtn-outline">Return filing</button></form></details>

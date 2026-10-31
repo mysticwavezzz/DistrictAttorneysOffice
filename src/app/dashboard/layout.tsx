@@ -37,6 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ] : []),
   ];
   const staffTools: NavItem[] = isTrainee || orientationPending ? [] : [
+    ...(mayViewCases ? [{ label: "Work Queue", href: "/dashboard/work-queue" }] : []),
     ...((hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW)) ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
     ...(mayViewCases ? [{ label: "Deadline Calendar", href: "/dashboard/cases/calendar" }] : []),
     ...((hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)) ? [{ label: "Staff Roster", href: "/dashboard/roster" }] : []),
