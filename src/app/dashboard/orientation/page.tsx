@@ -1,8 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAssignableAttorneyRank } from "@/lib/case-assignees";
-import { effectiveRosterRank } from "@/lib/staff-rank-control";
+import { effectiveOnboardingRank, requiresCriminalDivisionGroupForOrientation, requiresCriminalDivisionOrientation } from "@/lib/onboarding-policy";
 import { acknowledgeOrientation } from "./actions";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 
@@ -283,8 +283,10 @@ const modules: Array<{
 export default async function CriminalDivisionOrientationPage() {
   const session = await auth();
   const roster = session?.user?.robloxUserId ? await prisma.rosterEntry.findUnique({ where: { robloxUserId: session.user.robloxUserId }, select: { isActive: true, rank: true, rankOverride: true, orientationPending: true, orientationAcknowledgedAt: true, divisionGroup: true, unit: true } }) : null;
-  const orientationRequired = Boolean(roster?.isActive && roster.unit === "Criminal Division" && isAssignableAttorneyRank(effectiveRosterRank(roster.rank, roster.rankOverride)) && !roster.orientationAcknowledgedAt);
-  const needsAcknowledgment = Boolean(orientationRequired || roster?.orientationPending);
+  if (!roster?.isActive || roster.unit !== "Criminal Division") redirect("/dashboard");
+  const rank = effectiveOnboardingRank(roster);
+  const needsAcknowledgment = requiresCriminalDivisionOrientation(roster);
+  const needsGroupPlacement = requiresCriminalDivisionGroupForOrientation(rank);
 
   return <article className="training-page">
     <p className="eyebrow">Criminal Division · Required onboarding</p>
@@ -316,7 +318,7 @@ export default async function CriminalDivisionOrientationPage() {
     <section className="training-callout orientation-acknowledgment-card">
       <h2>Before staff access opens</h2>
       <p>Read the full orientation and confirm that you understand the office workflow. The portal records your acknowledgment. If you have a question about a rule, an assignment, or a case-specific order, ask your supervisor before acting.</p>
-      {needsAcknowledgment ? roster?.divisionGroup ? <form action={acknowledgeOrientation} className="orientation-acknowledgment"><label><input type="checkbox" name="acknowledged" required /> I have read and understood the Criminal Division orientation.</label><button className="govbtn" type="submit">Acknowledge orientation</button></form> : <p role="alert">Your group placement is not recorded yet. A Criminal Division supervisor must assign a group before you can complete orientation.</p> : <p className="orientation-complete">Orientation is acknowledged. <Link href="/dashboard">Return to the staff portal</Link>.</p>}
+      {needsAcknowledgment ? needsGroupPlacement && !roster.divisionGroup ? <p role="alert">Your group placement is not recorded yet. A Criminal Division supervisor must assign a group before you can complete orientation.</p> : <form action={acknowledgeOrientation} className="orientation-acknowledgment"><label><input type="checkbox" name="acknowledged" required /> I have read and understood the Criminal Division orientation.</label><button className="govbtn" type="submit">Acknowledge orientation</button></form> : <p className="orientation-complete">Orientation is acknowledged. <Link href="/dashboard">Return to the staff portal</Link>.</p>}
     </section>
   </article>;
 }

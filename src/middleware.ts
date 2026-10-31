@@ -89,7 +89,7 @@ export default auth(async (req) => {
       effectiveUser = access.revoked ? null : { ...effectiveUser, tiers: access.isProsecutorInTraining
         ? [PERMISSION_TIERS.PROSECUTOR_IN_TRAINING]
         : access.orientationPending ? [PERMISSION_TIERS.ATTORNEY_ORIENTATION_PENDING]
-        : [...new Set([...applyRosterRankOverride(effectiveUser.groupTiers ?? effectiveUser.tiers.filter((tier) => tier !== PERMISSION_TIERS.PROSECUTOR_IN_TRAINING), access.rankOverride), ...(effectiveUser.tiers.includes(DEVELOPER_PROFILE_TIER) ? [DEVELOPER_PROFILE_TIER] : [])])] };
+        : [...new Set([...applyRosterRankOverride((effectiveUser.groupTiers ?? effectiveUser.tiers).filter((tier) => tier !== PERMISSION_TIERS.PROSECUTOR_IN_TRAINING && tier !== PERMISSION_TIERS.ATTORNEY_ORIENTATION_PENDING), access.rankOverride), ...(effectiveUser.tiers.includes(DEVELOPER_PROFILE_TIER) ? [DEVELOPER_PROFILE_TIER] : [])])] };
     } catch (error) {
       console.error("Failed to verify staff access in middleware", error);
       effectiveUser = null;

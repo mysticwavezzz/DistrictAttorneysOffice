@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAssignableAttorneyRank } from "@/lib/case-assignees";
-import { effectiveRosterRank } from "@/lib/staff-rank-control";
+import { effectiveOnboardingRank, requiresCriminalDivisionGroupForOrientation } from "@/lib/onboarding-policy";
 
 export async function acknowledgeOrientation(formData: FormData) {
   if (formData.get("acknowledged") !== "on") throw new Error("Confirm that you read the orientation before submitting.");
@@ -13,7 +12,8 @@ export async function acknowledgeOrientation(formData: FormData) {
   const robloxUserId = session?.user?.robloxUserId;
   if (!session?.user?.providerUserId || !robloxUserId) throw new Error("Sign in with your linked staff account to acknowledge orientation.");
   const roster = await prisma.rosterEntry.findUnique({ where: { robloxUserId } });
-  if (!roster?.isActive || roster.unit !== "Criminal Division" || !roster.divisionGroup || !isAssignableAttorneyRank(effectiveRosterRank(roster.rank, roster.rankOverride))) throw new Error("Your active Criminal Division attorney group placement must be recorded before orientation can be acknowledged.");
+  const rank = roster ? effectiveOnboardingRank(roster) : null;
+  if (!roster?.isActive || roster.unit !== "Criminal Division" || !rank || (requiresCriminalDivisionGroupForOrientation(rank) && !roster.divisionGroup)) throw new Error("An active Criminal Division attorney record is required, and line attorneys must have a group placement before orientation can be acknowledged.");
   if (!roster.orientationPending && roster.orientationAcknowledgedAt) redirect("/dashboard");
   const acknowledgedAt = new Date();
   await prisma.$transaction([

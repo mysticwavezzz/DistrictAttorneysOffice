@@ -9,17 +9,22 @@ import { canViewCases } from "@/lib/case-access";
 import { shareMetadata } from "@/lib/share-metadata";
 import { hasActiveDeveloperProfile } from "@/lib/developer-profile-access";
 import { getOnboardingAccessTiers } from "@/lib/onboarding-access";
+import { prisma } from "@/lib/prisma";
 
 export const metadata = { ...shareMetadata("Staff Portal", "Staff workspace for assigned cases, filings, deadlines, and office workflows.", "/dashboard"), robots: { index: false, follow: false } };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.providerUserId) redirect("/login?callbackUrl=/dashboard");
-  const tiers = await getOnboardingAccessTiers(session.user.robloxUserId, session.user.tiers);
+  const [tiers, divisionRoster] = await Promise.all([
+    getOnboardingAccessTiers(session.user.robloxUserId, session.user.tiers),
+    session.user.robloxUserId ? prisma.rosterEntry.findUnique({ where: { robloxUserId: session.user.robloxUserId }, select: { unit: true, isActive: true } }) : null,
+  ]);
   if (!hasCapability(tiers, CAPABILITIES.DASHBOARD_VIEW)) redirect("/login?error=forbidden");
   const isTrainee = tiers.includes("prosecutor_in_training");
   const orientationPending = tiers.includes("attorney_orientation_pending");
   const mayViewCases = canViewCases(tiers);
+  const isCriminalDivisionStaff = divisionRoster?.isActive && divisionRoster.unit === "Criminal Division";
   const hasDeveloperProfile = await hasActiveDeveloperProfile(session.user);
   const primaryNav: NavItem[] = isTrainee ? [{ label: "Learning Course", href: "/dashboard/learning" }] : orientationPending ? [{ label: "Attorney Orientation", href: "/dashboard/orientation" }] : [
     { label: "Overview", href: "/dashboard" },
@@ -40,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ...((hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) ? [{ label: "Supervisor Reports", href: "/dashboard/reports" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.SETTINGS_MANAGE) ? [{ label: "AI Service", href: "/98981/ai" }] : []),
     { label: "Search", href: "/dashboard/search" },
-    ...(mayViewCases ? [{ label: "Criminal Division Orientation", href: "/dashboard/orientation" }] : []),
+    ...(mayViewCases && isCriminalDivisionStaff ? [{ label: "Criminal Division Orientation", href: "/dashboard/orientation" }] : []),
   ];
 
   return (
