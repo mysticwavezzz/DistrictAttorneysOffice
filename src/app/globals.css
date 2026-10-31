@@ -2880,7 +2880,6 @@ details > summary::after {
 .source-library-list h3 { margin: 8px 0 3px; }
 .source-library-list p, .search-results span { color: var(--ink-soft); font-size: 13px; }
 .source-library-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.intake-grid { display: grid; grid-template-columns: minmax(230px, .75fr) minmax(0, 1.5fr); gap: 14px; align-items: start; }
 .intake-checklist { padding-left: 22px; color: var(--ink-soft); }
 .search-result-group { margin: 18px 0 24px; }
 .search-results > li { display: grid; justify-content: stretch; gap: 4px; }
@@ -3078,7 +3077,6 @@ details > summary::after {
   .handoff-columns { grid-template-columns: 1fr; }
   .handoff-facts { grid-template-columns: 1fr 1fr; }
   .workload-alert-row { grid-template-columns: 1fr; align-items: start; }
-  .intake-grid { grid-template-columns: 1fr; }
   .source-library-list > article { flex-direction: column; }
   .source-library-actions { flex-direction: row; align-items: center; }
   .ai-model-form { flex-direction: column; align-items: stretch; }
