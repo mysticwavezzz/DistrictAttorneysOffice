@@ -181,13 +181,13 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
                   <li><span>Filed with court</span><time>{f.filedAt || (f.isInitial ? caseRecord.courtFiledAt : null) ? dateTimeFormatter.format(f.filedAt ?? caseRecord.courtFiledAt!) : "Not recorded"}</time>{(f.courtFilingUrl || (f.isInitial ? caseRecord.courtDocketUrl : null)) && <a href={f.courtFilingUrl ?? caseRecord.courtDocketUrl!} target="_blank" rel="noreferrer noopener">Court source ↗</a>}</li>
                 </ol>
                 {f.status === "PENDING" && <span className="filing-gap-alert">Submitted for portal review. The approval date will appear when a reviewer acts.</span>}
-                {f.status === "ACCEPTED" && !f.filedAt && !(f.isInitial && caseRecord.courtFiledAt) && <span className="filing-gap-alert">Approved in the portal. The court filing date has not been recorded.</span>}
+                {f.status === "ACCEPTED" && !f.filedAt && !(f.isInitial && caseRecord.courtFiledAt) && <span className="filing-gap-alert">Approved in the portal. Mark it filed after it is filed with the court.</span>}
                 {f.supersedes && <span>Replaces returned version: {f.supersedes.title}</span>}{f.revisionNote && <span className="note-inline">{f.revisionNote}</span>}{f.revisions.length > 0 && <span>Replacement submitted: {f.revisions.map((revision) => `${revision.title} (${revision.status.toLowerCase()})`).join(", ")}</span>}{f.reviewNote && f.status !== "ACCEPTED" && <span className="note-inline">Review note: {f.reviewNote}</span>}
               </div>
               <div className="case-filing-actions">
                 {f.pdfFileName && <a href={`/api/cases/filings/${f.id}/pdf`} target="_blank" rel="noreferrer noopener" className="govbtn-outline">View PDF</a>}
                 {f.url && <a href={f.url} target="_blank" rel="noreferrer noopener" className="govbtn-outline">Open link</a>}
-                {canFileCourt && f.status === "ACCEPTED" && !f.isInitial && !f.filedAt && <details className="filing-record-form"><summary>Record court filing</summary><form action={recordAdditionalCourtFiling}><input type="hidden" name="filingId" value={f.id}/><label htmlFor={`filed-date-${f.id}`}>Court filing date</label><input id={`filed-date-${f.id}`} name="filedDate" type="date" required max={new Date().toISOString().slice(0, 10)}/><label htmlFor={`filed-source-${f.id}`}>Court record link</label><input id={`filed-source-${f.id}`} name="courtFilingUrl" type="url" maxLength={2000} required placeholder="https://discord.com/channels/…"/><button className="govbtn-outline" type="submit">Save filing date</button></form></details>}
+                {canFileCourt && f.status === "ACCEPTED" && !f.isInitial && !f.filedAt && <form action={recordAdditionalCourtFiling}><input type="hidden" name="filingId" value={f.id}/><PendingSubmitButton label="Filed in Court" pendingLabel="Saving…" className="govbtn-outline"/></form>}
                 {((f.status === "PENDING" && f.addedById === user.id) || (f.status !== "PENDING" && canEdit)) && <RemoveButton id={f.id} action={deleteFiling} label={f.status === "PENDING" ? "Withdraw" : "Remove"} confirmMessage={`${f.status === "PENDING" ? "Withdraw" : "Remove"} the filing “${f.title}”?`} className="linklike case-filing-remove" />}
               </div>
             </li>
@@ -246,7 +246,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <div className="case-court-filing-heading"><div><p className="eyebrow">Court status</p><h2 id="court-filing-title">Initial case filing</h2></div><span className={`pill pill-${courtFilingColor}`}>{courtFilingLabel}</span></div>
       {chargesFiledByStatus && <p className="note-inline">The case status has reached or passed “Charges Filed,” so that milestone is marked complete. Complaint submission and the actual court filing date remain tracked separately.</p>}
       {effectiveCourtFiledAt ? <p>Filed {dateTimeFormatter.format(effectiveCourtFiledAt)}{caseRecord.courtDocketUrl ? <> · <a href={caseRecord.courtDocketUrl} target="_blank" rel="noreferrer noopener">Open court record ↗</a></> : null}</p>
-        : acceptedInitial ? <><p>Approved in the portal {acceptedInitialFiling?.reviewedAt ? dateTimeFormatter.format(acceptedInitialFiling.reviewedAt) : ""}. Portal approval and filing with the court are separate events; record the date and court source after the complaint is filed.</p>{canFileCourt && <form action={recordCourtFiling} className="case-court-filing-form"><input type="hidden" name="caseId" value={caseRecord.id}/><div className="field"><label htmlFor="court-filed-date">Actual court filing date</label><input id="court-filed-date" name="filedDate" type="date" required max={new Date().toISOString().slice(0, 10)}/></div><div className="field"><label htmlFor="court-docket-url">Court docket or source link</label><input id="court-docket-url" name="courtDocketUrl" type="url" maxLength={2000} required placeholder="https://discord.com/channels/…"/></div><PendingSubmitButton label="Record court filing" pendingLabel="Saving…" className="govbtn"/></form>}</>
+        : acceptedInitial ? <><p>Approved in the portal {acceptedInitialFiling?.reviewedAt ? dateTimeFormatter.format(acceptedInitialFiling.reviewedAt) : ""}. Once you file the complaint with the court, mark it below.</p>{canFileCourt && <form action={recordCourtFiling} className="case-court-filing-form"><input type="hidden" name="caseId" value={caseRecord.id}/><PendingSubmitButton label="Filed in Court" pendingLabel="Saving…" className="govbtn"/></form>}</>
           : pendingInitial ? <p>The initial complaint is in the Review Inbox. Portal approval will not mark it as filed with the court.</p>
             : returnedInitial ? <p className="note-inline">The initial complaint was returned{returnedInitial.reviewNote ? `: ${returnedInitial.reviewNote}` : ". Replace the PDF and submit it for review again."}</p>
         : <p>This staff case record has not been filed with the court.</p>}
@@ -267,7 +267,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const nextStep = pendingInitial
     ? "Initial filing is waiting for review. Its status will update when a reviewer decides."
     : acceptedInitial && !isCourtFiled
-      ? "The initial complaint is approved in the portal. Record the actual court filing date and source after it is filed."
+      ? "The initial complaint is approved in the portal. Mark it filed after filing it with the court."
     : returnedInitial && !isCourtFiled
       ? "The complaint was returned. Correct the PDF and resubmit it for review."
       : !isCourtFiled
@@ -289,7 +289,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       <div><dt>Next deadline</dt><dd>{nextDeadline ? courtDateFormatter.format(nextDeadline.dueDate) : "None scheduled"}</dd></div>
     </dl>
     <div className="case-workspace-next"><div><strong>Next step</strong><p>{nextStep}</p></div><div className="case-workspace-actions">
-      {!isCourtFiled && !pendingInitial && canFileCourt ? <CaseSectionLink href="#court-filing" className="govbtn">{acceptedInitial ? "Record court filing" : returnedInitial ? "Resubmit complaint" : "File initial complaint"}</CaseSectionLink>
+      {!isCourtFiled && !pendingInitial && canFileCourt ? <CaseSectionLink href="#court-filing" className="govbtn">{acceptedInitial ? "Filed in Court" : returnedInitial ? "Resubmit complaint" : "File initial complaint"}</CaseSectionLink>
         : isCourtFiled && !caseRecord.assignedJudge && canEdit ? <CaseSectionLink href="#edit-case" className="govbtn">Assign judge</CaseSectionLink>
           : overdueCount || nextDeadline ? <CaseSectionLink href="#deadlines" className="govbtn">Review deadlines</CaseSectionLink>
             : isCourtFiled && canFileDocument ? <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a document</Link> : null}

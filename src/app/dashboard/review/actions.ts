@@ -69,7 +69,7 @@ async function reviewFilingImpl(formData: FormData) {
     await tx.caseComment.create({ data: {
       caseId: filing.caseId,
       body: filing.isInitial && decision === "ACCEPTED"
-        ? `Initial complaint approved in the portal for court filing by ${session.user.displayName}. The actual court filing date and source must be recorded separately.${note ? ` Review note: ${note}` : ""}`
+        ? `Initial complaint approved in the portal for court filing by ${session.user.displayName}. Mark it filed in court after it is filed.${note ? ` Review note: ${note}` : ""}`
         : `Filing “${filing.title}” ${decision === "ACCEPTED" ? "approved" : "returned"} by ${session.user.displayName}.${note ? ` Review note: ${note}` : ""}`,
       isSystem: true,
     } });

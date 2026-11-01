@@ -104,7 +104,7 @@ export default async function WorkloadPage({ searchParams }: { searchParams: Pro
       {[...new Map([...overdueFilingCases, ...filingGaps, ...reassignmentCases].map((record) => [record.id, record])).values()].slice(0, 30).map((record) => {
         const reasons = [
           overdueFilingCases.includes(record) ? "Initial filing target overdue" : "",
-          filingGaps.includes(record) ? record.filings.some((filing) => filing.isInitial && filing.status === "PENDING") ? "Initial filing awaiting portal approval" : "Portal approved, court filing date missing" : "",
+          filingGaps.includes(record) ? record.filings.some((filing) => filing.isInitial && filing.status === "PENDING") ? "Initial filing awaiting portal approval" : "Portal approved, not yet marked filed in court" : "",
           reassignmentCases.includes(record) ? "Assigned attorney is not on the active eligible roster" : "",
         ].filter(Boolean);
         return <p className="workload-alert-row" key={record.id}><strong><Link href={`/dashboard/cases/${record.id}`}>{record.caseNumber} · {record.title}</Link></strong><span>{reasons.join(" · ")}</span>{reassignmentCases.includes(record) && <Link href={`/dashboard/cases/${record.id}/handoff`}>Review handoff</Link>}</p>;

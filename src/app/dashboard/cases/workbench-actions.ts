@@ -18,7 +18,7 @@ const SAFE_EVENT_KINDS = new Set(["COURT_HEARING", "COURT_DEADLINE", "OFFICE_TAR
 const READINESS_TASKS: Record<string, { title: string; details: string }> = {
   "witness-availability": { title: "Confirm witness availability and attendance", details: "Confirm each listed witness can attend and record any scheduling issue." },
   "exhibits": { title: "Review and prepare exhibits", details: "Check the exhibit list, source links, and any foundation or disclosure issues." },
-  "filings": { title: "Confirm required filings and service", details: "Check required filings, portal review status, court filing dates, and service records." },
+  "filings": { title: "Confirm required filings and service", details: "Check required filings, portal review status, court-filed markers, and service records." },
   "motions": { title: "Review pending motions and response dates", details: "Identify pending motions, response deadlines, and any hearing dates." },
 };
 

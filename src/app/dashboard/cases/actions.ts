@@ -15,7 +15,6 @@ import { extractFilingPdfText } from "@/lib/ai-filing-review/pdf-text";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { runWithActionDebug } from "@/lib/action-debug";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
-import { parseDateTimeInTimeZone } from "@/lib/time-zone";
 import { logActivity } from "@/lib/activity-log";
 
 async function requireStaff() {
@@ -310,9 +309,7 @@ async function fileCaseImpl(formData: FormData) {
 async function recordCourtFilingImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   const id = String(formData.get("caseId") ?? "").trim();
-  const filedDate = String(formData.get("filedDate") ?? "").trim();
-  const sourceUrlRaw = String(formData.get("courtDocketUrl") ?? "").trim();
-  if (!id || !filedDate || !sourceUrlRaw) throw new Error("Enter the court filing date and a source link.");
+  if (!id) throw new Error("Missing case id.");
   const caseRecord = await prisma.case.findUnique({ where: { id }, include: { filings: { where: { isInitial: true, status: "ACCEPTED" }, select: { id: true }, take: 1 } } });
   const mayRecord = Boolean(caseRecord && canEditCase(session.user.tiers, user.division, caseRecord.division))
     || Boolean(caseRecord && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && caseRecord.createdById === user.id);
@@ -321,17 +318,15 @@ async function recordCourtFilingImpl(formData: FormData) {
   if (!caseRecord.filings.length) throw new Error("The initial complaint must be approved in the portal before recording its court filing.");
   const initialFiling = caseRecord.filings[0];
   if (!initialFiling) throw new Error("The approved initial complaint could not be loaded. Refresh this case.");
-  const courtDocketUrl = safeCourtSourceUrl(sourceUrlRaw);
-  const courtFiledAt = parseDateTimeInTimeZone(`${filedDate}T12:00`, "America/New_York");
-  if (!courtDocketUrl || !courtFiledAt || courtFiledAt.getTime() > Date.now() + 60_000) throw new Error("Enter a valid source link and a filing date that has occurred.");
+  const courtFiledAt = new Date();
   await prisma.$transaction(async (tx) => {
-    const update = await tx.case.updateMany({ where: { id, courtFiledAt: null }, data: { courtFiledAt, courtDocketUrl, initialFilingDue: null, updatedAt: new Date() } });
+    const update = await tx.case.updateMany({ where: { id, courtFiledAt: null }, data: { courtFiledAt, initialFilingDue: null, updatedAt: courtFiledAt } });
     if (!update.count) throw new Error("The court filing was recorded by another staff member. Refresh this case.");
-    const filingUpdate = await tx.caseFiling.updateMany({ where: { id: initialFiling.id, status: "ACCEPTED", filedAt: null }, data: { filedAt: courtFiledAt, courtFilingUrl: courtDocketUrl } });
+    const filingUpdate = await tx.caseFiling.updateMany({ where: { id: initialFiling.id, status: "ACCEPTED", filedAt: null }, data: { filedAt: courtFiledAt } });
     if (!filingUpdate.count) throw new Error("The initial filing record changed. Refresh this case and check the timeline.");
-    await tx.caseComment.create({ data: { caseId: id, isSystem: true, body: `Initial complaint filed with the court on ${filedDate}. Court record: ${courtDocketUrl}. Recorded by ${session.user.displayName}.` } });
+    await tx.caseComment.create({ data: { caseId: id, isSystem: true, body: `Initial complaint marked filed in court on ${courtFiledAt.toLocaleString("en-US", { timeZone: "America/New_York" })} by ${session.user.displayName}.` } });
   });
-  await logActivity(session.user.displayName, "Recorded actual court filing date and source", "Case", caseRecord.caseNumber);
+  await logActivity(session.user.displayName, "Marked initial complaint filed in court", "Case", caseRecord.caseNumber);
   revalidatePath("/dashboard/cases");
   revalidatePath("/dashboard/search");
   revalidatePath("/dashboard/reports");
@@ -343,41 +338,31 @@ async function recordCourtFilingImpl(formData: FormData) {
 async function recordAdditionalCourtFilingImpl(formData: FormData) {
   const { session, user } = await requireStaff();
   const filingId = String(formData.get("filingId") ?? "").trim();
-  const filedDate = String(formData.get("filedDate") ?? "").trim();
-  const sourceUrlRaw = String(formData.get("courtFilingUrl") ?? "").trim();
   const filing = filingId ? await prisma.caseFiling.findUnique({ where: { id: filingId }, include: { case: true } }) : null;
   const mayRecord = Boolean(filing && canEditCase(session.user.tiers, user.division, filing.case.division))
     || Boolean(filing && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && filing.case.createdById === user.id);
   if (!filing || filing.status !== "ACCEPTED" || !canAccessCase(session.user.tiers, user.id, filing.case, user.division, user.divisionGroup) || !mayRecord) throw new Error("This filing is outside your court-filing authority.");
   if (filing.filedAt || (filing.isInitial && filing.case.courtFiledAt)) throw new Error("The court filing date is already recorded.");
-  if (!filedDate || !sourceUrlRaw) throw new Error("Enter the court filing date and source link.");
-  const courtFilingUrl = safeCourtSourceUrl(sourceUrlRaw);
-  const filedAt = parseDateTimeInTimeZone(`${filedDate}T12:00`, "America/New_York");
-  if (!courtFilingUrl || !filedAt || filedAt.getTime() > Date.now() + 60_000) throw new Error("Enter a valid source link and a filing date that has occurred.");
+  const filedAt = new Date();
 
   await prisma.$transaction(async (tx) => {
-    const updated = await tx.caseFiling.updateMany({ where: { id: filing.id, status: "ACCEPTED", filedAt: null }, data: { filedAt, courtFilingUrl } });
+    const updated = await tx.caseFiling.updateMany({ where: { id: filing.id, status: "ACCEPTED", filedAt: null }, data: { filedAt } });
     if (!updated.count) throw new Error("This filing was updated by another staff member. Refresh and check the timeline.");
     if (filing.isInitial) {
-      const caseUpdated = await tx.case.updateMany({ where: { id: filing.caseId, courtFiledAt: null }, data: { courtFiledAt: filedAt, courtDocketUrl: courtFilingUrl, initialFilingDue: null, updatedAt: new Date() } });
+      const caseUpdated = await tx.case.updateMany({ where: { id: filing.caseId, courtFiledAt: null }, data: { courtFiledAt: filedAt, initialFilingDue: null, updatedAt: filedAt } });
       if (!caseUpdated.count) throw new Error("The initial court filing was recorded by another staff member. Refresh this case.");
     } else {
       await tx.case.update({ where: { id: filing.caseId }, data: { updatedAt: new Date() } });
     }
-    await tx.caseComment.create({ data: { caseId: filing.caseId, isSystem: true, body: `${filing.isInitial ? "Initial complaint" : `Filing “${filing.title}”`} filed with the court on ${filedDate}. Court source: ${courtFilingUrl}. Recorded by ${session.user.displayName}.` } });
+    await tx.caseComment.create({ data: { caseId: filing.caseId, isSystem: true, body: `${filing.isInitial ? "Initial complaint" : `Filing “${filing.title}”`} marked filed in court on ${filedAt.toLocaleString("en-US", { timeZone: "America/New_York" })} by ${session.user.displayName}.` } });
   });
 
-  await logActivity(session.user.displayName, "Recorded actual court filing date and source", "Case", filing.case.caseNumber);
+  await logActivity(session.user.displayName, `Marked ${filing.isInitial ? "initial complaint" : `“${filing.title}”`} filed in court`, "Case", filing.case.caseNumber);
   revalidatePath("/dashboard/cases");
   revalidatePath("/dashboard/filings");
   revalidatePath("/dashboard/cases/calendar");
   revalidatePath(`/dashboard/cases/${filing.caseId}`);
   redirect(`/dashboard/cases/${filing.caseId}#filing-${filing.id}`);
-}
-
-function safeCourtSourceUrl(value: string) {
-  try { const parsed = new URL(value); return ["https:", "http:"].includes(parsed.protocol) ? parsed.toString() : null; }
-  catch { return null; }
 }
 
 async function updateCaseImpl(formData: FormData) {
