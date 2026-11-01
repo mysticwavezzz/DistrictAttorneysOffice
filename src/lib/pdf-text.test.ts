@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { extractFilingPdfText, FilingPdfTextError } from "./pdf-text";
+import { extractPdfText, PdfTextExtractionError } from "./pdf-text";
 
 async function makePdf(withText: boolean): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
@@ -14,16 +14,16 @@ async function makePdf(withText: boolean): Promise<Uint8Array> {
 
 describe("filing PDF text extraction", () => {
   it("extracts page-scoped text for evidence verification", async () => {
-    const extracted = await extractFilingPdfText(await makePdf(true));
+    const extracted = await extractPdfText(await makePdf(true));
     expect(extracted.pages).toHaveLength(1);
     expect(extracted.pages[0]?.text).toContain("Complaint caption and requested relief");
     expect(extracted.totalCharacters).toBeGreaterThan(20);
   });
 
   it("stops safely on a scanned or textless PDF instead of guessing", async () => {
-    await expect(extractFilingPdfText(await makePdf(false))).rejects.toMatchObject({
-      name: "FilingPdfTextError",
+    await expect(extractPdfText(await makePdf(false))).rejects.toMatchObject({
+      name: "PdfTextExtractionError",
       code: "PDF_NO_TEXT",
-    } satisfies Partial<FilingPdfTextError>);
+    } satisfies Partial<PdfTextExtractionError>);
   });
 });

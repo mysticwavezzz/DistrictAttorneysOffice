@@ -135,7 +135,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const returnedInitial = initialFilings.find((filing) => filing.status === "REJECTED");
   const effectiveCourtFiledAt = caseRecord.courtFiledAt;
   const chargesFiledByStatus = hasReachedChargesFiledStatus(caseRecord.stage, caseStatuses);
-  const courtFilingLabel = effectiveCourtFiledAt ? "Filed with court" : acceptedInitial ? "Approved in portal · date needed" : pendingInitial ? "Awaiting review" : returnedInitial ? "Returned for correction" : chargesFiledByStatus ? "Complaint filing not recorded" : "Unfiled in court";
+  const courtFilingLabel = effectiveCourtFiledAt ? "Filed with court" : acceptedInitial ? "Approved · ready to file" : pendingInitial ? "Awaiting review" : returnedInitial ? "Returned for correction" : chargesFiledByStatus ? "Complaint filing not recorded" : "Unfiled in court";
   const courtFilingColor = effectiveCourtFiledAt ? "green" : acceptedInitial || pendingInitial ? "gold" : returnedInitial ? "red" : "muted";
   const activeDeadlines = getProceduralDeadlines({ ...caseRecord, courtFiledAt: effectiveCourtFiledAt });
   const ongoingObligations = getOngoingObligations(caseRecord);
@@ -295,7 +295,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             : isCourtFiled && canFileDocument ? <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a document</Link> : null}
       {canFileDocument && (!isCourtFiled || !caseRecord.assignedJudge || overdueCount > 0 || Boolean(nextDeadline)) && <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn-outline">File a document</Link>}
       {canPropose && <CaseSectionLink href="#propose-edit" className="govbtn-outline">Propose an edit</CaseSectionLink>}
-      <Link href={`/dashboard/cases/${caseRecord.id}/workbench`} className="govbtn-outline">AI &amp; case tools</Link>
+      <Link href={`/dashboard/cases/${caseRecord.id}/workbench`} className="govbtn-outline">Case tools</Link>
       <Link href={`/dashboard/cases/${caseRecord.id}/readiness`} className="govbtn-outline">Court readiness</Link>
       <Link href={`/dashboard/cases/${caseRecord.id}/handoff`} className="govbtn-outline">Handoff summary</Link>
       <Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link>

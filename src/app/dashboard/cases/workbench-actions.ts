@@ -1,16 +1,12 @@
 "use server";
 
-import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
 import { canAccessCase, canEditCase, localUser } from "@/lib/case-access";
-import { CASE_AI_ACTIONS, CASE_AI_PROMPT_VERSION, CASE_AI_SOURCE_BUNDLE_VERSION, buildCaseAiSources, caseAiSourceHash, createCaseAiResult, type CaseAiAction } from "@/lib/case-ai-workbench";
-import { getConfiguredGroqModel } from "@/lib/ai-model";
 import { logActivity } from "@/lib/activity-log";
 import { parseDateTimeInTimeZone } from "@/lib/time-zone";
-import { getDocumentTemplate } from "@/config/document-templates";
 
 const MAX_TITLE = 180;
 const SAFE_EVIDENCE_KINDS = new Set(["DOCUMENT", "TEXT_RECORD", "COURT_TRANSCRIPT", "PHOTOGRAPH", "VIDEO", "OTHER"]);
@@ -93,21 +89,6 @@ export async function addCaseEvent(formData: FormData) {
   revalidatePath(`/dashboard/cases/${caseId}`);
 }
 
-export async function addAcceptedCaseTask(formData: FormData) {
-  const caseId = String(formData.get("caseId") ?? "").trim();
-  const { session, user, caseRecord } = await requireCaseEditor(caseId);
-  const title = String(formData.get("title") ?? "").trim().slice(0, MAX_TITLE);
-  const details = String(formData.get("details") ?? "").trim().slice(0, 1500);
-  const sourceReference = String(formData.get("sourceReference") ?? "").trim().slice(0, 500);
-  const assigneeId = String(formData.get("assigneeId") ?? "").trim();
-  const assignee = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true, displayName: true, division: true } }) : null;
-  if (!title || !assignee || assignee.division !== caseRecord.division) throw new Error("Choose an eligible attorney in this case division.");
-  await prisma.caseTask.create({ data: { caseId, title, details, sourceReference, status: "OPEN", assignedToId: assignee.id, assignedToName: assignee.displayName, createdById: user.id, createdByName: session.user.displayName } });
-  await logActivity(session.user.displayName, "Accepted and assigned case task", "Case", caseId);
-  revalidatePath(`/dashboard/cases/${caseId}/workbench`);
-  revalidatePath(`/dashboard/cases/${caseId}/readiness`);
-}
-
 export async function addReadinessTask(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "").trim();
   const key = String(formData.get("key") ?? "").trim();
@@ -137,59 +118,17 @@ export async function updateCaseTask(formData: FormData) {
   revalidatePath(`/dashboard/cases/${task.caseId}/readiness`);
 }
 
-async function processAiRun(runId: string, action: CaseAiAction, sources: Awaited<ReturnType<typeof buildCaseAiSources>>, modelId: string) {
-  const run = await prisma.caseAiRun.findUnique({ where: { id: runId }, select: { status: true, caseId: true } });
-  if (!run || run.status !== "QUEUED") return;
-  const startedAt = Date.now();
-  await prisma.caseAiRun.update({ where: { id: runId }, data: { status: "RUNNING", startedAt: new Date(startedAt) } });
-  try {
-    const generated = await createCaseAiResult(action, sources, modelId);
-    await prisma.caseAiRun.update({ where: { id: runId }, data: { status: "COMPLETED", resultJson: JSON.stringify(generated.result), latencyMs: Date.now() - startedAt, inputTokens: generated.inputTokens ?? null, outputTokens: generated.outputTokens ?? null, completedAt: new Date() } });
-  } catch (error) {
-    const code = error instanceof Error && ["MISSING_API_KEY", "INVALID_MODEL_OUTPUT"].includes(error.message) ? error.message : "MODEL_UNAVAILABLE";
-    await prisma.caseAiRun.update({ where: { id: runId }, data: { status: "FAILED", failureCode: code, latencyMs: Date.now() - startedAt, completedAt: new Date() } });
-  }
-  revalidatePath(`/dashboard/cases/${run.caseId}/workbench`);
-}
-
-export async function requestCaseAiRun(formData: FormData) {
+export async function addCaseTask(formData: FormData) {
   const caseId = String(formData.get("caseId") ?? "").trim();
-  const action = String(formData.get("action") ?? "").trim() as CaseAiAction;
-  const { session, user } = await requireCaseEditor(caseId);
-  if (!CASE_AI_ACTIONS.includes(action)) throw new Error("Choose a supported AI workbench action.");
-  const templateId = String(formData.get("templateId") ?? "").trim();
-  if (action === "DRAFT_DOCUMENT" && !getDocumentTemplate(templateId)) throw new Error("Choose a current office template before requesting a draft.");
-  const sources = await buildCaseAiSources(caseId, action, templateId || undefined);
-  const sourceHash = caseAiSourceHash(sources);
-  const modelId = await getConfiguredGroqModel();
-  const cached = await prisma.caseAiRun.findFirst({ where: { caseId, action, sourceHash, modelId, promptVersion: CASE_AI_PROMPT_VERSION, status: "COMPLETED" }, orderBy: { completedAt: "desc" }, select: { resultJson: true } });
-  const run = await prisma.caseAiRun.create({ data: {
-    caseId,
-    requestedById: user.id,
-    requestedByName: session.user.displayName,
-    action,
-    status: cached ? "COMPLETED" : "QUEUED",
-    modelId,
-    promptVersion: CASE_AI_PROMPT_VERSION,
-    sourceBundleVersion: CASE_AI_SOURCE_BUNDLE_VERSION,
-    sourceHash,
-    cacheHit: Boolean(cached),
-    ...(cached ? { resultJson: cached.resultJson, completedAt: new Date() } : {}),
-  }, select: { id: true } });
-  if (!cached) after(() => processAiRun(run.id, action, sources, modelId));
-  await logActivity(session.user.displayName, `Requested text-only AI ${action.toLowerCase().replaceAll("_", " ")}${cached ? " (cached)" : ""}`, "Case", caseId);
+  const { session, user, caseRecord } = await requireCaseEditor(caseId);
+  const title = String(formData.get("title") ?? "").trim().slice(0, MAX_TITLE);
+  const details = String(formData.get("details") ?? "").trim().slice(0, 1500);
+  const sourceReference = String(formData.get("sourceReference") ?? "").trim().slice(0, 500);
+  const assigneeId = String(formData.get("assigneeId") ?? "").trim();
+  const assignee = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true, displayName: true, division: true } }) : null;
+  if (!title || (assigneeId && (!assignee || assignee.division !== caseRecord.division))) throw new Error("Choose an eligible attorney in this case division.");
+  await prisma.caseTask.create({ data: { caseId, title, details, sourceReference, status: "OPEN", assignedToId: assignee?.id ?? null, assignedToName: assignee?.displayName ?? null, createdById: user.id, createdByName: session.user.displayName } });
+  await logActivity(session.user.displayName, "Added case task", "Case", caseId);
   revalidatePath(`/dashboard/cases/${caseId}/workbench`);
-}
-
-export async function recordCaseAiFeedback(formData: FormData) {
-  const runId = String(formData.get("runId") ?? "").trim();
-  const feedback = String(formData.get("feedback") ?? "").trim();
-  const note = String(formData.get("note") ?? "").trim().slice(0, 1500);
-  if (!runId || !["HELPFUL", "NEEDS_CORRECTION"].includes(feedback)) throw new Error("Choose a feedback option.");
-  const run = await prisma.caseAiRun.findUnique({ where: { id: runId }, select: { id: true, caseId: true, status: true } });
-  if (!run || run.status !== "COMPLETED") throw new Error("Completed AI result not found.");
-  const { session, user } = await requireCaseEditor(run.caseId);
-  await prisma.caseAiRun.update({ where: { id: runId }, data: { reviewerFeedback: feedback, reviewerNote: note, reviewedById: user.id, reviewedAt: new Date() } });
-  await logActivity(session.user.displayName, `Recorded AI result feedback: ${feedback.toLowerCase()}`, "Case", run.caseId);
-  revalidatePath(`/dashboard/cases/${run.caseId}/workbench`);
+  revalidatePath(`/dashboard/cases/${caseId}/readiness`);
 }

@@ -44,7 +44,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ...(hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE) ? [{ label: "Public Releases", href: "/dashboard/announcements" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) ? [{ label: "Activity Log", href: "/dashboard/activity" }] : []),
     ...((hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) ? [{ label: "Supervisor Reports", href: "/dashboard/reports" }] : []),
-    ...(hasCapability(tiers, CAPABILITIES.SETTINGS_MANAGE) ? [{ label: "AI Service", href: "/98981/ai" }] : []),
     { label: "Search", href: "/dashboard/search" },
     ...(mayViewCases && isCriminalDivisionStaff ? [{ label: "Criminal Division Orientation", href: "/dashboard/orientation" }] : []),
   ];

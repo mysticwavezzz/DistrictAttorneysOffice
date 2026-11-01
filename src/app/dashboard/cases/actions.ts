@@ -11,7 +11,7 @@ import { localUser, canAccessCase, generateCaseNumber, canAssignCase, canEditCas
 import { requiresCriminalDivisionGroupForCaseCreation } from "@/lib/criminal-case-assignment";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { readCasePdf, decodeCasePdf } from "@/lib/filing-upload";
-import { extractFilingPdfText } from "@/lib/ai-filing-review/pdf-text";
+import { extractPdfText } from "@/lib/pdf-text";
 import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { runWithActionDebug } from "@/lib/action-debug";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
@@ -255,7 +255,8 @@ async function fileCaseImpl(formData: FormData) {
   const needsApproval = shouldRequireFilingApproval(session.user.tiers, caseRecord.division);
   const nextStatus = needsApproval ? "PENDING" : "ACCEPTED";
   const submittedAt = new Date();
-  const filedAt = needsApproval ? null : submittedAt;
+  const filedAt = null;
+  const reviewedAt = needsApproval ? null : submittedAt;
 
   await prisma.$transaction(async (tx) => {
     const activeInitial = await tx.caseFiling.findFirst({ where: { caseId: id, isInitial: true, status: { in: ["PENDING", "ACCEPTED"] } }, select: { id: true } });
@@ -263,18 +264,18 @@ async function fileCaseImpl(formData: FormData) {
     if (sourceFiling.status === "DRAFT" && draftFiling?.id === sourceFiling.id) {
       const claimed = await tx.caseFiling.updateMany({
         where: { id: draftFiling.id, status: "DRAFT" },
-        data: { title, status: nextStatus, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt, submittedAt, filedAt, courtFilingUrl: null },
+        data: { title, status: nextStatus, reviewedById: needsApproval ? null : user.id, reviewedAt, submittedAt, filedAt, courtFilingUrl: null },
       });
       if (!claimed.count) throw new Error("This complaint was already submitted. Refresh the case before retrying.");
     } else {
       await tx.caseFiling.create({
-        data: { caseId: id, title, pdfData: sourceFiling.pdfData, pdfFileName: sourceFiling.pdfFileName, addedById: user.id, status: nextStatus, isInitial: true, reviewedById: needsApproval ? null : user.id, reviewedAt: filedAt, submittedAt, filedAt, courtFilingUrl: null },
+        data: { caseId: id, title, pdfData: sourceFiling.pdfData, pdfFileName: sourceFiling.pdfFileName, addedById: user.id, status: nextStatus, isInitial: true, reviewedById: needsApproval ? null : user.id, reviewedAt, submittedAt, filedAt, courtFilingUrl: null },
       });
     }
-    await tx.case.update({ where: { id }, data: { ...(filedAt ? { courtFiledAt: filedAt, initialFilingDue: null } : {}), updatedAt: new Date() } });
+    await tx.case.update({ where: { id }, data: { updatedAt: new Date() } });
     await tx.caseComment.create({ data: {
       caseId: id,
-      body: needsApproval ? `Initial complaint submitted for court-filing review by ${session.user.displayName}.` : `Case filed with the court by ${session.user.displayName}.`,
+      body: needsApproval ? `Initial complaint submitted for portal review by ${session.user.displayName}.` : `Initial complaint approved for court filing by ${session.user.displayName}. Mark it filed in court after it is filed.`,
       isSystem: true,
     } });
   });
@@ -294,7 +295,7 @@ async function fileCaseImpl(formData: FormData) {
       });
       await notify({ userId: user.id, type: "case_filing", title: "Case filing submitted for review", body: `${caseRecord.caseNumber} · ${caseRecord.title}`, link: `/dashboard/cases/${id}#court-filing` });
     } else if (caseRecord.assignedAttorneyId && caseRecord.assignedAttorneyId !== user.id) {
-      await notify({ userId: caseRecord.assignedAttorneyId, type: "case_filing", title: `Case filed with the court: ${caseRecord.caseNumber}`, body: caseRecord.title, link: `/dashboard/cases/${id}#court-filing` });
+      await notify({ userId: caseRecord.assignedAttorneyId, type: "case_filing", title: `Initial complaint ready to file: ${caseRecord.caseNumber}`, body: caseRecord.title, link: `/dashboard/cases/${id}#court-filing` });
     }
   } catch (error) {
     console.error(`[case filing ${id}] Filing saved, but notification delivery failed`, error);
@@ -612,7 +613,7 @@ async function addFilingImpl(formData: FormData) {
     let comparison = "Selectable-text comparison unavailable. Review both PDFs manually.";
     if (prior.pdfData) {
       try {
-        const [before, after] = await Promise.all([extractFilingPdfText(decodeCasePdf(prior.pdfData)), extractFilingPdfText(nextBytes)]);
+        const [before, after] = await Promise.all([extractPdfText(decodeCasePdf(prior.pdfData)), extractPdfText(nextBytes)]);
         const oldWords = before.pages.map((page) => page.text).join(" ").match(/\S+\s*/g) ?? [];
         const newWords = after.pages.map((page) => page.text).join(" ").match(/\S+\s*/g) ?? [];
         let prefix = 0;
