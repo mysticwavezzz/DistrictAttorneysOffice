@@ -31,3 +31,9 @@ next-env.d.ts
 # logs
 logs/
 *.log
+
+# local preview data and captures
+/.playwright-cli/
+/output/
+/local-feature-screenshots/
+/caseops-reconcile-*.csv

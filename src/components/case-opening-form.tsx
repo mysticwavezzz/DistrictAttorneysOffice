@@ -25,6 +25,8 @@ export type RevisionDraft = {
   parties: Party[];
   filingTitle: string;
   filingName: string;
+  aopcTitle: string;
+  aopcName: string;
 };
 export type IntakeDraft = { ticketId: string; title: string; defendant: string; summary: string; requiresAopc: boolean; approvedAopcTitle: string | null; possibleDuplicates: { id: string; caseNumber: string; title: string; stage: string | null }[] };
 
@@ -32,6 +34,7 @@ export function CaseOpeningForm({
   officerName,
   canCreate,
   canAssign,
+  requiresCriminalDocuments,
   reviewersCanAutoApprove,
   attorneys,
   revision,
@@ -40,6 +43,7 @@ export function CaseOpeningForm({
   officerName: string;
   canCreate: boolean;
   canAssign: boolean;
+  requiresCriminalDocuments: boolean;
   reviewersCanAutoApprove: boolean;
   attorneys: { id: string; displayName: string }[];
   revision?: RevisionDraft;
@@ -51,6 +55,7 @@ export function CaseOpeningForm({
   const [caseType, setCaseType] = useState(revision?.type || "Criminal");
   const [judge, setJudge] = useState(revision?.assignedJudge ?? "");
   const [documentName, setDocumentName] = useState(revision?.filingTitle ?? (intakeDraft?.requiresAopc ? "Affidavit of Probable Cause (AOPC)" : intakeDraft?.approvedAopcTitle ?? ""));
+  const [aopcName, setAopcName] = useState(revision?.aopcTitle ?? intakeDraft?.approvedAopcTitle ?? "Affidavit of Probable Cause (AOPC)");
   const [validationError, setValidationError] = useState("");
 
   function advance() {
@@ -61,6 +66,12 @@ export function CaseOpeningForm({
     if (step === 1 && !parties.some((party) => party.name.trim())) {
       setValidationError("Add at least one person or party before continuing.");
       return;
+    }
+    if (step === 2) {
+      const ciSelected = Boolean((document.getElementById("criminal-information-pdf") as HTMLInputElement | null)?.files?.length);
+      const aopcSelected = Boolean((document.getElementById("aopc-pdf") as HTMLInputElement | null)?.files?.length);
+      if (requiresCriminalDocuments && !ciSelected && !revision?.filingName) { setValidationError("Attach the Criminal Information PDF before continuing."); return; }
+      if (requiresCriminalDocuments && !aopcSelected && !intakeDraft?.approvedAopcTitle && !revision?.aopcName) { setValidationError("Attach the separate AOPC PDF before continuing."); return; }
     }
     setValidationError("");
     setStep((current) => Math.min(steps.length - 1, current + 1));
@@ -109,6 +120,11 @@ export function CaseOpeningForm({
           event.preventDefault();
           setStep(1);
           setValidationError("Add at least one person or party before submitting.");
+        } else {
+          const ciSelected = Boolean((document.getElementById("criminal-information-pdf") as HTMLInputElement | null)?.files?.length);
+          const aopcSelected = Boolean((document.getElementById("aopc-pdf") as HTMLInputElement | null)?.files?.length);
+          if (requiresCriminalDocuments && !ciSelected && !revision?.filingName) { event.preventDefault(); setStep(2); setValidationError("Attach the Criminal Information PDF before submitting."); }
+          else if (requiresCriminalDocuments && !aopcSelected && !intakeDraft?.approvedAopcTitle && !revision?.aopcName) { event.preventDefault(); setStep(2); setValidationError("Attach the separate AOPC PDF before submitting."); }
         }
       }}>
         {validationError && <p className="message error" role="alert">{validationError}</p>}
@@ -125,7 +141,7 @@ export function CaseOpeningForm({
           </div>
           <div className="field-row">
             <div className="field"><label htmlFor="case-judge">Assigned judge</label><input id="case-judge" name="assignedJudge" maxLength={120} placeholder="Not assigned yet" value={judge} onChange={(event) => setJudge(event.target.value)} /></div>
-            {canAssign && <div className="field"><label htmlFor="case-attorney">Assigned attorney</label><select id="case-attorney" name="assignedAttorneyId" defaultValue={revision?.assignedAttorneyId ?? ""}><option value="">Leave unassigned</option>{attorneys.map((attorney) => <option key={attorney.id} value={attorney.id}>{attorney.displayName}</option>)}</select></div>}
+            {canAssign && <div className="field"><label htmlFor="case-attorney">Assigned attorney</label><select id="case-attorney" name="assignedAttorneyId" defaultValue={revision?.assignedAttorneyId ?? ""}><option value="">Auto assign by workload</option>{attorneys.map((attorney) => <option key={attorney.id} value={attorney.id}>{attorney.displayName}</option>)}</select><small>Leave automatic assignment selected to balance active cases and deadlines.</small></div>}
           </div>
           <h3>Key deadlines (optional)</h3>
           <div className="field-row">
@@ -152,11 +168,16 @@ export function CaseOpeningForm({
         </fieldset>
 
         <fieldset hidden={step !== 2}>
-          <legend>Initial filing</legend>
-          <p className="note-inline">{intakeDraft?.requiresAopc ? "Attach the separate AOPC PDF. The approved investigative report is supporting material and cannot be filed as the AOPC." : intakeDraft?.approvedAopcTitle ? "The approved intake AOPC will be attached automatically. Add a different initial PDF only if needed." : "Upload the initial complaint or charging document as a PDF. If this request already has a PDF, leave the upload empty to keep it or choose a replacement."}</p>
-          {revision?.filingName && <p className="message">Current attachment: {revision.filingTitle || revision.filingName}</p>}
-          <div className="field"><label htmlFor="initial-filing-title">Document name</label><input id="initial-filing-title" name="initialFilingTitle" maxLength={200} placeholder="Example: Charging complaint" value={documentName} onChange={(event) => setDocumentName(event.target.value)} /></div>
-          <div className="field"><label htmlFor="initial-pdf">{intakeDraft?.requiresAopc ? "Separate AOPC PDF (required)" : intakeDraft?.approvedAopcTitle ? "Replace attached AOPC PDF (optional)" : "Upload PDF (max 5 MB)"}</label><PdfUploadInput id="initial-pdf" name="initialPdf" required={Boolean(intakeDraft?.requiresAopc)} /></div>
+          <legend>Required case documents</legend>
+          <p className="note-inline">{requiresCriminalDocuments ? "A Criminal Division case cannot open without both a Criminal Information and a separate AOPC. An investigative report is supporting material and does not replace the AOPC." : "Attach the documents needed for this case. Portal approval and filing with the court remain separate steps."}</p>
+          {revision?.filingName && <p className="message">Current Criminal Information: {revision.filingTitle || revision.filingName}</p>}
+          <div className="field"><label htmlFor="criminal-information-title">Criminal Information title</label><input id="criminal-information-title" name="criminalInformationTitle" maxLength={200} value={documentName} onChange={(event) => setDocumentName(event.target.value)} /></div>
+          <div className="field"><label htmlFor="criminal-information-pdf">Criminal Information PDF {requiresCriminalDocuments && !revision?.filingName && "(required)"}</label><PdfUploadInput id="criminal-information-pdf" name="criminalInformationPdf" required={requiresCriminalDocuments && !revision?.filingName} /></div>
+          {intakeDraft?.approvedAopcTitle && !revision?.aopcName ? <p className="message message-success">Approved AOPC attached from investigator intake: {intakeDraft.approvedAopcTitle}</p> : <>
+            {revision?.aopcName && <p className="message">Current AOPC: {revision.aopcTitle || revision.aopcName}</p>}
+            <div className="field"><label htmlFor="aopc-title">AOPC title</label><input id="aopc-title" name="aopcTitle" maxLength={200} value={aopcName} onChange={(event) => setAopcName(event.target.value)} /></div>
+            <div className="field"><label htmlFor="aopc-pdf">Separate AOPC PDF {requiresCriminalDocuments && !revision?.aopcName && "(required)"}</label><PdfUploadInput id="aopc-pdf" name="aopcPdf" required={requiresCriminalDocuments && !revision?.aopcName} /></div>
+          </>}
         </fieldset>
 
         <fieldset hidden={step !== 3}>
@@ -165,9 +186,10 @@ export function CaseOpeningForm({
             <p><strong>Case</strong><span>{caseTitle || "Title not entered"} · {caseType || "Type not set"}</span></p>
             <p><strong>Assigned judge</strong><span>{judge || "Not assigned"}</span></p>
             <p><strong>Parties</strong><span>{parties.filter((party) => party.name.trim()).map((party) => `${party.name.trim()} (${party.role})`).join(", ") || "None listed"}</span></p>
-            <p><strong>Initial filing</strong><span>{documentName || revision?.filingName || "No PDF attached"}</span></p>
+            <p><strong>Criminal Information</strong><span>{documentName || revision?.filingName || "No PDF attached"}</span></p>
+            <p><strong>AOPC</strong><span>{intakeDraft?.approvedAopcTitle || aopcName || revision?.aopcName || "No PDF attached"}</span></p>
             <p><strong>Submitting officer</strong><span>{officerName}</span></p>
-            <p><strong>Next step</strong><span>{revision ? "Resubmission for review" : canCreate ? `Save unfiled case, then file ${intakeDraft ? "the AOPC" : "the initial document"}` : "Reviewer approval before the case record is created"}</span></p>
+            <p><strong>Next step</strong><span>{revision ? "Resubmission for review" : canCreate ? "Save an unfiled case with both required documents; court filing remains a separate action" : "Reviewer approval before the case record is created"}</span></p>
             <p className="note-inline">{revision ? "Check your changes, then resubmit this request for another review." : canCreate ? "No court filing is created until you use File on the case page." : "Check the case information and parties before submitting."}</p>
           </div>
         </fieldset>

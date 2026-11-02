@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { localUser, canReviewDivision } from "@/lib/case-access";
+import { localUser, canReviewDivision, canAccessCase } from "@/lib/case-access";
 import { notify } from "@/lib/notifications";
 import { runWithActionDebug } from "@/lib/action-debug";
 import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 import { after } from "next/server";
 import { indexAcceptedCaseFiling } from "@/lib/filing-text-index";
+import { userIdsWithCapability } from "@/lib/notifications";
+import { logActivity } from "@/lib/activity-log";
 
 async function reviewAopcImpl(formData: FormData) {
   const session = await auth();
@@ -81,6 +83,7 @@ async function reviewFilingImpl(formData: FormData) {
       catch (error) { console.error(`[filing text index ${filing.id}] Search indexing failed`, error); }
     });
   }
+  await logActivity(session.user.displayName, `${decision === "ACCEPTED" ? "Approved" : "Returned"} filing`, "Case", `${filing.case.caseNumber} · ${filing.title}`);
 
   try {
     await notify({ userId: filing.addedById, type: "case_filing_review", title: decision === "ACCEPTED" ? "Your filing was approved" : "Your filing was returned", body: `${filing.case.caseNumber} · ${note || filing.title}`, link: `/dashboard/cases/${filing.caseId}#filings` });
@@ -97,3 +100,42 @@ async function reviewFilingImpl(formData: FormData) {
 }
 
 export async function reviewFiling(formData: FormData) { return runWithActionDebug("reviewFiling", [formData], () => reviewFilingImpl(formData)); }
+
+async function updateCrimeTipImpl(formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.providerUserId || !hasCapability(session.user.tiers, CAPABILITIES.TIPS_REVIEW)) throw new Error("Forbidden");
+  const user = await localUser(session.user);
+  if (!user) throw new Error("Forbidden");
+  const id = String(formData.get("id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const assigneeId = String(formData.get("assigneeId") ?? "").trim() || null;
+  const linkedCaseId = String(formData.get("linkedCaseId") ?? "").trim() || null;
+  const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
+  const allowedStatuses = new Set(["NEW", "UNDER_REVIEW", "FOLLOW_UP", "REFERRED", "NO_JURISDICTION", "INSUFFICIENT", "DUPLICATE", "OPENED_AS_CASE", "CLOSED"]);
+  if (!id || !allowedStatuses.has(status)) throw new Error("Choose a valid tip status.");
+  const tip = await prisma.crimeTip.findUnique({ where: { id }, select: { id: true, status: true, assignedToId: true, linkedCaseId: true, reference: true } });
+  if (!tip) throw new Error("Tip not found.");
+  if (linkedCaseId) {
+    const linkedCase = await prisma.case.findUnique({ where: { id: linkedCaseId } });
+    if (!linkedCase || !canAccessCase(session.user.tiers, user.id, linkedCase, user.division, user.divisionGroup)) throw new Error("Choose a case you are authorized to access.");
+  }
+  if (status === "OPENED_AS_CASE" && !linkedCaseId && !tip.linkedCaseId) throw new Error("Select the case this tip was opened under before using that status.");
+  if (assigneeId) {
+    const reviewers = await userIdsWithCapability(CAPABILITIES.TIPS_REVIEW);
+    if (!reviewers.includes(assigneeId)) throw new Error("Choose an authorized tip reviewer.");
+  }
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.crimeTip.updateMany({ where: { id }, data: { status, assignedToId: assigneeId, ...(linkedCaseId ? { linkedCaseId } : {}) } });
+    if (!updated.count) throw new Error("Tip changed before this update. Refresh and retry.");
+    const caseText = linkedCaseId && linkedCaseId !== tip.linkedCaseId ? `; linked to case ${linkedCaseId}` : "";
+    await tx.crimeTipEvent.create({ data: { tipId: id, actorId: user.id, action: `Status changed from ${tip.status} to ${status}${assigneeId !== tip.assignedToId ? `; assigned to ${assigneeId ?? "unassigned"}` : ""}${caseText}`, note: note || null } });
+  });
+  if (assigneeId && assigneeId !== user.id && assigneeId !== tip.assignedToId) {
+    try { await notify({ userId: assigneeId, type: "crime_tip", title: "A crime tip was assigned to you", body: "Open the restricted intake queue to review it.", link: "/dashboard/review?type=tip" }); }
+    catch (error) { console.error(`[tip ${tip.reference}] Assignment saved, notification failed`, error); }
+  }
+  revalidatePath("/dashboard/review");
+  revalidatePath("/dashboard/work-queue");
+}
+
+export async function updateCrimeTip(formData: FormData) { return runWithActionDebug("updateCrimeTip", [formData], () => updateCrimeTipImpl(formData)); }

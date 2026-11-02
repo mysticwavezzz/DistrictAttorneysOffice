@@ -17,6 +17,7 @@ export const NOTIFICATION_TYPES: { value: string; label: string }[] = [
   { value: "records_request", label: "New public records request" },
   { value: "aopc_submitted", label: "New affidavit of probable cause awaiting review" },
   { value: "aopc_reviewed", label: "Your affidavit of probable cause was reviewed" },
+  { value: "crime_tip", label: "Crime tip assigned or awaiting triage" },
   { value: "contact_mail", label: "Contact Us ticket replies and updates" },
 ];
 

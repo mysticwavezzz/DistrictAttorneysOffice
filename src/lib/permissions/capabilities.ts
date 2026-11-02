@@ -19,6 +19,7 @@ export const CAPABILITIES = {
   BULLETIN_VIEW: "bulletin:view",
   ANNOUNCEMENTS_MANAGE: "announcements:manage",
   REQUESTS_VIEW: "requests:view",
+  TIPS_REVIEW: "tips:review",
   ACTIVITY_VIEW: "activity:view",
   SETTINGS_MANAGE: "settings:manage",
   TRAINING_VIEW: "training:view",

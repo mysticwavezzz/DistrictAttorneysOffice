@@ -293,13 +293,15 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         : isCourtFiled && !caseRecord.assignedJudge && canEdit ? <CaseSectionLink href="#edit-case" className="govbtn">Assign judge</CaseSectionLink>
           : overdueCount || nextDeadline ? <CaseSectionLink href="#deadlines" className="govbtn">Review deadlines</CaseSectionLink>
             : isCourtFiled && canFileDocument ? <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn">File a document</Link> : null}
-      {canFileDocument && (!isCourtFiled || !caseRecord.assignedJudge || overdueCount > 0 || Boolean(nextDeadline)) && <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn-outline">File a document</Link>}
-      {canPropose && <CaseSectionLink href="#propose-edit" className="govbtn-outline">Propose an edit</CaseSectionLink>}
-      <Link href={`/dashboard/cases/${caseRecord.id}/workbench`} className="govbtn-outline">Case tools</Link>
-      <Link href={`/dashboard/cases/${caseRecord.id}/readiness`} className="govbtn-outline">Court readiness</Link>
-      <Link href={`/dashboard/cases/${caseRecord.id}/handoff`} className="govbtn-outline">Handoff summary</Link>
-      <Link href="/dashboard/cases" className="govbtn-outline">My Cases</Link>
-      {session.user.tiers.includes("developer_profile") && <Link href={`/dashboard/templates?caseId=${caseRecord.id}`} className="govbtn-outline">Create a DA document</Link>}
+      {canFileDocument && isCourtFiled && (!caseRecord.assignedJudge || overdueCount > 0 || Boolean(nextDeadline)) && <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn-outline">File a document</Link>}
+      <details className="case-more-actions"><summary>More case actions</summary><div>
+        {canPropose && <CaseSectionLink href="#propose-edit">Propose an edit</CaseSectionLink>}
+        <Link href={`/dashboard/cases/${caseRecord.id}/readiness`}>Court readiness</Link>
+        <Link href={`/dashboard/cases/${caseRecord.id}/handoff`}>Handoff summary</Link>
+        <Link href={`/dashboard/cases/${caseRecord.id}/workbench`}>Case tools</Link>
+        <Link href="/dashboard/cases">All cases</Link>
+        {session.user.tiers.includes("developer_profile") && <Link href={`/dashboard/templates?caseId=${caseRecord.id}`}>Create a DA document</Link>}
+      </div></details>
     </div></div>
   </header>;
   const caseOverview = <details className="case-detail-fold" id="overview" open>
@@ -310,7 +312,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     </div>
   </details>;
   const caseNavigation = <nav className="case-section-nav" aria-label="Case sections">
-    <CaseSectionLink href="#court-filing">Court filing</CaseSectionLink><CaseSectionLink href="#overview">People</CaseSectionLink><CaseSectionLink href="#filings">Filings</CaseSectionLink><CaseSectionLink href="#deadlines">Deadlines</CaseSectionLink><CaseSectionLink href="#activity">History</CaseSectionLink><CaseSectionLink href="#related">Related</CaseSectionLink><Link href={`/dashboard/cases/${caseRecord.id}/readiness`}>Court readiness</Link><Link href={`/dashboard/cases/${caseRecord.id}/handoff`}>Handoff summary</Link><Link href={`/dashboard/cases/${caseRecord.id}/workbench`}>Case workbench</Link>{canEdit ? <CaseSectionLink href="#edit-case">Manage case</CaseSectionLink> : canPropose ? <CaseSectionLink href="#propose-edit">Propose edit</CaseSectionLink> : null}
+    <CaseSectionLink href="#court-filing">Court status</CaseSectionLink><CaseSectionLink href="#overview">People</CaseSectionLink><CaseSectionLink href="#filings">Filings & evidence</CaseSectionLink><CaseSectionLink href="#deadlines">Deadlines</CaseSectionLink><CaseSectionLink href="#activity">History</CaseSectionLink><CaseSectionLink href="#related">Related cases</CaseSectionLink>{canEdit ? <CaseSectionLink href="#edit-case">Manage case</CaseSectionLink> : canPropose ? <CaseSectionLink href="#propose-edit">Propose edit</CaseSectionLink> : null}
   </nav>;
 
   if (!canEdit) {

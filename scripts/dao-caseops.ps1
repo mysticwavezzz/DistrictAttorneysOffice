@@ -6,7 +6,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments")]
+  [ValidateSet("setup", "save-token", "cases", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
@@ -17,6 +17,8 @@ param(
   [string]$AssigneeId,
   [string[]]$CommentIds,
   [string]$ExportPath,
+  [string]$Title,
+  [string]$PdfPath,
   [switch]$Local,
   [switch]$Apply
 )
@@ -183,6 +185,48 @@ function Get-DaoCases([string]$RequestedScope) {
   return $items
 }
 
+function Submit-CaseFiling {
+  if (-not $CaseNumber) { throw "Provide -CaseNumber, for example HCR-26-0025." }
+  if (-not $Title -or -not $Title.Trim()) { throw "Provide -Title for the filing." }
+  if (-not $PdfPath) { throw "Provide -PdfPath to the finalized PDF." }
+  $resolvedPdfPath = (Resolve-Path -LiteralPath $PdfPath -ErrorAction Stop).Path
+  $pdfFile = Get-Item -LiteralPath $resolvedPdfPath
+  if ($pdfFile.Length -gt 5MB) { throw "PDF files must be 5 MB or smaller." }
+  if ($pdfFile.Length -lt 16) { throw "This file is too small to be a valid PDF." }
+  $pdfBytes = [System.IO.File]::ReadAllBytes($resolvedPdfPath)
+  if ([System.Text.Encoding]::ASCII.GetString($pdfBytes, 0, 5) -ne "%PDF-") { throw "The selected file does not have a PDF header." }
+  $tailLength = [Math]::Min(8192, $pdfBytes.Length)
+  $tail = [System.Text.Encoding]::Latin1.GetString($pdfBytes, $pdfBytes.Length - $tailLength, $tailLength)
+  if ($tail -match "/Encrypt\b") { throw "Password-protected PDFs are not accepted. Remove the password before uploading." }
+  if ($tail -notmatch "%%EOF\s*$") { throw "This PDF appears incomplete. Re-export it before uploading." }
+
+  [pscustomobject]@{
+    CaseNumber = $CaseNumber
+    Title = $Title.Trim()
+    PdfFile = $pdfFile.Name
+    SizeBytes = $pdfFile.Length
+    Destination = "DAO filing review inbox"
+  } | Format-List
+  if (-not $Apply) {
+    Write-Host "Preview only. Add -Apply to submit this PDF to the DAO portal for review."
+    return
+  }
+  if ($PSCmdlet.ShouldProcess("$CaseNumber · $($Title.Trim())", "Upload PDF to DAO filing review inbox")) {
+    $payload = @{
+      title = $Title.Trim()
+      pdfFileName = $pdfFile.Name
+      pdfBase64 = [Convert]::ToBase64String($pdfBytes)
+    } | ConvertTo-Json -Compress
+    $safeCaseNumber = [uri]::EscapeDataString($CaseNumber)
+    $result = Invoke-DaoApi -Method POST -Path "/api/automation/cases/$safeCaseNumber/filings" -Body $payload
+    Write-Host "Filing $($result.status.ToLowerInvariant()) for $($result.caseNumber): $($result.title)"
+    Write-Host "Case record: $($script:DefaultBaseUrl)$($result.caseUrl)"
+    if ($result.reviewUrl) { Write-Host "Review inbox: $($script:DefaultBaseUrl)$($result.reviewUrl)" }
+    if ($result.alreadySubmitted) { Write-Host "This exact PDF was already submitted; no duplicate was created." }
+    Write-Host "This command does not approve the filing or mark it filed in court."
+  }
+}
+
 switch ($Command) {
   "setup" {
     Initialize-LocalKey
@@ -254,6 +298,9 @@ switch ($Command) {
     $result = Invoke-DaoApi -Method GET -Path "/api/automation/attorneys"
     $result.items | Select-Object displayName, id | Format-Table -AutoSize
     Write-Host "$($result.items.Count) eligible attorney(s). Use the ID when assigning."
+  }
+  "submit-filing" {
+    Submit-CaseFiling
   }
   "assign" {
     $requestedNumbers = @($CaseNumbers) + @($CaseNumber) | Where-Object { $_ } | Select-Object -Unique

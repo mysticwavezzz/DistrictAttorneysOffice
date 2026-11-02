@@ -8,6 +8,7 @@ import { AnnouncementsSection, type AnnouncementListItem } from "@/components/an
 import { TipsSection } from "@/components/tips-section";
 import { WeeklyReportSection, type WeeklyReportData } from "@/components/weekly-report-section";
 import { shareMetadata } from "@/lib/share-metadata";
+import { getWeeklyReportPostConvictionMetrics } from "@/lib/weekly-report-metrics";
 
 export const metadata = shareMetadata(`${siteConfig.county} ${siteConfig.name}`, siteConfig.tagline, "/");
 
@@ -48,7 +49,8 @@ async function getWeeklyReport(): Promise<WeeklyReportData | null> {
     }).format(date);
 
   try {
-    const [newMatters, courtFilings, closedMatters, activeMatters] = await Promise.all([
+    const weekStartKey = weekStart.toISOString().slice(0, 10);
+    const [newMatters, courtFilings, closedMatters, activeMatters, postConviction] = await Promise.all([
       prisma.case.count({
         where: { createdAt: { gte: weekStart, lte: now }, archived: false, isDraft: false },
       }),
@@ -61,18 +63,29 @@ async function getWeeklyReport(): Promise<WeeklyReportData | null> {
       }),
       prisma.case.count({ where: { closedOn: { gte: weekStart, lte: now }, isDraft: false } }),
       prisma.case.count({ where: { archived: false, isDraft: false, closedOn: null } }),
+      getWeeklyReportPostConvictionMetrics(weekStartKey),
     ]);
+
+    const postConvictionMetrics = postConviction.updatedAt
+      ? [
+          { label: "Expungements contested", value: String(postConviction.expungementsContested), detail: "Manually reported this week" },
+          { label: "Expungements processed", value: String(postConviction.expungementsProcessed), detail: "Manually reported this week" },
+          { label: "Vacatur requests issued", value: String(postConviction.vacaturRequestsIssued), detail: "Manually reported this week" },
+          { label: "Vacatur requests processed", value: String(postConviction.vacaturRequestsProcessed), detail: "Manually reported this week" },
+        ]
+      : [];
 
     return {
       period: `${dateLabel(weekStart)} – ${dateLabel(now)}`,
       updatedDate: dateLabel(now),
       summary:
-        "A weekly count of activity recorded in the office case system. Case names and other identifying details are not included.",
+        "A weekly summary of office activity, including verified case-system totals and manually maintained post-conviction figures. Case names and identifying details are not included.",
       metrics: [
         { label: "New matters", value: String(newMatters), detail: "Opened this week" },
         { label: "Filed with the Court", value: String(courtFilings), detail: "Court filing date recorded" },
         { label: "Matters closed", value: String(closedMatters), detail: "Closure date recorded this week" },
         { label: "Active matters", value: String(activeMatters), detail: "Current open docket" },
+        ...postConvictionMetrics,
       ],
     };
   } catch (error) {
@@ -99,6 +112,10 @@ export default async function HomePage({
             { label: "Filed with the Court", value: "9", detail: "Internal approvals excluded" },
             { label: "Matters closed", value: "4", detail: "Closure date recorded this week" },
             { label: "Active matters", value: "21", detail: "Sample open docket" },
+            { label: "Expungements contested", value: "2", detail: "This reporting week" },
+            { label: "Expungements processed", value: "3", detail: "This reporting week" },
+            { label: "Vacatur requests issued", value: "1", detail: "This reporting week" },
+            { label: "Vacatur requests processed", value: "2", detail: "This reporting week" },
           ],
           simulated: true,
         }

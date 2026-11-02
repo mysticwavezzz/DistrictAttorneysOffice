@@ -41,6 +41,8 @@ model User {
   deadlineReminders      DeadlineReminder[]
   aopcsSubmitted         Aopc[]                 @relation("AopcSubmitted")
   aopcsReviewed          Aopc[]                 @relation("AopcReviewed")
+  assignedCrimeTips      CrimeTip[]             @relation("CrimeTipAssignee")
+  crimeTipEvents         CrimeTipEvent[]
   localAutomationTokens  LocalAutomationToken[]
   trainingAttempts       TrainingAttempt[]
 }
@@ -170,6 +172,7 @@ model Case {
   assignedAttorney  User?               @relation("AssignedAttorney", fields: [assignedAttorneyId], references: [id])
   createdBy         User                @relation("CreatedBy", fields: [createdById], references: [id])
   filings           CaseFiling[]
+  crimeTips         CrimeTip[]           @relation("CrimeTipLinkedCase")
   comments          CaseComment[]
   actionRequests    CaseActionRequest[]
   relatedTo         Case[]              @relation("CaseRelations")
@@ -194,6 +197,7 @@ model CaseFiling {
   addedById    String
   status       String    @default("ACCEPTED")
   isInitial    Boolean   @default(false)
+  documentType String    @default("OTHER")
   reviewedById String?
   reviewNote   String?
   reviewedAt   DateTime?
@@ -647,6 +651,44 @@ model TipSubmission {
   status    String   @default("IN_PROGRESS")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  crimeTip  CrimeTip?
+}
+
+// Tip contents are encrypted at the application layer before they are stored.
+// Only the restricted tip-review capability can request decryption.
+model CrimeTip {
+  id                 String   @id @default(cuid())
+  reference          String   @unique
+  encryptedPayload   String
+  crimeType          String
+  status             String   @default("NEW")
+  assignedToId       String?
+  linkedCaseId       String?
+  externalForwarding String   @default("PENDING")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  receipt     TipSubmission @relation(fields: [reference], references: [reference], onDelete: Cascade)
+  assignedTo  User?         @relation("CrimeTipAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  linkedCase  Case?         @relation("CrimeTipLinkedCase", fields: [linkedCaseId], references: [id], onDelete: SetNull)
+  events      CrimeTipEvent[]
+
+  @@index([status, createdAt])
+  @@index([assignedToId, status])
+}
+
+model CrimeTipEvent {
+  id        String   @id @default(cuid())
+  tipId     String
+  actorId   String
+  action    String
+  note      String?
+  createdAt DateTime @default(now())
+
+  tip   CrimeTip @relation(fields: [tipId], references: [id], onDelete: Cascade)
+  actor User     @relation(fields: [actorId], references: [id])
+
+  @@index([tipId, createdAt])
 }
 
 model CrimeTipBlacklist {

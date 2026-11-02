@@ -9,6 +9,8 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { caseInputSchema, emptyToNull, toDate } from "@/lib/validation/case";
 import { localUser, generateCaseNumber, canAccessCase, canReviewDivision } from "@/lib/case-access";
 import { getDivisionCaseAssignees } from "@/lib/case-assignees";
+import { automaticallyAssignCase } from "@/lib/automatic-case-assignment";
+import { logActivity } from "@/lib/activity-log";
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { DEVELOPER_PROFILE_TIER } from "@/lib/permissions/tiers";
 
@@ -115,7 +117,14 @@ async function reviewCaseRequestImpl(formData: FormData) {
       if (!parsed.success) throw new Error("The submitted case data is invalid and cannot be approved.");
       const caseData = parsed.data;
       const parties = typeof data.partyDetails === "string" ? data.partyDetails : "[]";
-      const assignedAttorneyId = emptyToNull(caseData.assignedAttorneyId);
+      const preferredGroup = requestDivision === "Criminal Division" ? requestGroup : null;
+      let assignedAttorneyId = emptyToNull(caseData.assignedAttorneyId);
+      let assignmentReason = "Manually selected by authorized case opener.";
+      if (!assignedAttorneyId) {
+        const automatic = await automaticallyAssignCase({ division: requestDivision ?? request.division, divisionGroup: preferredGroup, restrictToGroup: requestDivision === "Criminal Division" && Boolean(preferredGroup), type: caseData.type, stage: caseData.stage });
+        assignedAttorneyId = automatic.attorney.id;
+        assignmentReason = `Automatically assigned to ${automatic.attorney.displayName} by workload: ${automatic.reason}.`;
+      }
       const assignedAttorney = assignedAttorneyId ? await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { id: true, division: true, divisionGroup: true } }) : null;
       const caseGroup = requestDivision === "Criminal Division" ? requestGroup ?? assignedAttorney?.divisionGroup : null;
       if (assignedAttorneyId && (!assignedAttorney || assignedAttorney.division !== requestDivision)) throw new Error("The selected attorney is no longer eligible for this case division.");
@@ -124,9 +133,11 @@ async function reviewCaseRequestImpl(formData: FormData) {
         const eligible = await getDivisionCaseAssignees(requestDivision, { divisionGroup: caseGroup, restrictToGroup: requestDivision === "Criminal Division" && Boolean(caseGroup) });
         if (!eligible.some((attorney) => attorney.id === assignedAttorney.id)) throw new Error("The selected attorney is no longer on the active eligible roster. Update the assignment and resubmit.");
       }
-      const filing = data.initialFiling && typeof data.initialFiling === "object"
-        ? data.initialFiling as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string }
-        : null;
+      const ciCandidate = data.criminalInformation ?? data.initialFiling;
+      const ci = ciCandidate && typeof ciCandidate === "object" ? ciCandidate as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string } : null;
+      const aopcCandidate = data.aopcFiling;
+      const aopc = aopcCandidate && typeof aopcCandidate === "object" ? aopcCandidate as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string } : null;
+      if (requestDivision === "Criminal Division" && (!ci?.pdfData || !aopc?.pdfData)) throw new Error("This Criminal Division case opening cannot be approved without separate Criminal Information and AOPC PDFs. An investigative report does not replace the AOPC.");
       const caseNumber = emptyToNull(caseData.caseNumber) ?? (await generateCaseNumber());
       const created = await prisma.$transaction(async (tx) => {
         const claimed = await tx.caseActionRequest.updateMany({
@@ -167,14 +178,16 @@ async function reviewCaseRequestImpl(formData: FormData) {
             createdById: request.requestedById,
           },
         });
-        if (filing?.title && (filing.url || filing.pdfData)) {
-          await tx.caseFiling.create({
-            data: { caseId: caseRecord.id, title: filing.title, url: filing.url ?? null, pdfData: filing.pdfData ?? null, pdfFileName: filing.pdfFileName ?? null, addedById: request.requestedById, isInitial: true, status: "PENDING", submittedAt: request.createdAt },
-          });
-        }
+        const openingFilings = [
+          ...(ci?.pdfData ? [{ caseId: caseRecord.id, title: ci.title || "Criminal Information", url: ci.url ?? null, pdfData: ci.pdfData, pdfFileName: ci.pdfFileName ?? null, addedById: request.requestedById, isInitial: true, documentType: "CRIMINAL_INFORMATION", status: "PENDING", submittedAt: request.createdAt }] : []),
+          ...(aopc?.pdfData ? [{ caseId: caseRecord.id, title: aopc.title || "Affidavit of Probable Cause (AOPC)", url: aopc.url ?? null, pdfData: aopc.pdfData, pdfFileName: aopc.pdfFileName ?? null, addedById: request.requestedById, isInitial: false, documentType: "AOPC", status: "ACCEPTED", submittedAt: request.createdAt }] : []),
+        ];
+        if (openingFilings.length) await tx.caseFiling.createMany({ data: openingFilings });
+        await tx.caseComment.create({ data: { caseId: caseRecord.id, body: `Case opening approved.${requestDivision === "Criminal Division" ? " Separate Criminal Information and AOPC PDFs attached." : ""} ${assignmentReason}`, isSystem: true } });
         return caseRecord;
       });
       createdCaseId = created.id;
+      await logActivity(session.user.displayName, "Approved and opened case", "Case", `${created.caseNumber} · ${created.title}`);
     } else if (request.caseId) {
       await prisma.$transaction(async (tx) => {
         const claimed = await tx.caseActionRequest.updateMany({

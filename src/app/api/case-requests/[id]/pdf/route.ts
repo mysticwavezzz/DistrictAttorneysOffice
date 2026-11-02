@@ -4,21 +4,23 @@ import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { decodeCasePdf } from "@/lib/filing-upload";
 import { localUser, canReviewDivision } from "@/lib/case-access";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION))) {
     return new Response("Unauthorized", { status: 401 });
   }
   const { id } = await params;
   const viewer = await localUser(session.user);
-  const request = await prisma.caseActionRequest.findUnique({ where: { id }, include: { requestedBy: { select: { divisionGroup: true } } } });
-  if (!request || request.status !== "PENDING" || request.kind !== "CREATE") return new Response("Not found", { status: 404 });
+  const caseRequest = await prisma.caseActionRequest.findUnique({ where: { id }, include: { requestedBy: { select: { divisionGroup: true } } } });
+  if (!caseRequest || caseRequest.status !== "PENDING" || caseRequest.kind !== "CREATE") return new Response("Not found", { status: 404 });
   let proposedGroup: string | null = null;
-  try { const data: unknown = JSON.parse(request.proposedData); if (data && typeof data === "object" && "divisionGroup" in data && typeof data.divisionGroup === "string") proposedGroup = data.divisionGroup; } catch { /* Invalid request data is not exposed as a PDF. */ }
-  if (!viewer || request.requestedById === viewer.id || !canReviewDivision(session.user.tiers, viewer.division, request.division, viewer.divisionGroup, request.divisionGroup ?? proposedGroup ?? request.requestedBy.divisionGroup)) return new Response("Not found", { status: 404 });
+  try { const data: unknown = JSON.parse(caseRequest.proposedData); if (data && typeof data === "object" && "divisionGroup" in data && typeof data.divisionGroup === "string") proposedGroup = data.divisionGroup; } catch { /* Invalid request data is not exposed as a PDF. */ }
+  if (!viewer || caseRequest.requestedById === viewer.id || !canReviewDivision(session.user.tiers, viewer.division, caseRequest.division, viewer.divisionGroup, caseRequest.divisionGroup ?? proposedGroup ?? caseRequest.requestedBy.divisionGroup)) return new Response("Not found", { status: 404 });
   let filing: { pdfData?: string; pdfFileName?: string } | null = null;
   try {
-    filing = JSON.parse(request.proposedData).initialFiling ?? null;
+    const data = JSON.parse(caseRequest.proposedData);
+    const requestedDocument = new URL(req.url).searchParams.get("document");
+    filing = requestedDocument === "aopc" ? data.aopcFiling ?? null : data.criminalInformation ?? data.initialFiling ?? null;
   } catch {
     return new Response("Not found", { status: 404 });
   }

@@ -1946,6 +1946,12 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .review-inbox-card dd { margin: 0; }
 .review-aopc-detail { margin-top: 10px; border-top: 1px solid var(--bd-lt); }
 .review-aopc-detail > summary { padding: 10px 2px; color: var(--link); font-weight: 700; cursor: pointer; }
+.crime-tip-details { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px 20px !important; }
+.crime-tip-details dd { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.crime-tip-details div:has(dt:first-child) { min-width: 0; }
+.crime-tip-review-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.crime-tip-review-form .field:last-of-type { grid-column: 1 / -1; }
+@media (max-width: 720px) { .crime-tip-review-form { grid-template-columns: 1fr; } .crime-tip-review-form .field:last-of-type { grid-column: auto; } }
 .review-aopc-form, .review-record-action { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .review-aopc-form .field { flex: 1 1 100%; }
 .review-case-decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; align-items: start; }
@@ -2190,11 +2196,13 @@ button:disabled { cursor: wait; opacity: .7; }
 .investigator-case-source { margin: 14px 0; padding: 13px 15px; border-left: 4px solid var(--gold); background: var(--box-alt); }
 .investigator-case-source ul { margin-bottom: 0; }
 .work-queue-page { display: grid; gap: 14px; }
-.work-queue-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.work-queue-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; }
 .work-queue-stats article { display: grid; gap: 3px; padding: 14px; border: 1px solid var(--bd); border-radius: 5px; background: var(--paper); }
+.work-queue-stats > a { display: grid; gap: 3px; padding: 14px; border: 1px solid var(--bd); border-radius: 5px; background: var(--paper); color: var(--ink); text-decoration: none; }
+.work-queue-stats > a:hover { border-color: var(--heading); background: var(--surface); }
 .work-queue-stats strong { font: bold 26px var(--serif); color: var(--heading); }
 .work-queue-stats span { color: var(--ink-soft); font-size: 12px; }
-.work-queue-stats .has-overdue { border-left: 4px solid #b63a37; }
+.work-queue-stats .has-overdue, .work-queue-stats a.has-overdue { border-left: 4px solid #b63a37; }
 .work-queue-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
 .work-queue-grid > section:last-child { grid-column: 1 / -1; }
 .work-queue-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
@@ -2324,6 +2332,21 @@ button:disabled { cursor: wait; opacity: .7; }
   margin-top: 10px;
   color: var(--ink-soft);
   font-size: 10.5px;
+}
+
+.weekly-report-editor { max-width: 1050px; margin-inline: auto; }
+.weekly-report-editor-panel { margin-top: 20px; }
+.weekly-report-edit-form { display: grid; gap: 18px; margin-top: 18px; }
+.weekly-report-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.weekly-report-edit-grid .field { display: grid; gap: 7px; }
+.weekly-report-edit-grid .field > span { color: var(--heading); font-weight: 700; }
+.weekly-report-edit-grid .field small { color: var(--ink-soft); }
+.weekly-report-editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; border-top: 1px solid var(--bd-lt); }
+.weekly-report-editor-footer p { margin: 0; color: var(--ink-soft); font-size: .9rem; }
+.weekly-report-editor .notice.success { margin: 16px 0; }
+@media (max-width: 700px) {
+  .weekly-report-edit-grid { grid-template-columns: 1fr; }
+  .weekly-report-editor-footer { align-items: stretch; flex-direction: column; }
 }
 
 
@@ -2895,6 +2918,12 @@ details > summary::after {
 .case-workspace-next p { margin: 4px 0 0; }
 .case-workspace-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .case-workspace-actions > a { white-space: nowrap; }
+.case-more-actions { position: relative; }
+.case-more-actions > summary { list-style: none; cursor: pointer; border: 1px solid var(--bd); border-radius: 4px; padding: 9px 12px; font-weight: 700; color: var(--ink); background: var(--paper); }
+.case-more-actions > summary::-webkit-details-marker { display: none; }
+.case-more-actions[open] > div { position: absolute; right: 0; top: calc(100% + 5px); z-index: 10; min-width: 210px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--bd); border-radius: 5px; background: var(--paper); box-shadow: 0 5px 18px #0002; text-align: left; }
+.case-more-actions[open] a { display: block; padding: 8px 10px; border-radius: 3px; color: var(--link); text-decoration: none; }
+.case-more-actions[open] a:hover { background: var(--surface); }
 .case-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
 .case-overview-grid > div { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 11px; border: 1px solid var(--bd-lt); background: var(--box-alt); }
 .case-overview-grid strong { overflow-wrap: anywhere; }

@@ -26,26 +26,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const mayViewCases = canViewCases(tiers);
   const isCriminalDivisionStaff = divisionRoster?.isActive && divisionRoster.unit === "Criminal Division";
   const hasDeveloperProfile = await hasActiveDeveloperProfile(session.user);
+  const canEditWeeklyReport = tiers.includes("district_attorney") || hasDeveloperProfile;
+  const canReviewInbox = [CAPABILITIES.CASES_APPROVE_EDITS, CAPABILITIES.CASES_APPROVE_DIVISION, CAPABILITIES.REQUESTS_VIEW, CAPABILITIES.TIPS_REVIEW].some((capability) => hasCapability(tiers, capability));
   const primaryNav: NavItem[] = isTrainee ? [{ label: "Learning Course", href: "/dashboard/learning" }] : orientationPending ? [{ label: "Attorney Orientation", href: "/dashboard/orientation" }] : [
-    { label: "Overview", href: "/dashboard" },
+    ...(mayViewCases ? [{ label: "Work Queue", href: "/dashboard/work-queue" }, { label: "Cases", href: "/dashboard/cases" }] : [{ label: "Overview", href: "/dashboard" }]),
     ...((hasCapability(tiers, CAPABILITIES.CASES_CREATE) || hasCapability(tiers, CAPABILITIES.CASES_PROPOSE_EDIT)) ? [{ label: "Intake", href: "/dashboard/intake" }] : []),
-    ...(mayViewCases ? [
-      { label: "My Cases", href: "/dashboard/cases" },
-      ...((hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION)) ? [{ label: "Unassigned Queue", href: "/dashboard/workload" }] : []),
-      { label: "Filing History", href: "/dashboard/filings" },
-      ...(hasDeveloperProfile ? [{ label: "Document Creator", href: "/dashboard/templates" }] : []),
-    ] : []),
+    ...(canReviewInbox ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
   ];
   const staffTools: NavItem[] = isTrainee || orientationPending ? [] : [
-    ...(mayViewCases ? [{ label: "Work Queue", href: "/dashboard/work-queue" }] : []),
-    ...((hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW)) ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
+    ...(mayViewCases ? [{ label: "My Cases", href: "/dashboard/cases?mine=1" }, ...((hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION)) ? [{ label: "Unassigned Queue", href: "/dashboard/workload" }] : []), { label: "Filing History", href: "/dashboard/filings" }] : []),
+    ...(!canReviewInbox && (hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW)) ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
     ...(mayViewCases ? [{ label: "Deadline Calendar", href: "/dashboard/cases/calendar" }] : []),
     ...((hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)) ? [{ label: "Staff Roster", href: "/dashboard/roster" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE) ? [{ label: "Public Releases", href: "/dashboard/announcements" }] : []),
     ...(hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) ? [{ label: "Activity Log", href: "/dashboard/activity" }] : []),
+    ...(canEditWeeklyReport ? [{ label: "Weekly Report Figures", href: "/dashboard/weekly-report" }] : []),
     ...((hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) ? [{ label: "Supervisor Reports", href: "/dashboard/reports" }] : []),
     { label: "Search", href: "/dashboard/search" },
     ...(mayViewCases && isCriminalDivisionStaff ? [{ label: "Criminal Division Orientation", href: "/dashboard/orientation" }] : []),
+    ...(hasDeveloperProfile ? [{ label: "Document Creator", href: "/dashboard/templates" }] : []),
   ];
 
   return (

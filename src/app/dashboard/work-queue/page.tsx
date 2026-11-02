@@ -9,7 +9,8 @@ export const metadata = { title: "Work Queue | DAO", robots: { index: false, fol
 type QueueItem = { title: string; description: string; href: string; due: Date; kind: string };
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" });
 
-export default async function WorkQueuePage() {
+export default async function WorkQueuePage({ searchParams }: { searchParams: Promise<{ caseSubmitted?: string }> }) {
+  const query = await searchParams;
   const session = await auth();
   if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION))) redirect("/login?error=forbidden");
   const user = await localUser(session.user);
@@ -26,13 +27,31 @@ export default async function WorkQueuePage() {
     }
     for (const filing of item.filings) deadlineItems.push({ title: `${item.caseNumber} · ${filing.title}`, description: `${item.title} · submitted filing awaiting review`, href: `/dashboard/cases/${item.id}#filings`, due: filing.createdAt, kind: "Pending filing" });
   }
-  const notifications = await prisma.notification.findMany({ where: { userId: user.id, isRead: false }, orderBy: { createdAt: "desc" }, take: 12, select: { id: true, title: true, body: true, link: true, createdAt: true } });
+  const [notifications, unreadCount] = await Promise.all([
+    prisma.notification.findMany({ where: { userId: user.id, isRead: false }, orderBy: { createdAt: "desc" }, take: 12, select: { id: true, title: true, body: true, link: true, createdAt: true } }),
+    prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+  ]);
   const canReview = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION);
+  const canReviewTips = hasCapability(session.user.tiers, CAPABILITIES.TIPS_REVIEW);
+  const canReviewRecords = hasCapability(session.user.tiers, CAPABILITIES.REQUESTS_VIEW);
+  const canReviewInvestigator = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) || (hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION) && user.division === "Criminal Division");
+  const canReviewInbox = canReview || canReviewTips || canReviewRecords;
+  const globalReview = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+  const [caseRequests, pendingFilings, pendingAopcs, openTips, openInvestigatorTickets, openRecordsRequests] = await Promise.all([
+    canReview ? prisma.caseActionRequest.count({ where: { status: "PENDING", ...(globalReview ? {} : { division: user.division ?? "__none__", ...(user.division === "Criminal Division" && user.divisionGroup ? { divisionGroup: user.divisionGroup } : {}) }) } }) : Promise.resolve(0),
+    canReview ? prisma.caseFiling.count({ where: { status: "PENDING", ...(globalReview ? {} : { case: { division: user.division ?? "__none__", ...(user.division === "Criminal Division" && user.divisionGroup ? { OR: [{ divisionGroup: user.divisionGroup }, { divisionGroup: null, assignedAttorney: { divisionGroup: user.divisionGroup } }, { divisionGroup: null, createdBy: { divisionGroup: user.divisionGroup } }] } : {}) } }) } }) : Promise.resolve(0),
+    canReview ? prisma.aopc.count({ where: { status: "PENDING", intakeTicketId: null, ...(globalReview ? {} : { targetUnit: user.division ?? "__none__" }) } }) : Promise.resolve(0),
+    canReviewTips ? prisma.crimeTip.count({ where: { status: { notIn: ["CLOSED", "NO_JURISDICTION", "DUPLICATE", "INSUFFICIENT"] } } }) : Promise.resolve(0),
+    canReviewInvestigator ? prisma.contactTicket.count({ where: { category: "INVESTIGATOR_INTAKE", status: { not: "CLOSED" }, intakeStatus: { notIn: ["DENIED", "CONVERTED"] }, ...(globalReview ? {} : { assigneeId: user.id, divisionGroup: user.divisionGroup ?? undefined }) } }) : Promise.resolve(0),
+    canReviewRecords ? prisma.recordsRequest.count({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }) : Promise.resolve(0),
+  ]);
+  const reviewCount = caseRequests + pendingFilings + pendingAopcs + openTips + openInvestigatorTickets + openRecordsRequests;
   const intakeTickets = canReview ? await prisma.contactTicket.findMany({ where: { category: "INVESTIGATOR_INTAKE", status: "OPEN", intakeStatus: { in: ["OPEN", "NEEDS_INFO"] }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) ? {} : { assigneeId: user.id }) }, orderBy: { updatedAt: "asc" }, take: 20, select: { id: true, subject: true, intakeStatus: true, updatedAt: true, requester: { select: { displayName: true } } } }) : [];
   deadlineItems.sort((a, b) => a.due.getTime() - b.due.getTime());
   const overdueCount = deadlineItems.filter((item) => item.kind === "Overdue").length;
-  return <main className="work-queue-page"><p className="eyebrow">Staff workflow</p><div className="workbench-section-heading"><div><h1>Work Queue</h1><p className="lede">Your unread alerts, reports awaiting review, pending filings, and nearby deadlines in one place.</p></div><Link className="govbtn-outline" href="/settings?notificationView=unread#notifications">Notification history</Link></div>
-    <div className="work-queue-stats"><article><strong>{notifications.length}</strong><span>Unread alerts</span></article><article><strong>{intakeTickets.length}</strong><span>Intake tickets</span></article><article><strong>{deadlineItems.filter((item) => item.kind === "Pending filing").length}</strong><span>Pending filings</span></article><article className={overdueCount ? "has-overdue" : ""}><strong>{overdueCount}</strong><span>Overdue deadlines</span></article></div>
+  return <main className="work-queue-page"><p className="eyebrow">District Attorney&apos;s Office</p><div className="workbench-section-heading"><div><h1>Work Queue</h1><p className="lede">Your next actions, review items, deadlines, and incoming reports.</p></div><Link className="govbtn-outline" href="/settings?notificationView=unread#notifications">Notification history</Link></div>
+    {query.caseSubmitted === "review" && <p className="message message-success" role="status">The case opening is in the Review Inbox. It will appear on the docket after approval.</p>}
+    <div className="work-queue-stats">{canReviewInbox && <Link href="/dashboard/review"><strong>{reviewCount}</strong><span>Items awaiting review</span></Link>}<article><strong>{unreadCount}</strong><span>Unread alerts</span></article><article><strong>{intakeTickets.length}</strong><span>My intake tickets</span></article><article><strong>{deadlineItems.filter((item) => item.kind === "Pending filing").length}</strong><span>Pending filings</span></article><article className={overdueCount ? "has-overdue" : ""}><strong>{overdueCount}</strong><span>Overdue deadlines</span></article></div>
     <div className="work-queue-grid">
       <section className="workbench-panel"><h2>Unread notifications</h2>{notifications.length ? <ul className="work-queue-list">{notifications.map((item) => <li key={item.id}><Link href={item.link ?? "/settings?notificationView=unread#notifications"}><strong>{item.title}</strong><span>{item.body ?? ""}</span><time>{dateFormat.format(item.createdAt)}</time></Link></li>)}</ul> : <p className="note-inline">No unread alerts.</p>}</section>
       {canReview && <section className="workbench-panel"><h2>Investigator intake</h2>{intakeTickets.length ? <ul className="work-queue-list">{intakeTickets.map((item) => <li key={item.id}><Link href={`/dashboard/intake/tickets/${item.id}`}><strong>{item.subject}</strong><span>{item.requester.displayName} · {item.intakeStatus}</span><time>Updated {dateFormat.format(item.updatedAt)}</time></Link></li>)}</ul> : <p className="note-inline">No investigator tickets need a response.</p>}</section>}

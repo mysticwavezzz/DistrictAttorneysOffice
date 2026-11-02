@@ -16,6 +16,7 @@ import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { runWithActionDebug } from "@/lib/action-debug";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
 import { logActivity } from "@/lib/activity-log";
+import { automaticallyAssignCase } from "@/lib/automatic-case-assignment";
 
 async function requireStaff() {
   const session = await auth();
@@ -59,7 +60,19 @@ async function createCaseImpl(formData: FormData) {
     intakeTicket = await prisma.contactTicket.findFirst({ where: { id: intakeTicketId, category: "INVESTIGATOR_INTAKE", intakeStatus: "APPROVED", linkedCaseId: null }, select: { id: true, subject: true, aopcs: { where: { status: "ACCEPTED" }, orderBy: { createdAt: "asc" }, select: { documentType: true, title: true, pdfData: true, pdfFileName: true } } } });
     if (!intakeTicket || intakeTicket.aopcs.length === 0) throw new Error("This investigator intake is not approved or has already been converted.");
   }
-  const assignedAttorneyId = canAssign ? emptyToNull(data.assignedAttorneyId) : null;
+  let assignedAttorneyId = canAssign ? emptyToNull(data.assignedAttorneyId) : null;
+  let assignmentReason = "Manually selected by authorized case opener.";
+  if (!assignedAttorneyId) {
+    const automatic = await automaticallyAssignCase({
+      division: user.division,
+      divisionGroup: user.divisionGroup,
+      restrictToGroup: session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN),
+      type: data.type,
+      stage: data.stage,
+    });
+    assignedAttorneyId = automatic.attorney.id;
+    assignmentReason = `Automatically assigned to ${automatic.attorney.displayName} by workload: ${automatic.reason}.`;
+  }
   const assignedAttorney = assignedAttorneyId ? await prisma.user.findUnique({ where: { id: assignedAttorneyId }, select: { id: true, division: true, divisionGroup: true } }) : null;
   if (assignedAttorneyId && (!assignedAttorney || (assignedAttorneyId !== user.id && assignedAttorney.division !== user.division))) throw new Error("Choose an attorney in your division.");
   if (assignedAttorneyId && session.user.tiers.includes("senior_assistant_district_attorney") && !hasCapability(session.user.tiers, CAPABILITIES.CASES_ASSIGN) && assignedAttorney?.divisionGroup !== user.divisionGroup) throw new Error("You can only assign cases to attorneys in your Criminal Division group.");
@@ -72,16 +85,15 @@ async function createCaseImpl(formData: FormData) {
     if (name.length > 100 || !allowedPartyRoles.has(role)) throw new Error("Check the party names and roles.");
     return { name, role };
   });
-  const uploadedPdf = await readCasePdf(formData.get("initialPdf"));
-  const filingTitle = String(formData.get("initialFilingTitle") ?? "").trim().slice(0, 200);
+  const uploadedCi = await readCasePdf(formData.get("criminalInformationPdf"));
+  const ciTitle = String(formData.get("criminalInformationTitle") ?? "").trim().slice(0, 200);
+  const uploadedAopc = await readCasePdf(formData.get("aopcPdf"));
+  const aopcTitle = String(formData.get("aopcTitle") ?? "").trim().slice(0, 200);
   const approvedAopc = intakeTicket?.aopcs.find((document) => document.documentType === "AOPC" && document.pdfData);
-  if (intakeTicket && !approvedAopc && !uploadedPdf) throw new Error("This approved intake contains an investigative report but no AOPC. Attach a separate AOPC PDF before opening the case.");
-  if (intakeTicket && !approvedAopc && !/aopc|probable cause/i.test(filingTitle)) throw new Error("Name the required initial filing as an AOPC or probable-cause affidavit.");
-  const pdf = uploadedPdf ?? (approvedAopc ? { pdfData: approvedAopc.pdfData!, pdfFileName: approvedAopc.pdfFileName ?? "Affidavit of Probable Cause.pdf" } : null);
+  let previousCi: { title?: string; pdfData?: string; pdfFileName?: string } | null = null;
+  let previousAopc: { title?: string; pdfData?: string; pdfFileName?: string } | null = null;
   const reviseRequestId = emptyToNull(String(formData.get("reviseRequestId") ?? ""));
-  type PreviousFiling = { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string };
   let previousRequest: Awaited<ReturnType<typeof prisma.caseActionRequest.findUnique>> = null;
-  let previousFiling: PreviousFiling | null = null;
   if (reviseRequestId) {
     previousRequest = await prisma.caseActionRequest.findUnique({ where: { id: reviseRequestId } });
     if (!previousRequest || previousRequest.kind !== "CREATE" || previousRequest.status !== "REJECTED" || previousRequest.requestedById !== user.id) {
@@ -89,17 +101,23 @@ async function createCaseImpl(formData: FormData) {
     }
     try {
       const priorData = JSON.parse(previousRequest.proposedData) as Record<string, unknown>;
-      const candidate = priorData.initialFiling;
-      if (candidate && typeof candidate === "object" && "pdfData" in candidate) previousFiling = candidate as PreviousFiling;
+      const ciCandidate = priorData.criminalInformation ?? priorData.initialFiling;
+      const aopcCandidate = priorData.aopcFiling;
+      if (ciCandidate && typeof ciCandidate === "object" && "pdfData" in ciCandidate) previousCi = ciCandidate as { title?: string; pdfData?: string; pdfFileName?: string };
+      if (aopcCandidate && typeof aopcCandidate === "object" && "pdfData" in aopcCandidate) previousAopc = aopcCandidate as { title?: string; pdfData?: string; pdfFileName?: string };
     } catch {
       throw new Error("The rejected submission could not be loaded. Contact a reviewer.");
     }
   }
-  const initialFiling = pdf
-    ? { title: filingTitle || (approvedAopc?.title ?? pdf.pdfFileName), url: null, ...pdf }
-    : previousFiling
-      ? { ...previousFiling, title: filingTitle || previousFiling.title || "Initial Filing" }
-      : null;
+  const ciPdf = uploadedCi ?? previousCi;
+  const aopcPdf = approvedAopc?.pdfData
+    ? { title: approvedAopc.title, pdfData: approvedAopc.pdfData, pdfFileName: approvedAopc.pdfFileName ?? "Affidavit of Probable Cause.pdf" }
+    : uploadedAopc ?? previousAopc;
+  const requiresCriminalDocuments = user.division === "Criminal Division";
+  if (requiresCriminalDocuments && !ciPdf?.pdfData) throw new Error("A Criminal Information PDF is required before a Criminal Division case can open.");
+  if (requiresCriminalDocuments && !aopcPdf?.pdfData) throw new Error("A separate AOPC PDF is required before a Criminal Division case can open. An investigative report cannot replace it.");
+  const criminalInformation = ciPdf?.pdfData ? { title: ciTitle || previousCi?.title || "Criminal Information", url: null, ...ciPdf } : null;
+  const aopcFiling = aopcPdf?.pdfData ? { title: aopcTitle || approvedAopc?.title || previousAopc?.title || "Affidavit of Probable Cause (AOPC)", url: null, ...aopcPdf } : null;
   const relatedIds = await resolveRelatedCaseIds(formData.get("relatedCaseNumbers"));
 
   const proposedData = {
@@ -109,7 +127,8 @@ async function createCaseImpl(formData: FormData) {
     division: user.division,
     divisionGroup: caseGroup,
     partyDetails: JSON.stringify(parties),
-    initialFiling,
+    criminalInformation,
+    aopcFiling,
     relatedCaseNumbers: String(formData.get("relatedCaseNumbers") ?? ""),
   };
 
@@ -134,7 +153,7 @@ async function createCaseImpl(formData: FormData) {
     await notifyMany(reviewerIds.filter((id) => id !== user.id), {
       type: "case_request",
       title: "New case opening needs review",
-      body: `${data.title}${initialFiling ? ` · document: ${initialFiling.title}` : ""}`,
+      body: `${data.title} · Criminal Information and AOPC attached`,
       link: "/dashboard/cases/requests?status=pending",
     });
     await notify({
@@ -184,20 +203,22 @@ async function createCaseImpl(formData: FormData) {
       relatedTo: relatedIds.length > 0 ? { connect: relatedIds.map((id) => ({ id })) } : undefined,
       },
     });
-    if (initialFiling) {
-      await tx.caseFiling.create({
-        data: { caseId: caseRecord.id, title: initialFiling.title, url: initialFiling.url, pdfData: initialFiling.pdfData, pdfFileName: initialFiling.pdfFileName, addedById: user.id, status: "DRAFT", isInitial: true },
-      });
-    }
+    const openingFilings = [
+      ...(criminalInformation ? [{ caseId: caseRecord.id, title: criminalInformation.title, url: criminalInformation.url, pdfData: criminalInformation.pdfData, pdfFileName: criminalInformation.pdfFileName, addedById: user.id, status: "DRAFT", isInitial: true, documentType: "CRIMINAL_INFORMATION" }] : []),
+      ...(aopcFiling ? [{ caseId: caseRecord.id, title: aopcFiling.title, url: aopcFiling.url, pdfData: aopcFiling.pdfData, pdfFileName: aopcFiling.pdfFileName, addedById: user.id, status: approvedAopc?.pdfData ? "ACCEPTED" : "DRAFT", isInitial: false, documentType: "AOPC" }] : []),
+    ];
+    if (openingFilings.length) await tx.caseFiling.createMany({ data: openingFilings });
     if (intakeTicket) {
       const converted = await tx.contactTicket.updateMany({ where: { id: intakeTicket.id, intakeStatus: "APPROVED", linkedCaseId: null }, data: { linkedCaseId: caseRecord.id, intakeStatus: "CONVERTED", updatedAt: new Date() } });
       if (!converted.count) throw new Error("This investigator intake was already converted. Refresh and review the case list.");
       await tx.aopc.updateMany({ where: { intakeTicketId: intakeTicket.id, status: "ACCEPTED" }, data: { linkedCaseId: caseRecord.id } });
       await tx.contactMessage.create({ data: { ticketId: intakeTicket.id, authorId: user.id, body: `This intake was opened as ${caseRecord.caseNumber}. The case record is unfiled until the charging document is filed with the court.` } });
     }
-    await tx.caseComment.create({ data: { caseId: caseRecord.id, body: `Case opened as an unfiled staff record by ${session.user.displayName}.`, isSystem: true } });
+      await tx.caseComment.create({ data: { caseId: caseRecord.id, body: `Case opened as an unfiled staff record by ${session.user.displayName}. ${assignmentReason}`, isSystem: true } });
     return caseRecord;
   });
+
+  await logActivity(session.user.displayName, `Opened case${assignmentReason.startsWith("Automatically") ? " and auto assigned" : ""}`, "Case", `${created.caseNumber} · ${created.title}`);
 
   if (created.assignedAttorneyId && created.assignedAttorneyId !== user.id) {
     try {
@@ -460,6 +481,9 @@ async function updateCaseImpl(formData: FormData) {
       data: systemNotes.map((body) => ({ caseId: id, body, isSystem: true })),
     });
   }
+  if (emptyToNull(data.stage) !== existing.stage) await logActivity(session.user.displayName, `Changed case status to ${emptyToNull(data.stage) ?? "None"}`, "Case", `${caseNumber} · ${data.title}`);
+  if (canAssign && nextAssignee !== existing.assignedAttorneyId) await logActivity(session.user.displayName, "Changed case assignment", "Case", `${caseNumber} · ${data.title}`);
+  if (Boolean(formData.get("archived") === "on") !== existing.archived) await logActivity(session.user.displayName, formData.get("archived") === "on" ? "Archived case" : "Restored case", "Case", `${caseNumber} · ${data.title}`);
 
   revalidatePath("/dashboard/cases");
   revalidatePath(`/dashboard/cases/${id}`);

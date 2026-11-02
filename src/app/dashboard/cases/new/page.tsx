@@ -55,8 +55,12 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
     } catch {
       redirect("/dashboard/cases");
     }
-    const filing = data.initialFiling && typeof data.initialFiling === "object"
-      ? data.initialFiling as { title?: string; pdfData?: string; pdfFileName?: string }
+    const ciCandidate = data.criminalInformation ?? data.initialFiling;
+    const filing = ciCandidate && typeof ciCandidate === "object"
+      ? ciCandidate as { title?: string; pdfData?: string; pdfFileName?: string }
+      : null;
+    const aopc = data.aopcFiling && typeof data.aopcFiling === "object"
+      ? data.aopcFiling as { title?: string; pdfData?: string; pdfFileName?: string }
       : null;
     let partyData: unknown = [];
     try {
@@ -88,8 +92,10 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
       parties,
       filingTitle: filing?.title ?? "",
       filingName: filing?.pdfFileName ?? "",
+      aopcTitle: aopc?.title ?? "",
+      aopcName: aopc?.pdfFileName ?? "",
     };
   }
 
-  return <CaseOpeningForm officerName={session.user.displayName} canCreate={hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE)} canAssign={canAssign} reviewersCanAutoApprove={reviewersCanAutoApprove} attorneys={attorneys} revision={revision} intakeDraft={intakeDraft} />;
+  return <CaseOpeningForm officerName={session.user.displayName} canCreate={hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE)} canAssign={canAssign} requiresCriminalDocuments={user.division === "Criminal Division"} reviewersCanAutoApprove={reviewersCanAutoApprove} attorneys={attorneys} revision={revision} intakeDraft={intakeDraft} />;
 }

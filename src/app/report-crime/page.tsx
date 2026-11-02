@@ -33,12 +33,12 @@ export default async function ReportCrimePage() {
           <p className="eyebrow">District Attorney&apos;s Office</p>
           <h1>Official Criminal Tip Line</h1>
           <h2>Report Suspicious or Criminal Activity</h2>
-          <p className="lede">The District Attorney&apos;s Office relies on community vigilance to help keep {siteConfig.county} safe. This portal forwards tips to the office&apos;s investigators.</p>
+          <p className="lede">The District Attorney&apos;s Office relies on community vigilance to help keep {siteConfig.county} safe. Submitted tips enter a restricted staff triage queue for review and routing.</p>
 
           <section className="tip-notice" aria-labelledby="confidentiality-heading">
             <h2 id="confidentiality-heading">Confidentiality Notice</h2>
-            <p>The form is hosted by Google Forms, and responses are available to the form owner and staff granted access there. The website cannot guarantee confidentiality or anonymity. Do not submit sensitive personal information.</p>
-            <p>Investigators will handle reports discreetly. A reporter may be contacted if additional information is needed.</p>
+            <p>Tips are stored in this portal in encrypted form and can be opened by authorized tip reviewers. The form asks for Roblox and Discord identifiers, so it is not anonymous; do not include passwords, real-world addresses, or other sensitive information.</p>
+            <p>Authorized reviewers may route a report for follow up or connect it to a case. A reporter may be contacted if additional information is needed.</p>
           </section>
 
           <section className="tip-notice tip-emergency" aria-labelledby="emergency-heading">

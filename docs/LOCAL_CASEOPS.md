@@ -73,7 +73,23 @@ Use `-AssigneeId UNASSIGNED` to preview or apply unassignment. Assignment reques
 
 The credential can only be created from the authenticated `M_ysticWavezzz` owner account, is bound server-side to that account, and the API rechecks live Roblox group roles and the current roster before returning case data or changing an assignment. Each request is signed by the Windows certificate key; copying the token or public certificate to another computer is not enough to sign requests. The token is stored encrypted for the current Windows user and expires after 90 days. Revoke it immediately if the computer or Windows account is compromised.
 
-The API exposes only case listing, eligible attorney listing, and case reassignment. Reconciliation adds filing-status and due-date fields to the authorized case listing. It does not expose filing upload, case creation, review decisions, or approval actions.
+The API exposes case listing, eligible attorney listing, case reassignment, selected manual-note management, and filing upload to an existing active case. It does not expose case creation, review decisions, or approval actions.
+
+The signed local API also accepts a PDF filing for an existing active case. This avoids the browser file picker: the script reads a PDF from this computer and sends it through the same permission-checked portal API. The filing is added to the case and, when required, placed in the Review Inbox as pending. It is not approved and is not marked filed in court.
+
+Preview an upload:
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 submit-filing -CaseNumber HCR-26-0025 -Title "Criminal Information" -PdfPath "C:\path\to\filing.pdf"
+```
+
+Submit after reviewing the preview; PowerShell will request confirmation:
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 submit-filing -CaseNumber HCR-26-0025 -Title "Criminal Information" -PdfPath "C:\path\to\filing.pdf" -Apply
+```
+
+The command requires the one-time local case-operations setup above, accepts PDFs up to 5 MB, checks the PDF header and end marker, and refuses archived or draft cases. It reports the case and Review Inbox links after submission and avoids creating a duplicate when the same title and PDF were already submitted by the same account.
 
 List manual notes written by the signed-in account on accessible Criminal Division cases, then preview or remove selected IDs. Deletion rejects system history, notes by other staff, and notes outside the Criminal Division.
 
