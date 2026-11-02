@@ -3,19 +3,6 @@ export type AssignmentLoadCase = {
   assignedAttorneyId: string | null;
   type: string | null;
   stage: string | null;
-  initialFilingDue: Date | null;
-  discDue: Date | null;
-  pretrial: Date | null;
-  appealBy: Date | null;
-  arraignmentAt: Date | null;
-  proofOfServiceAt: Date | null;
-  discoveryOrderAt: Date | null;
-  discoveryRequestedAt: Date | null;
-  motionServedAt: Date | null;
-  verdictAt: Date | null;
-  sentenceAt: Date | null;
-  finalJudgmentAt: Date | null;
-  courtFiledAt: Date | null;
 };
 
 export type AssignmentCandidate = {
@@ -33,8 +20,6 @@ export type AssignmentHistoryCase = {
 type CandidateLoad = AssignmentCandidate & {
   activeCases: number;
   weightedLoad: number;
-  upcomingDeadlines: number;
-  overdueDeadlines: number;
   caseTypeCounts: Map<string, number>;
 };
 
@@ -44,8 +29,6 @@ export type AssignmentRecommendation = AssignmentCandidate & {
   activeCases: number;
   weightedLoad: number;
   similarCases: number;
-  upcomingDeadlines: number;
-  overdueDeadlines: number;
   score: number;
   reason: string;
 };
@@ -71,29 +54,8 @@ function rankLevel(rank: string | null): number {
   return 1;
 }
 
-function getDates(record: AssignmentLoadCase): Date[] {
-  return [record.courtFiledAt ? null : record.initialFilingDue, record.discDue, record.pretrial, record.appealBy]
-    .filter((date): date is Date => date instanceof Date && Number.isFinite(date.getTime()));
-}
-
-function workloadWeight(record: AssignmentLoadCase, now: Date): { weight: number; upcoming: number; overdue: number } {
-  let weight = STAGE_LOAD[normalized(record.stage)] ?? 1;
-  let upcoming = 0;
-  let overdue = 0;
-  for (const dueDate of getDates(record)) {
-    const days = (dueDate.getTime() - now.getTime()) / 86_400_000;
-    if (days < 0) {
-      overdue += 1;
-      weight += 0.9;
-    } else if (days <= 7) {
-      upcoming += 1;
-      weight += 0.65;
-    } else if (days <= 21) {
-      upcoming += 1;
-      weight += 0.3;
-    }
-  }
-  return { weight, upcoming, overdue };
+function workloadWeight(record: AssignmentLoadCase): number {
+  return STAGE_LOAD[normalized(record.stage)] ?? 1;
 }
 
 export function buildAssignmentContext(
@@ -120,12 +82,9 @@ export function buildAssignmentContext(
   const candidateLoads: CandidateLoad[] = candidates.map((candidate) => {
     const cases = activeByAttorney.get(candidate.id) ?? [];
     const metrics = cases.reduce((total, record) => {
-      const item = workloadWeight(record, now);
-      total.weightedLoad += item.weight;
-      total.upcomingDeadlines += item.upcoming;
-      total.overdueDeadlines += item.overdue;
+      total.weightedLoad += workloadWeight(record);
       return total;
-    }, { weightedLoad: 0, upcomingDeadlines: 0, overdueDeadlines: 0 });
+    }, { weightedLoad: 0 });
     return {
       ...candidate,
       activeCases: cases.length,
@@ -149,9 +108,7 @@ export function recommendCaseAssignees(
     const score = candidate.weightedLoad - experienceCredit - seniorityCredit;
     const reasonParts = [
       `${candidate.activeCases} active case${candidate.activeCases === 1 ? "" : "s"}`,
-      `${candidate.upcomingDeadlines} deadline${candidate.upcomingDeadlines === 1 ? "" : "s"} in the next 21 days`,
     ];
-    if (candidate.overdueDeadlines) reasonParts.push(`${candidate.overdueDeadlines} overdue`);
     if (similarCases) reasonParts.push(`${similarCases} prior case${similarCases === 1 ? "" : "s"} of this type`);
     if (advanced) reasonParts.push(`${candidate.rank ?? "Attorney"} rank considered for ${target.stage}`);
     return {
@@ -162,8 +119,6 @@ export function recommendCaseAssignees(
       activeCases: candidate.activeCases,
       weightedLoad: candidate.weightedLoad,
       similarCases,
-      upcomingDeadlines: candidate.upcomingDeadlines,
-      overdueDeadlines: candidate.overdueDeadlines,
       score,
       reason: reasonParts.join(" · "),
     };

@@ -44,9 +44,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const canManageLocalAutomation = await hasActiveDeveloperProfile(session.user);
   const user = await localUser(session.user);
   const [notifications, unreadNotifications, readNotifications] = user ? await Promise.all([
-    prisma.notification.findMany({ where: { userId: user.id, ...(notificationView === "all" ? {} : { isRead: notificationView === "read" }) }, orderBy: { createdAt: "desc" }, take: 100 }),
-    prisma.notification.count({ where: { userId: user.id, isRead: false } }),
-    prisma.notification.count({ where: { userId: user.id, isRead: true } }),
+    prisma.notification.findMany({ where: { userId: user.id, type: { not: "case_deadline" }, ...(notificationView === "all" ? {} : { isRead: notificationView === "read" }) }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.notification.count({ where: { userId: user.id, type: { not: "case_deadline" }, isRead: false } }),
+    prisma.notification.count({ where: { userId: user.id, type: { not: "case_deadline" }, isRead: true } }),
   ]) : [[], 0, 0];
   const muted = new Set((user?.mutedTypes ?? "").split(",").filter(Boolean));
   const pushMuted = new Set((user?.pushMutedTypes ?? "").split(",").filter(Boolean));

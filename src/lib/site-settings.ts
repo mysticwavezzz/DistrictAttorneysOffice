@@ -9,8 +9,6 @@ export interface SiteSettingsData {
   maintenanceEstimatedAt: Date | null;
   maintenanceTimeZone: string;
   notificationsDisabled: boolean;
-  deadlineReminderDays: string;
-  overdueRemindersEnabled: boolean;
   updatedAt: Date | null;
 }
 
@@ -20,8 +18,6 @@ const DEFAULTS: SiteSettingsData = {
   maintenanceEstimatedAt: null,
   maintenanceTimeZone: "America/New_York",
   notificationsDisabled: false,
-  deadlineReminderDays: "7,3,1",
-  overdueRemindersEnabled: true,
   updatedAt: null,
 };
 
@@ -37,8 +33,6 @@ export async function getSiteSettings(): Promise<SiteSettingsData> {
         : row.maintenanceEstimatedAt,
       maintenanceTimeZone: row.maintenanceTimeZone,
       notificationsDisabled: row.notificationsDisabled,
-      deadlineReminderDays: row.deadlineReminderDays,
-      overdueRemindersEnabled: row.overdueRemindersEnabled,
       updatedAt: row.updatedAt,
     };
   } catch (error) {
@@ -57,8 +51,6 @@ export async function updateSiteSettings(data: Partial<Omit<SiteSettingsData, "u
       maintenanceEstimatedAt: data.maintenanceEstimatedAt ?? DEFAULTS.maintenanceEstimatedAt,
       maintenanceTimeZone: data.maintenanceTimeZone ?? DEFAULTS.maintenanceTimeZone,
       notificationsDisabled: data.notificationsDisabled ?? DEFAULTS.notificationsDisabled,
-      deadlineReminderDays: data.deadlineReminderDays ?? DEFAULTS.deadlineReminderDays,
-      overdueRemindersEnabled: data.overdueRemindersEnabled ?? DEFAULTS.overdueRemindersEnabled,
     },
     update: data,
   });

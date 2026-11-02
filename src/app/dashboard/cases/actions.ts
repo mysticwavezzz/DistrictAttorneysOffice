@@ -12,7 +12,6 @@ import { requiresCriminalDivisionGroupForCaseCreation } from "@/lib/criminal-cas
 import { notify, notifyMany, userIdsWithCapability } from "@/lib/notifications";
 import { readCasePdf, decodeCasePdf } from "@/lib/filing-upload";
 import { extractPdfText } from "@/lib/pdf-text";
-import { getProceduralDeadlines } from "@/lib/procedural-deadlines";
 import { runWithActionDebug } from "@/lib/action-debug";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
 import { logActivity } from "@/lib/activity-log";
@@ -553,7 +552,7 @@ async function saveCaseFilterImpl(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim().slice(0, 60);
   const raw = String(formData.get("query") ?? "");
   const params = new URLSearchParams(raw.startsWith("?") ? raw.slice(1) : raw);
-  for (const key of Array.from(params.keys())) if (!["tab", "q", "status", "mine", "staff", "deadline", "review"].includes(key)) params.delete(key);
+  for (const key of Array.from(params.keys())) if (!["tab", "q", "status", "mine", "staff", "review"].includes(key)) params.delete(key);
   const existing = JSON.parse(user.savedCaseFilters || "[]") as { id: string; name: string; query: string }[];
   if (!name || existing.length >= 20) throw new Error("Filter name is required; up to 20 filters may be saved.");
   existing.push({ id: crypto.randomUUID(), name, query: params.toString() });
@@ -569,36 +568,6 @@ async function deleteCaseFilterImpl(formData: FormData) {
   revalidatePath("/dashboard/cases");
 }
 
-async function updateDeadlineReminderStateImpl(formData: FormData) {
-  const { session, user } = await requireStaff();
-  if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW)) throw new Error("Forbidden");
-  const caseId = String(formData.get("caseId") ?? "");
-  const deadlineType = String(formData.get("deadlineType") ?? "");
-  const dueDateRaw = String(formData.get("dueDate") ?? "");
-  const operation = String(formData.get("operation") ?? "");
-  if (!deadlineType || !["acknowledge", "snooze"].includes(operation)) throw new Error("Invalid reminder action");
-  const dueDate = new Date(dueDateRaw);
-  if (!Number.isFinite(dueDate.getTime())) throw new Error("Invalid due date");
-  const caseRecord = await prisma.case.findUnique({ where: { id: caseId } });
-  if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division, user.divisionGroup)) throw new Error("Case not accessible");
-  const currentDeadline = getProceduralDeadlines(caseRecord).find((deadline) => deadline.key === deadlineType);
-  const eventId = deadlineType.startsWith("case_event_") ? deadlineType.slice("case_event_".length) : "";
-  const currentEvent = eventId ? await prisma.caseEvent.findFirst({ where: { id: eventId, caseId }, select: { startsAt: true } }) : null;
-  const currentDate = currentDeadline?.dueDate ?? currentEvent?.startsAt;
-  if (currentDate?.getTime() !== dueDate.getTime()) throw new Error("That deadline has changed. Refresh the calendar and try again.");
-
-  const identity = { userId: user.id, caseId, deadlineType, dueDate };
-  const reminder = await prisma.deadlineReminder.upsert({ where: { userId_caseId_deadlineType_dueDate: identity }, create: identity, update: {} });
-  if (operation === "acknowledge") {
-    await prisma.deadlineReminder.update({ where: { id: reminder.id }, data: { acknowledgedAt: new Date(), snoozedUntil: null } });
-  } else {
-    const days = Number(formData.get("snoozeDays"));
-    if (![1, 3, 7].includes(days)) throw new Error("Choose a valid snooze duration");
-    await prisma.deadlineReminder.update({ where: { id: reminder.id }, data: { acknowledgedAt: null, snoozedUntil: new Date(Date.now() + days * 86_400_000) } });
-  }
-  revalidatePath("/dashboard/cases/calendar");
-  revalidatePath(`/dashboard/cases/${caseId}`);
-}
 export async function createCase(formData: FormData) { return runWithActionDebug("createCase", [formData], () => createCaseImpl(formData)); }
 export async function fileCase(formData: FormData) { return runWithActionDebug("fileCase", [formData], () => fileCaseImpl(formData)); }
 export async function recordCourtFiling(formData: FormData) { return runWithActionDebug("recordCourtFiling", [formData], () => recordCourtFilingImpl(formData)); }
@@ -608,7 +577,6 @@ export async function deleteCase(formData: FormData) { return runWithActionDebug
 export async function bulkUpdateCases(formData: FormData) { return runWithActionDebug("bulkUpdateCases", [formData], () => bulkUpdateCasesImpl(formData)); }
 export async function saveCaseFilter(formData: FormData) { return runWithActionDebug("saveCaseFilter", [formData], () => saveCaseFilterImpl(formData)); }
 export async function deleteCaseFilter(formData: FormData) { return runWithActionDebug("deleteCaseFilter", [formData], () => deleteCaseFilterImpl(formData)); }
-export async function updateDeadlineReminderState(formData: FormData) { return runWithActionDebug("updateDeadlineReminderState", [formData], () => updateDeadlineReminderStateImpl(formData)); }
 export async function addFiling(formData: FormData) { return runWithActionDebug("addFiling", [formData], () => addFilingImpl(formData)); }
 export async function deleteFiling(formData: FormData) { return runWithActionDebug("deleteFiling", [formData], () => deleteFilingImpl(formData)); }
 export async function addComment(formData: FormData) { return runWithActionDebug("addComment", [formData], () => addCommentImpl(formData)); }

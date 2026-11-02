@@ -113,16 +113,9 @@ async function removeCrimeTipBlacklistEntryImpl(formData: FormData) {
 async function updateNotificationSettingsImpl(formData: FormData) {
   const session = await requireSettingsManager();
   const notificationsDisabled = formData.get("notificationsDisabled") === "on";
-  const deadlineReminderDays = String(formData.get("deadlineReminderDays") ?? "7,3,1").trim();
-  const reminderDays = deadlineReminderDays.split(",").map((value) => Number(value.trim()));
-  if (!deadlineReminderDays || reminderDays.length > 10 || reminderDays.some((day) => !Number.isInteger(day) || day < 1 || day > 90)) {
-    throw new Error("Reminder days must be comma-separated whole numbers between 1 and 90.");
-  }
-  const overdueRemindersEnabled = formData.get("overdueRemindersEnabled") === "on";
-
   await createConfigurationBackup(session.user.displayName);
-  await updateSiteSettings({ notificationsDisabled, deadlineReminderDays: Array.from(new Set(reminderDays)).sort((a, b) => b - a).join(","), overdueRemindersEnabled });
-  await recordSettingsAudit(session.user.displayName, "Notification and deadline settings changed", `Notifications ${notificationsDisabled ? "disabled" : "enabled"}; reminders ${reminderDays.length} day(s) before deadline; overdue reminders ${overdueRemindersEnabled ? "enabled" : "disabled"}.`);
+  await updateSiteSettings({ notificationsDisabled });
+  await recordSettingsAudit(session.user.displayName, "Notification settings changed", `Notifications ${notificationsDisabled ? "disabled" : "enabled"}.`);
 
   await logActivity(
     session.user.displayName,
@@ -262,8 +255,6 @@ async function restoreConfigurationBackupImpl(formData: FormData) {
     maintenanceEstimatedAt: z.string().nullable().or(z.date()).nullable().optional(),
     maintenanceTimeZone: z.string().optional(),
     notificationsDisabled: z.boolean(),
-    deadlineReminderDays: z.string().optional(),
-    overdueRemindersEnabled: z.boolean().optional(),
   });
   const backupSchema = z.object({
     siteSettings: settingsSchema.nullable(),
@@ -283,8 +274,6 @@ async function restoreConfigurationBackupImpl(formData: FormData) {
           maintenanceEstimatedAt: settings.maintenanceEstimatedAt ? new Date(settings.maintenanceEstimatedAt) : null,
           maintenanceTimeZone: settings.maintenanceTimeZone ?? "legacy-utc",
           notificationsDisabled: settings.notificationsDisabled,
-          deadlineReminderDays: settings.deadlineReminderDays ?? "7,3,1",
-          overdueRemindersEnabled: settings.overdueRemindersEnabled ?? true,
         },
         update: {
           maintenanceMode: settings.maintenanceMode,
@@ -292,8 +281,6 @@ async function restoreConfigurationBackupImpl(formData: FormData) {
           maintenanceEstimatedAt: settings.maintenanceEstimatedAt ? new Date(settings.maintenanceEstimatedAt) : null,
           maintenanceTimeZone: settings.maintenanceTimeZone ?? "legacy-utc",
           notificationsDisabled: settings.notificationsDisabled,
-          deadlineReminderDays: settings.deadlineReminderDays ?? "7,3,1",
-          overdueRemindersEnabled: settings.overdueRemindersEnabled ?? true,
         },
       });
     } else await tx.siteSettings.deleteMany({ where: { id: 1 } });

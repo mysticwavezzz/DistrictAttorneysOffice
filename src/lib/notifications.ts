@@ -10,7 +10,6 @@ export const NOTIFICATION_TYPES: { value: string; label: string }[] = [
   { value: "case_filing", label: "New filing on your case" },
   { value: "case_filing_review", label: "Filing submitted or awaiting review" },
   { value: "case_comment", label: "New comment on your case" },
-  { value: "case_deadline", label: "Upcoming case deadline" },
   { value: "case_request", label: "Case change awaiting your review" },
   { value: "case_request_reviewed", label: "Your proposed change was reviewed" },
   { value: "release_published", label: "New release published" },

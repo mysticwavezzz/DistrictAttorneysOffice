@@ -189,8 +189,6 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
             Disable notifications for everyone
           </label>
         </div>
-        <div className="field"><label htmlFor="deadlineReminderDays">Upcoming deadline reminders (days before, comma-separated)</label><input id="deadlineReminderDays" name="deadlineReminderDays" defaultValue={settings.deadlineReminderDays} placeholder="7,3,1" /></div>
-        <div className="field"><label style={{ display: "flex", alignItems: "center", gap: 6, textTransform: "none" }}><input type="checkbox" name="overdueRemindersEnabled" defaultChecked={settings.overdueRemindersEnabled}/> Send reminders for overdue deadlines</label></div>
       </FormWithPendingSubmit>
       </details>
 

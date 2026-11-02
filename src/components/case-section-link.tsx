@@ -8,6 +8,10 @@ export function CaseSectionLink({ href, onClick, ...props }: Props) {
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     const target = document.getElementById(href.slice(1));
     if (target instanceof HTMLDetailsElement) target.open = true;
+    else {
+      const parent = target?.closest<HTMLDetailsElement>("details.case-detail-fold");
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+    }
     onClick?.(event);
   };
 

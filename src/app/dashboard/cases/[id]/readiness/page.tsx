@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CAPABILITIES, hasCapability } from "@/lib/permissions";
 import { canAccessCase, canEditCase, localUser } from "@/lib/case-access";
-import { getProceduralDeadlines, isCourtDeadlineOverdue } from "@/lib/procedural-deadlines";
 import { staffPageMetadata } from "@/lib/staff-metadata";
 import { addReadinessTask, updateCaseTask } from "../../workbench-actions";
 import { CASE_STATUSES, hasReachedChargesFiledStatus } from "@/config/case-statuses";
@@ -42,8 +41,6 @@ export default async function CourtReadinessPage({ params }: { params: Promise<{
   const editable = canEditCase(session.user.tiers, user.division, record.division);
   const parties = parseParties(record.partyDetails);
   const witnesses = parties.filter((party) => party.role.toLocaleLowerCase() === "witness");
-  const deadlines = getProceduralDeadlines(record);
-  const overdueDeadlines = deadlines.filter((item) => isCourtDeadlineOverdue(item.dueDate, now));
   const pendingFilings = record.filings.filter((filing) => filing.status === "PENDING");
   const initialFiled = Boolean(record.courtFiledAt);
   const unresolvedReturned = record.filings.filter((filing) => filing.status === "REJECTED" && filing.revisions.length === 0 && !filing.supersedesId);
@@ -58,7 +55,6 @@ export default async function CourtReadinessPage({ params }: { params: Promise<{
     { label: "Hearing date entered", complete: record.events.length > 0 || Boolean(record.pretrial && record.pretrial.getTime() >= now.getTime()), detail: record.events[0] ? `${record.events[0].title} · ${dateFormat.format(record.events[0].startsAt)}` : record.pretrial && record.pretrial.getTime() >= now.getTime() ? `Pretrial · ${dateFormat.format(record.pretrial)}` : "No future court hearing or pretrial date is recorded", href: `/dashboard/cases/${id}/workbench#timeline` },
     { label: "Judge assigned", complete: Boolean(record.assignedJudge?.trim()), detail: record.assignedJudge || "No judge recorded", href: `/dashboard/cases/${id}#edit-case` },
     { label: "Initial filing recorded with the court", complete: initialFiled, detail: record.courtFiledAt ? `Filed ${dateFormat.format(record.courtFiledAt)}` : "No actual court filing date recorded", href: `/dashboard/cases/${id}#court-filing` },
-    { label: "No overdue entered deadlines", complete: overdueDeadlines.length === 0, detail: overdueDeadlines.length ? `${overdueDeadlines.length} overdue: ${overdueDeadlines.map((item) => item.label).join(", ")}` : "No entered procedural dates are overdue", href: `/dashboard/cases/${id}#deadlines` },
   ];
   const manualChecks = [
     { key: "witness-availability", label: "Witness availability and attendance", detail: witnesses.length ? `${witnesses.length} witness${witnesses.length === 1 ? "" : "es"} listed: ${witnesses.map((witness) => witness.name).join(", ")}` : "No witnesses are listed in the case record. Confirm whether any are needed.", complete: taskByKey.get("witness-availability")?.status === "DONE" },

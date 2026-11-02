@@ -141,9 +141,9 @@ export function CaseOpeningForm({
           </div>
           <div className="field-row">
             <div className="field"><label htmlFor="case-judge">Assigned judge</label><input id="case-judge" name="assignedJudge" maxLength={120} placeholder="Not assigned yet" value={judge} onChange={(event) => setJudge(event.target.value)} /></div>
-            {canAssign && <div className="field"><label htmlFor="case-attorney">Assigned attorney</label><select id="case-attorney" name="assignedAttorneyId" defaultValue={revision?.assignedAttorneyId ?? ""}><option value="">Auto assign by workload</option>{attorneys.map((attorney) => <option key={attorney.id} value={attorney.id}>{attorney.displayName}</option>)}</select><small>Leave automatic assignment selected to balance active cases and deadlines.</small></div>}
+            {canAssign && <div className="field"><label htmlFor="case-attorney">Assigned attorney</label><select id="case-attorney" name="assignedAttorneyId" defaultValue={revision?.assignedAttorneyId ?? ""}><option value="">Auto assign by workload</option>{attorneys.map((attorney) => <option key={attorney.id} value={attorney.id}>{attorney.displayName}</option>)}</select><small>Automatic assignment balances active caseload, case type, rank, and division group.</small></div>}
           </div>
-          <h3>Key deadlines (optional)</h3>
+          <h3>Manually entered case dates (optional)</h3>
           <div className="field-row">
             <div className="field"><label htmlFor="initial-filing-due">Filing / portal reconciliation target</label><input id="initial-filing-due" type="date" name="initialFilingDue" defaultValue={revision?.initialFilingDue ?? ""} /><small>Internal office target only. Not a court deadline. Reconcile an externally filed case instead of filing it again.</small></div>
             <div className="field"><label htmlFor="disc-due">Discovery due</label><input id="disc-due" type="date" name="discDue" defaultValue={revision?.discDue ?? ""} /></div>

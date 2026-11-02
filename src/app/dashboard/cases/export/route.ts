@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { localUser } from "@/lib/case-access";
 import { escapeCsvCell } from "@/lib/csv";
-import { caseDocketWhere, withOverdueCaseFilter } from "@/lib/case-docket-query";
+import { caseDocketWhere } from "@/lib/case-docket-query";
 
 function fmtDate(date: Date | null): string {
   return date ? date.toISOString().slice(0, 10) : "";
@@ -38,7 +38,6 @@ export async function GET(req: NextRequest) {
   if (staffId && !allAccessible && !selectedStaff) return NextResponse.json({ error: "Invalid employee filter" }, { status: 400 });
   let where = caseDocketWhere({ tiers: session.user.tiers, viewerId: user.id, viewerDivision: user.division, viewerGroup: user.divisionGroup, ownerId: allAccessible ? null : selectedStaff?.id ?? user.id, tab, q, status, filingStatus, reviewOnly: searchParams.get("review") === "1" });
   if (!where) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (searchParams.get("deadline") === "overdue") where = await withOverdueCaseFilter(where);
   const sorts = ["caseNumber", "title", "stage", "updatedAt"] as const;
   const sortInput = searchParams.get("sort");
   const sort = sorts.find((item) => item === sortInput) ?? "updatedAt";

@@ -20,7 +20,22 @@ export function CaseFoldPersistence({ accountId, caseId }: { accountId: string; 
       if (typeof preferences[key] === "boolean") fold.open = preferences[key];
       fold.addEventListener("toggle", onToggle);
     }
-    return () => folds.forEach((fold) => fold.removeEventListener("toggle", onToggle));
+    const openHashTarget = () => {
+      const target = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+      let fold = target instanceof HTMLDetailsElement ? target : target?.closest("details.case-detail-fold, details.case-edit-subfold");
+      while (fold instanceof HTMLDetailsElement) {
+        fold.open = true;
+        const key = keys.get(fold);
+        if (key) saveDashboardFoldPreference(accountId, key, true);
+        fold = fold.parentElement?.closest("details.case-detail-fold, details.case-edit-subfold") ?? null;
+      }
+    };
+    openHashTarget();
+    window.addEventListener("hashchange", openHashTarget);
+    return () => {
+      folds.forEach((fold) => fold.removeEventListener("toggle", onToggle));
+      window.removeEventListener("hashchange", openHashTarget);
+    };
   }, [accountId, caseId]);
 
   return null;

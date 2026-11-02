@@ -11,7 +11,7 @@ import { hasActiveDeveloperProfile } from "@/lib/developer-profile-access";
 import { getOnboardingAccessTiers } from "@/lib/onboarding-access";
 import { prisma } from "@/lib/prisma";
 
-export const metadata = { ...shareMetadata("Staff Portal", "Staff workspace for assigned cases, filings, deadlines, and office workflows.", "/dashboard"), robots: { index: false, follow: false } };
+export const metadata = { ...shareMetadata("Staff Portal", "Staff workspace for assigned cases, filings, and office workflows.", "/dashboard"), robots: { index: false, follow: false } };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -37,7 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     {
       label: "Casework",
       items: [
-        ...(mayViewCases ? [...((hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION)) ? [{ label: "Workload & Assignment", href: "/dashboard/workload" }] : []), { label: "Filing History", href: "/dashboard/filings" }, { label: "Deadline Calendar", href: "/dashboard/cases/calendar" }] : []),
+        ...(mayViewCases ? [...((hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION)) ? [{ label: "Workload & Assignment", href: "/dashboard/workload" }] : []), { label: "Filing History", href: "/dashboard/filings" }, { label: "Case Calendar", href: "/dashboard/cases/calendar" }] : []),
         { label: "Search", href: "/dashboard/search" },
       ],
     },

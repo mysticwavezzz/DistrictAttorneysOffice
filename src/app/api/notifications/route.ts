@@ -18,9 +18,9 @@ export async function GET(request: Request) {
   const view = new URL(request.url).searchParams.get("view") ?? "unread";
   const readFilter = view === "read" ? true : view === "all" ? undefined : false;
   const [unreadCount, items] = await Promise.all([
-    prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+    prisma.notification.count({ where: { userId: user.id, isRead: false, type: { not: "case_deadline" } } }),
     prisma.notification.findMany({
-      where: { userId: user.id, ...(readFilter === undefined ? {} : { isRead: readFilter }) },
+      where: { userId: user.id, type: { not: "case_deadline" }, ...(readFilter === undefined ? {} : { isRead: readFilter }) },
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
