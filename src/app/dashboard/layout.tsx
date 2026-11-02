@@ -33,24 +33,37 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ...((hasCapability(tiers, CAPABILITIES.CASES_CREATE) || hasCapability(tiers, CAPABILITIES.CASES_PROPOSE_EDIT)) ? [{ label: "Intake", href: "/dashboard/intake" }] : []),
     ...(canReviewInbox ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
   ];
-  const staffTools: NavItem[] = isTrainee || orientationPending ? [] : [
-    ...(mayViewCases ? [{ label: "My Cases", href: "/dashboard/cases?mine=1" }, ...((hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION)) ? [{ label: "Unassigned Queue", href: "/dashboard/workload" }] : []), { label: "Filing History", href: "/dashboard/filings" }] : []),
-    ...(!canReviewInbox && (hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.REQUESTS_VIEW)) ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
-    ...(mayViewCases ? [{ label: "Deadline Calendar", href: "/dashboard/cases/calendar" }] : []),
-    ...((hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)) ? [{ label: "Staff Roster", href: "/dashboard/roster" }] : []),
-    ...(hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE) ? [{ label: "Public Releases", href: "/dashboard/announcements" }] : []),
-    ...(hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) ? [{ label: "Activity Log", href: "/dashboard/activity" }] : []),
-    ...(canEditWeeklyReport ? [{ label: "Weekly Report Figures", href: "/dashboard/weekly-report" }] : []),
-    ...((hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) ? [{ label: "Supervisor Reports", href: "/dashboard/reports" }] : []),
-    { label: "Search", href: "/dashboard/search" },
-    ...(mayViewCases && isCriminalDivisionStaff ? [{ label: "Criminal Division Orientation", href: "/dashboard/orientation" }] : []),
-    ...(hasDeveloperProfile ? [{ label: "Document Creator", href: "/dashboard/templates" }] : []),
-  ];
+  const staffToolGroups = isTrainee || orientationPending ? [] : [
+    {
+      label: "Casework",
+      items: [
+        ...(mayViewCases ? [...((hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION)) ? [{ label: "Workload & Assignment", href: "/dashboard/workload" }] : []), { label: "Filing History", href: "/dashboard/filings" }, { label: "Deadline Calendar", href: "/dashboard/cases/calendar" }] : []),
+        { label: "Search", href: "/dashboard/search" },
+      ],
+    },
+    {
+      label: "Office Management",
+      items: [
+        ...((hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)) ? [{ label: "Staff Roster", href: "/dashboard/roster" }] : []),
+        ...(hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE) ? [{ label: "Public Releases", href: "/dashboard/announcements" }] : []),
+        ...(hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) ? [{ label: "Activity Log", href: "/dashboard/activity" }] : []),
+        ...((hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) ? [{ label: "Supervisor Reports", href: "/dashboard/reports" }] : []),
+        ...(canEditWeeklyReport ? [{ label: "Weekly Report Figures", href: "/dashboard/weekly-report" }] : []),
+      ],
+    },
+    {
+      label: "Training & Documents",
+      items: [
+        ...(mayViewCases && isCriminalDivisionStaff ? [{ label: "Criminal Division Orientation", href: "/dashboard/orientation" }] : []),
+        ...(hasDeveloperProfile ? [{ label: "Document Creator", href: "/dashboard/templates" }] : []),
+      ],
+    },
+  ].filter((group) => group.items.length > 0);
 
   return (
     <div className="wrap">
       <a href="#main" className="skiplink">Skip to main content</a>
-      <SiteHeader staffNav={primaryNav} staffTools={staffTools} />
+      <SiteHeader staffNav={primaryNav} staffToolGroups={staffToolGroups} />
       <div className="body staff-body">
         <main className="paper" id="main">{children}</main>
       </div>

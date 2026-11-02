@@ -706,21 +706,44 @@ img {
   top: 100%;
   right: 0;
   display: grid;
-  min-width: 210px;
+  width: min(280px, calc(100vw - 24px));
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
   padding: 5px;
   border: 1px solid var(--bd);
   background: var(--box);
   box-shadow: 0 8px 22px rgba(0, 0, 0, .24);
 }
 
-.nav .staff-tools-panel a,
-.nav .staff-tools-panel a:visited {
-  padding: 8px 10px;
-  border: 0;
-  color: var(--link);
+.staff-tools-group { min-width: 0; border-bottom: 1px solid var(--bd-lt); }
+.staff-tools-group:last-child { border-bottom: 0; }
+.staff-tools-group > summary {
+  position: relative;
+  padding: 9px 24px 9px 10px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
 }
-
-.nav .staff-tools-panel a:hover { background: var(--box-alt); }
+.staff-tools-group > summary::-webkit-details-marker { display: none; }
+.staff-tools-group > summary::after { content: "+"; position: absolute; right: 10px; color: var(--ink-soft); }
+.staff-tools-group[open] > summary::after { content: "−"; }
+.staff-tools-group > summary:hover,
+.staff-tools-group > summary:focus-visible { background: var(--box-alt); }
+.staff-tools-group-links { display: grid; padding: 0 5px 6px; }
+.nav .staff-tools-group-links a,
+.nav .staff-tools-group-links a:visited {
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--link);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: normal;
+}
+.nav .staff-tools-group-links a:hover,
+.nav .staff-tools-group-links a[aria-current="page"] { background: var(--stripe); text-decoration: none; }
 
 .sbox > .staff-nav-groups { display: grid; gap: 14px; padding: 14px 10px; border-top: 0; background: var(--box); }
 .staff-nav-group { min-width: 0; }

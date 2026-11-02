@@ -11,6 +11,7 @@ import { SessionProvider } from "next-auth/react";
 import { ProfileMenu } from "./profile-menu";
 import { isDeveloperProfileIdentity } from "@/config/developer-profiles";
 import { prisma } from "@/lib/prisma";
+import { StaffToolsMenu, type StaffToolGroup } from "./staff-tools-menu";
 
 export interface NavItem {
   label: string;
@@ -19,10 +20,10 @@ export interface NavItem {
 
 interface SiteHeaderProps {
   staffNav?: NavItem[];
-  staffTools?: NavItem[];
+  staffToolGroups?: StaffToolGroup[];
 }
 
-export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps = {}) {
+export async function SiteHeader({ staffNav, staffToolGroups = [] }: SiteHeaderProps = {}) {
   const session = await auth();
   const isStaff = Boolean(session?.user?.providerUserId);
   const isTrainee = Boolean(session?.user?.tiers.includes("prosecutor_in_training"));
@@ -84,11 +85,8 @@ export async function SiteHeader({ staffNav, staffTools = [] }: SiteHeaderProps 
 
       <nav className="nav" aria-label={staffNav ? "Staff navigation" : "Primary"}>
         <NavTabsScroller items={navItems} />
-        {staffNav && staffTools.length > 0 ? (
-          <details className="staff-tools-menu">
-            <summary>More</summary>
-            <div className="staff-tools-panel">{staffTools.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}</div>
-          </details>
+        {staffNav && staffToolGroups.length > 0 ? (
+          <StaffToolsMenu groups={staffToolGroups} />
         ) : !staffNav && (!isStaff || canViewDashboard) && (
           <div className="nav-group">
             <span className="nav-group-label">Staff</span>
