@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getInvestigatorRobloxIds } from "@/lib/investigator-intake";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
+import { canReviewDivision } from "@/lib/case-access";
 import { parseStoredTiers } from "@/lib/contact-mail";
 import { readCasePdf } from "@/lib/filing-upload";
 import { notify, notifyMany } from "@/lib/notifications";
@@ -125,8 +126,7 @@ async function reviewerActionImpl(ticketId: string, formData: FormData) {
   if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS))) throw new Error("Forbidden");
   const reviewer = await prisma.user.findFirst({ where: { robloxUserId: session.user.robloxUserId ?? "" }, select: { id: true, division: true, divisionGroup: true } });
   const ticket = await prisma.contactTicket.findFirst({ where: { id: ticketId, category: "INVESTIGATOR_INTAKE" }, include: { requester: { select: { id: true } } } });
-  if (!reviewer || !ticket || ticket.division !== "Criminal Division" || (ticket.assigneeId !== reviewer.id && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS))) throw new Error("This ticket is outside your review assignment.");
-  if (!hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) && (!reviewer.divisionGroup || reviewer.divisionGroup !== ticket.divisionGroup)) throw new Error("This ticket is outside your Criminal Division group.");
+  if (!reviewer || !ticket || ticket.division !== "Criminal Division" || (ticket.assigneeId !== reviewer.id && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS)) || !canReviewDivision(session.user.tiers, reviewer.division, ticket.division, reviewer.divisionGroup, ticket.divisionGroup)) throw new Error("This ticket is outside your review assignment.");
   const action = String(formData.get("ticketAction") ?? "");
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   const docId = String(formData.get("documentId") ?? "").trim();
