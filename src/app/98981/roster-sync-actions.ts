@@ -88,7 +88,7 @@ async function applyRobloxRosterSyncImpl(formData: FormData) {
       }
       for (const change of data.inactivations) {
         const row = await tx.rosterEntry.findUnique({ where: { id: change.entryId } });
-        if (!row || !row.isActive || !row.robloxSynced || row.robloxUserId !== change.username) throw new Error(`${change.name}'s roster record changed after preview. Generate a fresh preview.`);
+        if (!row || !row.isActive || !row.robloxSynced || row.robloxUserId !== change.robloxUserId) throw new Error(`${change.name}'s roster record changed after preview. Generate a fresh preview.`);
       }
 
       for (const change of allTargets) {

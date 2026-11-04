@@ -22,7 +22,7 @@ export type SyncPreview = {
   eligibleCount: number;
   additions: Candidate[];
   updates: (Candidate & { entryId: string; oldName: string; oldRank: string | null; wasActive: boolean; wasSynced: boolean })[];
-  inactivations: { entryId: string; name: string; username: string; oldRank: string | null; newRank: string; newRoleId: number | null; rankNumber: number | null; reason: string }[];
+  inactivations: { entryId: string; name: string; username: string; robloxUserId: string; oldRank: string | null; newRank: string; newRoleId: number | null; rankNumber: number | null; reason: string }[];
   unchanged: (Candidate & { entryId: string })[];
   exceptions: { username?: string; userId?: string; reason: string }[];
 };
@@ -57,7 +57,7 @@ export async function buildRobloxRosterSyncPreview(members: RobloxGroupMember[])
     const eligible = eligibleRoleIds.has(member.roleId);
     const existing = byRobloxId.get(member.userId);
     if (!eligible) {
-      if (existing?.robloxSynced && existing.isActive) preview.inactivations.push({ entryId: existing.id, name: existing.name, username: member.username, oldRank: existing.rank, newRank: member.roleName, newRoleId: member.roleId, rankNumber: member.rank, reason: "Roblox group role is below the configured ADA threshold." });
+      if (existing?.robloxSynced && existing.isActive) preview.inactivations.push({ entryId: existing.id, name: existing.name, username: member.username, robloxUserId: member.userId, oldRank: existing.rank, newRank: member.roleName, newRoleId: member.roleId, rankNumber: member.rank, reason: "Roblox group role is below the configured ADA threshold." });
       continue;
     }
     preview.eligibleCount++;
@@ -89,7 +89,7 @@ export async function buildRobloxRosterSyncPreview(members: RobloxGroupMember[])
       if (eligibleRoleIds.has(member.roleId)) continue;
       continue;
     }
-    preview.inactivations.push({ entryId: entry.id, name: entry.name, username: entry.robloxUserId, oldRank: entry.rank, newRank: "Not in group", newRoleId: null, rankNumber: null, reason: "Roblox account is no longer a member of the configured group." });
+    preview.inactivations.push({ entryId: entry.id, name: entry.name, username: entry.name, robloxUserId: entry.robloxUserId, oldRank: entry.rank, newRank: "Not in group", newRoleId: null, rankNumber: null, reason: "Roblox account is no longer a member of the configured group." });
   }
   return preview;
 }
@@ -125,7 +125,7 @@ export async function runAutomaticRobloxRosterSync(): Promise<void> {
       }
       for (const change of preview.inactivations) {
         const row = await tx.rosterEntry.findUnique({ where: { id: change.entryId } });
-        if (!row || !row.isActive || !row.robloxSynced || row.robloxUserId !== change.username) throw new Error(`${change.name}'s roster record changed during sync.`);
+        if (!row || !row.isActive || !row.robloxSynced || row.robloxUserId !== change.robloxUserId) throw new Error(`${change.name}'s roster record changed during sync.`);
       }
 
       for (const change of allTargets) {
