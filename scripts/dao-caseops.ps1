@@ -33,8 +33,8 @@ param(
   [string]$DiscoveryDueAt,
   [string]$PretrialAt,
   [string]$ClosedAt,
-  [string]$CiTitle = "Criminal Information",
-  [string]$CiPdfPath,
+  [Alias("CiTitle")][string]$OpeningFilingTitle = "Initial Filing",
+  [Alias("CiPdfPath")][string]$OpeningFilingPdfPath,
   [string]$AopcTitle = "Affidavit of Probable Cause (AOPC)",
   [string]$AopcPdfPath,
   [switch]$Local,
@@ -251,10 +251,10 @@ function Mark-DaoCaseFiledInCourt {
   $case = $detail.case
   $initial = @($case.filings | Where-Object { $_.isInitial -and $_.status -eq "ACCEPTED" })
   if ($case.courtFiledAt) { Write-Host "Already recorded filed in court: $($case.courtFiledAt)"; return }
-  if (-not $initial.Count) { throw "No approved initial Criminal Information is attached. The portal will not mark this case filed." }
+  if (-not $initial.Count) { throw "No approved opening filing is attached. The portal will not mark this case filed." }
   [pscustomobject]@{ CaseNumber = $case.caseNumber; Title = $case.title; ApprovedInitialFiling = $initial[0].title; Action = "Record the current time as filed in court" } | Format-List
   if (-not $Apply) { Write-Host "Preview only. Add -Apply after the court filing actually occurs. This does not submit anything to the court."; return }
-  if ($PSCmdlet.ShouldProcess($CaseNumber, "Record initial complaint as filed in court now")) {
+  if ($PSCmdlet.ShouldProcess($CaseNumber, "Record opening filing as filed in court now")) {
     $safeNumber = [uri]::EscapeDataString($CaseNumber)
     $saved = Invoke-DaoApi -Method POST -Path "/api/automation/cases/$safeNumber/court-filing" -Body "{}"
     Write-Host "Recorded $($saved.caseNumber) as filed in court at $($saved.filedAt)."
@@ -280,10 +280,10 @@ function New-CaseFromPdfs {
   if (-not $CaseTitle -or -not $CaseTitle.Trim()) { throw "Provide -CaseTitle." }
   if (-not $DefendantName -or -not $DefendantName.Trim()) { throw "Provide -DefendantName." }
   if ($Division -ne "Criminal Division") { throw "This command currently opens Criminal Division cases only." }
-  if (-not $CiTitle -or -not $CiTitle.Trim()) { throw "Provide -CiTitle." }
+  if (-not $OpeningFilingTitle -or -not $OpeningFilingTitle.Trim()) { throw "Provide -OpeningFilingTitle." }
   if (-not $AopcTitle -or -not $AopcTitle.Trim()) { throw "Provide -AopcTitle." }
 
-  $ci = Read-CaseOpeningPdf -Path $CiPdfPath -Label "Criminal Information"
+  $opening = Read-CaseOpeningPdf -Path $OpeningFilingPdfPath -Label "Opening filing"
   $aopc = Read-CaseOpeningPdf -Path $AopcPdfPath -Label "AOPC"
   $partyNames = @($DefendantName.Trim()) + @($CoDefendants | ForEach-Object { $_.Trim() } | Where-Object { $_ })
   if ($partyNames.Count -gt 20) { throw "A case can include no more than 20 defendants." }
@@ -296,16 +296,16 @@ function New-CaseFromPdfs {
     Stage = if ($Stage) { $Stage.Trim() } else { "Intake" }
     AssignedJudge = if ($AssignedJudge) { $AssignedJudge.Trim() } else { "Not set" }
     Assignee = if ($AssigneeId) { $AssigneeId } else { "Automatic workload assignment" }
-    CriminalInformation = "$($ci.File.Name) · $($ci.Bytes.Length) bytes"
+    OpeningFiling = "$($opening.File.Name) · $($opening.Bytes.Length) bytes"
     AOPC = "$($aopc.File.Name) · $($aopc.Bytes.Length) bytes"
-    Result = "Unfiled staff case; both PDFs attached as drafts"
+    Result = "Unfiled staff case; opening filing and AOPC attached as drafts"
   } | Format-List
 
   if (-not $Apply) {
-    Write-Host "Preview only. Add -Apply to create the unfiled case and attach both PDFs. No court filing will occur."
+    Write-Host "Preview only. Add -Apply to create the unfiled case and attach the opening filing and AOPC. No court filing will occur."
     return
   }
-  if ($PSCmdlet.ShouldProcess($CaseTitle.Trim(), "Create Criminal Division case with separate CI and AOPC PDFs")) {
+  if ($PSCmdlet.ShouldProcess($CaseTitle.Trim(), "Create Criminal Division case with an opening filing and separate AOPC PDF")) {
     $payload = @{
       title = $CaseTitle.Trim()
       defendantName = $DefendantName.Trim()
@@ -315,10 +315,10 @@ function New-CaseFromPdfs {
       stage = if ($Stage) { $Stage.Trim() } else { "Intake" }
       summary = $Summary.Trim()
       assignedAttorneyId = if ($AssigneeId) { $AssigneeId } else { "" }
-      criminalInformation = @{
-        title = $CiTitle.Trim()
-        fileName = $ci.File.Name
-        base64 = [Convert]::ToBase64String($ci.Bytes)
+      openingFiling = @{
+        title = $OpeningFilingTitle.Trim()
+        fileName = $opening.File.Name
+        base64 = [Convert]::ToBase64String($opening.Bytes)
       }
       aopc = @{
         title = $AopcTitle.Trim()
@@ -332,7 +332,7 @@ function New-CaseFromPdfs {
     Write-Host "$action $($result.caseNumber): $($result.title)"
     if ($result.assignedAttorney) { Write-Host "Assigned to: $($result.assignedAttorney)" }
     Write-Host "Case: $($script:DefaultBaseUrl)$($result.caseUrl)"
-    Write-Host "Status: $($result.status). The CI and AOPC are attached as drafts; nothing was filed in court."
+    Write-Host "Status: $($result.status). The opening filing and AOPC are attached as drafts; nothing was filed in court."
   }
 }
 

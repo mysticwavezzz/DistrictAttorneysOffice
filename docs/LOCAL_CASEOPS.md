@@ -73,7 +73,7 @@ Use `-AssigneeId UNASSIGNED` to preview or apply unassignment. Assignment reques
 
 The credential can only be created from the authenticated `M_ysticWavezzz` owner account, is bound server-side to that account, and the API rechecks live Roblox group roles and the current roster before returning case data or changing an assignment. Each request is signed by the Windows certificate key; copying the token or public certificate to another computer is not enough to sign requests. The token is stored encrypted for the current Windows user and expires after 90 days. Revoke it immediately if the computer or Windows account is compromised.
 
-The API exposes case listing and detail, eligible-attorney listing, case reassignment, guarded case-field updates, recording an initial complaint as filed in court, selected manual-note management, PDF filing upload, and case creation. Mutating commands preview first and require `-Apply`; the API independently checks live portal permissions and concurrent changes.
+The API exposes case listing and detail, eligible-attorney listing, case reassignment, guarded case-field updates, recording an opening filing as filed in court, selected manual-note management, PDF filing upload, and case creation. Mutating commands preview first and require `-Apply`; the API independently checks live portal permissions and concurrent changes.
 
 Open a new Criminal Division case directly from local PDFs:
 
@@ -81,11 +81,12 @@ Open a new Criminal Division case directly from local PDFs:
 pwsh -File .\scripts\dao-caseops.ps1 create-case `
   -CaseTitle "People v. ExampleUser" `
   -DefendantName "ExampleUser" `
-  -CiPdfPath "C:\path\to\Criminal Information.pdf" `
+  -OpeningFilingTitle "Complaint" `
+  -OpeningFilingPdfPath "C:\path\to\opening filing.pdf" `
   -AopcPdfPath "C:\path\to\AOPC.pdf"
 ```
 
-The command previews the case and both separate PDFs without writing anything. To create the case after reviewing the preview, add `-Apply`; PowerShell asks for confirmation. It creates an unfiled staff case, auto-assigns an eligible Criminal Division attorney by workload, and attaches both PDFs as drafts. Nothing is approved or filed with the court. Use `-CoDefendants name1,name2`, `-AssignedJudge`, `-Stage`, `-Summary`, `-CiTitle`, `-AopcTitle`, or `-AssigneeId` when needed; a manually selected assignee must be eligible under the caller's current permissions. Each PDF must be valid, unencrypted, and 5 MB or smaller. Repeating the same title, defendant list, and PDFs returns the existing case rather than creating another; if the same title has different documents, the command stops for manual review.
+The command previews the case and both separate PDFs without writing anything. To create the case after reviewing the preview, add `-Apply`; PowerShell asks for confirmation. It creates an unfiled staff case, auto-assigns an eligible Criminal Division attorney by workload, and attaches the opening filing and separate AOPC as drafts. The opening filing can be any PDF and its portal title is set with `-OpeningFilingTitle`; it does not have to be a Criminal Information. The separate AOPC remains required for Criminal Division cases. Nothing is approved or filed with the court. Use `-CoDefendants name1,name2`, `-AssignedJudge`, `-Stage`, `-Summary`, `-AopcTitle`, or `-AssigneeId` when needed; a manually selected assignee must be eligible under the caller's current permissions. Each PDF must be valid, unencrypted, and 5 MB or smaller. Repeating the same title, defendant list, and PDFs returns the existing case rather than creating another; if the same title has different documents, the command stops for manual review. `-CiPdfPath` and `-CiTitle` remain aliases for the renamed opening-filing parameters.
 
 Case creation requires the signed endpoint `POST /api/automation/cases/create`, deployed to the portal. It requires live `cases:create` permission and current Criminal Division assignment authority, applies current roster/group eligibility, records case history and activity, and does not accept court filing dates or action numbers. Approved investigator intake conversion remains in the portal workflow.
 
@@ -94,13 +95,13 @@ The signed local API also accepts a PDF filing for an existing active case. This
 Preview an upload:
 
 ```powershell
-pwsh -File .\scripts\dao-caseops.ps1 submit-filing -CaseNumber HCR-26-0025 -Title "Criminal Information" -PdfPath "C:\path\to\filing.pdf"
+pwsh -File .\scripts\dao-caseops.ps1 submit-filing -CaseNumber HCR-26-0025 -Title "Motion" -PdfPath "C:\path\to\filing.pdf"
 ```
 
 Submit after reviewing the preview; PowerShell will request confirmation:
 
 ```powershell
-pwsh -File .\scripts\dao-caseops.ps1 submit-filing -CaseNumber HCR-26-0025 -Title "Criminal Information" -PdfPath "C:\path\to\filing.pdf" -Apply
+pwsh -File .\scripts\dao-caseops.ps1 submit-filing -CaseNumber HCR-26-0025 -Title "Motion" -PdfPath "C:\path\to\filing.pdf" -Apply
 ```
 
 The command requires the one-time local case-operations setup above, accepts PDFs up to 5 MB, checks the PDF header and end marker, and refuses archived or draft cases. It reports the case and Review Inbox links after submission and avoids creating a duplicate when the same title and PDF were already submitted by the same account.
@@ -118,7 +119,7 @@ pwsh -File .\scripts\dao-caseops.ps1 update-case -CaseNumber HCR-26-0025 -Stage 
 pwsh -File .\scripts\dao-caseops.ps1 update-case -CaseNumber HCR-26-0025 -Stage "Pretrial" -AssignedJudge "Judge Name" -Apply
 ```
 
-After the approved initial Criminal Information has actually been filed in court, record that fact in the portal. This records the current time; it does not file anything with the court.
+After the approved opening filing has actually been filed in court, record that fact in the portal. This records the current time; it does not file anything with the court.
 
 ```powershell
 pwsh -File .\scripts\dao-caseops.ps1 filed-in-court -CaseNumber HCR-26-0025

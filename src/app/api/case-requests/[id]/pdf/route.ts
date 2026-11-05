@@ -20,7 +20,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const data = JSON.parse(caseRequest.proposedData);
     const requestedDocument = new URL(req.url).searchParams.get("document");
-    filing = requestedDocument === "aopc" ? data.aopcFiling ?? null : data.criminalInformation ?? data.initialFiling ?? null;
+    filing = requestedDocument === "aopc" ? data.aopcFiling ?? null : data.openingFiling ?? data.criminalInformation ?? data.initialFiling ?? null;
   } catch {
     return new Response("Not found", { status: 404 });
   }

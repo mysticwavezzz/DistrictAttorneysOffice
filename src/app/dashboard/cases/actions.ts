@@ -84,12 +84,12 @@ async function createCaseImpl(formData: FormData) {
     if (name.length > 100 || !allowedPartyRoles.has(role)) throw new Error("Check the party names and roles.");
     return { name, role };
   });
-  const uploadedCi = await readCasePdf(formData.get("criminalInformationPdf"));
-  const ciTitle = String(formData.get("criminalInformationTitle") ?? "").trim().slice(0, 200);
+  const uploadedOpeningFiling = await readCasePdf(formData.get("openingFilingPdf") ?? formData.get("criminalInformationPdf"));
+  const openingFilingTitle = String(formData.get("openingFilingTitle") ?? formData.get("criminalInformationTitle") ?? "").trim().slice(0, 200);
   const uploadedAopc = await readCasePdf(formData.get("aopcPdf"));
   const aopcTitle = String(formData.get("aopcTitle") ?? "").trim().slice(0, 200);
   const approvedAopc = intakeTicket?.aopcs.find((document) => document.documentType === "AOPC" && document.pdfData);
-  let previousCi: { title?: string; pdfData?: string; pdfFileName?: string } | null = null;
+  let previousOpeningFiling: { title?: string; pdfData?: string; pdfFileName?: string } | null = null;
   let previousAopc: { title?: string; pdfData?: string; pdfFileName?: string } | null = null;
   const reviseRequestId = emptyToNull(String(formData.get("reviseRequestId") ?? ""));
   let previousRequest: Awaited<ReturnType<typeof prisma.caseActionRequest.findUnique>> = null;
@@ -100,22 +100,22 @@ async function createCaseImpl(formData: FormData) {
     }
     try {
       const priorData = JSON.parse(previousRequest.proposedData) as Record<string, unknown>;
-      const ciCandidate = priorData.criminalInformation ?? priorData.initialFiling;
+      const openingCandidate = priorData.openingFiling ?? priorData.criminalInformation ?? priorData.initialFiling;
       const aopcCandidate = priorData.aopcFiling;
-      if (ciCandidate && typeof ciCandidate === "object" && "pdfData" in ciCandidate) previousCi = ciCandidate as { title?: string; pdfData?: string; pdfFileName?: string };
+      if (openingCandidate && typeof openingCandidate === "object" && "pdfData" in openingCandidate) previousOpeningFiling = openingCandidate as { title?: string; pdfData?: string; pdfFileName?: string };
       if (aopcCandidate && typeof aopcCandidate === "object" && "pdfData" in aopcCandidate) previousAopc = aopcCandidate as { title?: string; pdfData?: string; pdfFileName?: string };
     } catch {
       throw new Error("The rejected submission could not be loaded. Contact a reviewer.");
     }
   }
-  const ciPdf = uploadedCi ?? previousCi;
+  const openingFilingPdf = uploadedOpeningFiling ?? previousOpeningFiling;
   const aopcPdf = approvedAopc?.pdfData
     ? { title: approvedAopc.title, pdfData: approvedAopc.pdfData, pdfFileName: approvedAopc.pdfFileName ?? "Affidavit of Probable Cause.pdf" }
     : uploadedAopc ?? previousAopc;
   const requiresCriminalDocuments = user.division === "Criminal Division";
-  if (requiresCriminalDocuments && !ciPdf?.pdfData) throw new Error("A Criminal Information PDF is required before a Criminal Division case can open.");
+  if (requiresCriminalDocuments && !openingFilingPdf?.pdfData) throw new Error("An opening filing PDF is required before a Criminal Division case can open.");
   if (requiresCriminalDocuments && !aopcPdf?.pdfData) throw new Error("A separate AOPC PDF is required before a Criminal Division case can open. An investigative report cannot replace it.");
-  const criminalInformation = ciPdf?.pdfData ? { title: ciTitle || previousCi?.title || "Criminal Information", url: null, ...ciPdf } : null;
+  const openingFiling = openingFilingPdf?.pdfData ? { title: openingFilingTitle || previousOpeningFiling?.title || "Initial Filing", url: null, ...openingFilingPdf } : null;
   const aopcFiling = aopcPdf?.pdfData ? { title: aopcTitle || approvedAopc?.title || previousAopc?.title || "Affidavit of Probable Cause (AOPC)", url: null, ...aopcPdf } : null;
   const relatedIds = await resolveRelatedCaseIds(formData.get("relatedCaseNumbers"));
 
@@ -126,7 +126,7 @@ async function createCaseImpl(formData: FormData) {
     division: user.division,
     divisionGroup: caseGroup,
     partyDetails: JSON.stringify(parties),
-    criminalInformation,
+    openingFiling,
     aopcFiling,
     relatedCaseNumbers: String(formData.get("relatedCaseNumbers") ?? ""),
   };
@@ -152,7 +152,7 @@ async function createCaseImpl(formData: FormData) {
     await notifyMany(reviewerIds.filter((id) => id !== user.id), {
       type: "case_request",
       title: "New case opening needs review",
-      body: `${data.title} · Criminal Information and AOPC attached`,
+      body: `${data.title} · Opening filing and AOPC attached`,
       link: "/dashboard/cases/requests?status=pending",
     });
     await notify({
@@ -203,7 +203,7 @@ async function createCaseImpl(formData: FormData) {
       },
     });
     const openingFilings = [
-      ...(criminalInformation ? [{ caseId: caseRecord.id, title: criminalInformation.title, url: criminalInformation.url, pdfData: criminalInformation.pdfData, pdfFileName: criminalInformation.pdfFileName, addedById: user.id, status: "DRAFT", isInitial: true, documentType: "CRIMINAL_INFORMATION" }] : []),
+      ...(openingFiling ? [{ caseId: caseRecord.id, title: openingFiling.title, url: openingFiling.url, pdfData: openingFiling.pdfData, pdfFileName: openingFiling.pdfFileName, addedById: user.id, status: "DRAFT", isInitial: true, documentType: "OTHER" }] : []),
       ...(aopcFiling ? [{ caseId: caseRecord.id, title: aopcFiling.title, url: aopcFiling.url, pdfData: aopcFiling.pdfData, pdfFileName: aopcFiling.pdfFileName, addedById: user.id, status: approvedAopc?.pdfData ? "ACCEPTED" : "DRAFT", isInitial: false, documentType: "AOPC" }] : []),
     ];
     if (openingFilings.length) await tx.caseFiling.createMany({ data: openingFilings });
@@ -253,9 +253,9 @@ async function fileCaseImpl(formData: FormData) {
   const legacyWindowStart = new Date(caseRecord.createdAt.getTime() - 120_000);
   const legacyWindowEnd = new Date(caseRecord.createdAt.getTime() + 120_000);
   const legacyInitialAccepted = !caseRecord.filings.some((filing) => filing.isInitial)
-    ? await prisma.caseFiling.findFirst({ where: { caseId: id, status: "ACCEPTED", isInitial: false, createdAt: { gte: legacyWindowStart, lte: legacyWindowEnd } }, select: { id: true } })
+    ? await prisma.caseFiling.findFirst({ where: { caseId: id, status: "ACCEPTED", isInitial: false, documentType: { not: "AOPC" }, createdAt: { gte: legacyWindowStart, lte: legacyWindowEnd } }, select: { id: true } })
     : null;
-  if (caseRecord.courtFiledAt || caseRecord.filings.some((filing) => filing.status === "ACCEPTED") || legacyInitialAccepted) throw new Error("This case has already been filed with the court.");
+  if (caseRecord.courtFiledAt || caseRecord.filings.some((filing) => filing.isInitial && filing.status === "ACCEPTED") || legacyInitialAccepted) throw new Error("This case has already been filed with the court.");
   if (caseRecord.filings.some((filing) => filing.status === "PENDING")) throw new Error("The initial filing is already awaiting review.");
 
   const draftFiling = caseRecord.filings.find((filing) => filing.status === "DRAFT");
@@ -286,7 +286,7 @@ async function fileCaseImpl(formData: FormData) {
         where: { id: draftFiling.id, status: "DRAFT" },
         data: { title, status: nextStatus, reviewedById: needsApproval ? null : user.id, reviewedAt, submittedAt, filedAt, courtFilingUrl: null },
       });
-      if (!claimed.count) throw new Error("This complaint was already submitted. Refresh the case before retrying.");
+      if (!claimed.count) throw new Error("This opening filing was already submitted. Refresh the case before retrying.");
     } else {
       await tx.caseFiling.create({
         data: { caseId: id, title, pdfData: sourceFiling.pdfData, pdfFileName: sourceFiling.pdfFileName, addedById: user.id, status: nextStatus, isInitial: true, reviewedById: needsApproval ? null : user.id, reviewedAt, submittedAt, filedAt, courtFilingUrl: null },
@@ -295,7 +295,7 @@ async function fileCaseImpl(formData: FormData) {
     await tx.case.update({ where: { id }, data: { updatedAt: new Date() } });
     await tx.caseComment.create({ data: {
       caseId: id,
-      body: needsApproval ? `Initial complaint submitted for portal review by ${session.user.displayName}.` : `Initial complaint approved for court filing by ${session.user.displayName}. Mark it filed in court after it is filed.`,
+      body: needsApproval ? `Opening filing submitted for portal review by ${session.user.displayName}.` : `Opening filing approved for court filing by ${session.user.displayName}. Mark it filed in court after it is filed.`,
       isSystem: true,
     } });
   });
@@ -309,13 +309,13 @@ async function fileCaseImpl(formData: FormData) {
       const divisionReviewers = caseRecord.division ? await prisma.user.findMany({ where: { id: { in: divisionReviewerIds }, division: caseRecord.division, ...(caseRecord.division === "Criminal Division" ? { OR: [{ divisionGroup: caseRecord.divisionGroup }, { tiers: { contains: "chief_assistant_district_attorney" } }] } : {}) }, select: { id: true } }) : [];
       await notifyMany(Array.from(new Set([...globalReviewerIds, ...divisionReviewers.map((reviewer) => reviewer.id)])).filter((reviewerId) => reviewerId !== user.id), {
         type: "case_filing",
-        title: "Initial case filing needs review",
+        title: "Opening filing needs review",
         body: `${caseRecord.caseNumber} · ${caseRecord.title}`,
         link: "/dashboard/review?type=filing",
       });
       await notify({ userId: user.id, type: "case_filing", title: "Case filing submitted for review", body: `${caseRecord.caseNumber} · ${caseRecord.title}`, link: `/dashboard/cases/${id}#court-filing` });
     } else if (caseRecord.assignedAttorneyId && caseRecord.assignedAttorneyId !== user.id) {
-      await notify({ userId: caseRecord.assignedAttorneyId, type: "case_filing", title: `Initial complaint ready to file: ${caseRecord.caseNumber}`, body: caseRecord.title, link: `/dashboard/cases/${id}#court-filing` });
+      await notify({ userId: caseRecord.assignedAttorneyId, type: "case_filing", title: `Opening filing ready to file: ${caseRecord.caseNumber}`, body: caseRecord.title, link: `/dashboard/cases/${id}#court-filing` });
     }
   } catch (error) {
     console.error(`[case filing ${id}] Filing saved, but notification delivery failed`, error);
@@ -336,18 +336,18 @@ async function recordCourtFilingImpl(formData: FormData) {
     || Boolean(caseRecord && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE) && caseRecord.createdById === user.id);
   if (!caseRecord || !canAccessCase(session.user.tiers, user.id, caseRecord, user.division, user.divisionGroup) || !mayRecord) throw new Error("Case not accessible.");
   if (caseRecord.courtFiledAt) throw new Error("The court filing is already recorded.");
-  if (!caseRecord.filings.length) throw new Error("The initial complaint must be approved in the portal before recording its court filing.");
+  if (!caseRecord.filings.length) throw new Error("The opening filing must be approved in the portal before recording its court filing.");
   const initialFiling = caseRecord.filings[0];
-  if (!initialFiling) throw new Error("The approved initial complaint could not be loaded. Refresh this case.");
+  if (!initialFiling) throw new Error("The approved opening filing could not be loaded. Refresh this case.");
   const courtFiledAt = new Date();
   await prisma.$transaction(async (tx) => {
     const update = await tx.case.updateMany({ where: { id, courtFiledAt: null }, data: { courtFiledAt, initialFilingDue: null, updatedAt: courtFiledAt } });
     if (!update.count) throw new Error("The court filing was recorded by another staff member. Refresh this case.");
     const filingUpdate = await tx.caseFiling.updateMany({ where: { id: initialFiling.id, status: "ACCEPTED", filedAt: null }, data: { filedAt: courtFiledAt } });
     if (!filingUpdate.count) throw new Error("The initial filing record changed. Refresh this case and check the timeline.");
-    await tx.caseComment.create({ data: { caseId: id, isSystem: true, body: `Initial complaint marked filed in court on ${courtFiledAt.toLocaleString("en-US", { timeZone: "America/New_York" })} by ${session.user.displayName}.` } });
+    await tx.caseComment.create({ data: { caseId: id, isSystem: true, body: `Opening filing marked filed in court on ${courtFiledAt.toLocaleString("en-US", { timeZone: "America/New_York" })} by ${session.user.displayName}.` } });
   });
-  await logActivity(session.user.displayName, "Marked initial complaint filed in court", "Case", caseRecord.caseNumber);
+  await logActivity(session.user.displayName, "Marked opening filing filed in court", "Case", caseRecord.caseNumber);
   revalidatePath("/dashboard/cases");
   revalidatePath("/dashboard/search");
   revalidatePath("/dashboard/reports");

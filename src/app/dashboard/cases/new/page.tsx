@@ -9,7 +9,7 @@ import { staffPageMetadata } from "@/lib/staff-metadata";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
 import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 
-export const metadata = staffPageMetadata("Open a Case", "Create an unfiled case record and submit its initial complaint to the court.", "/dashboard/cases/new");
+export const metadata = staffPageMetadata("Open a Case", "Create an unfiled case record with an opening filing and supporting AOPC.", "/dashboard/cases/new");
 
 export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ reviseRequestId?: string; intakeTicketId?: string }> }) {
   const session = await auth();
@@ -55,9 +55,9 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
     } catch {
       redirect("/dashboard/cases");
     }
-    const ciCandidate = data.criminalInformation ?? data.initialFiling;
-    const filing = ciCandidate && typeof ciCandidate === "object"
-      ? ciCandidate as { title?: string; pdfData?: string; pdfFileName?: string }
+    const openingCandidate = data.openingFiling ?? data.criminalInformation ?? data.initialFiling;
+    const filing = openingCandidate && typeof openingCandidate === "object"
+      ? openingCandidate as { title?: string; pdfData?: string; pdfFileName?: string }
       : null;
     const aopc = data.aopcFiling && typeof data.aopcFiling === "object"
       ? data.aopcFiling as { title?: string; pdfData?: string; pdfFileName?: string }

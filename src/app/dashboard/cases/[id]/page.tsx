@@ -231,12 +231,12 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
   const courtFilingSection = (
     <section className="case-court-filing" id="court-filing" aria-labelledby="court-filing-title">
-      <div className="case-court-filing-heading"><div><p className="eyebrow">Initial complaint</p><h2 id="court-filing-title">Court filing record</h2></div></div>
+      <div className="case-court-filing-heading"><div><p className="eyebrow">Opening filing</p><h2 id="court-filing-title">Court filing record</h2></div></div>
       {chargesFiledByStatus && <p className="note-inline">The case status has reached or passed “Charges Filed,” so that milestone is marked complete. Complaint submission and the actual court filing date remain tracked separately.</p>}
       {effectiveCourtFiledAt ? <p>Filed {dateTimeFormatter.format(effectiveCourtFiledAt)}{caseRecord.courtDocketUrl ? <> · <a href={caseRecord.courtDocketUrl} target="_blank" rel="noreferrer noopener">Open court record ↗</a></> : null}</p>
-        : acceptedInitial ? <><p>Approved in the portal {acceptedInitialFiling?.reviewedAt ? dateTimeFormatter.format(acceptedInitialFiling.reviewedAt) : ""}. Once you file the complaint with the court, mark it below.</p>{canFileCourt && <form action={recordCourtFiling} className="case-court-filing-form"><input type="hidden" name="caseId" value={caseRecord.id}/><PendingSubmitButton label="Filed in Court" pendingLabel="Saving…" className="govbtn"/></form>}</>
-          : pendingInitial ? <p>The initial complaint is in the Review Inbox. Portal approval will not mark it as filed with the court.</p>
-            : returnedInitial ? <p className="note-inline">The initial complaint was returned{returnedInitial.reviewNote ? `: ${returnedInitial.reviewNote}` : ". Replace the PDF and submit it for review again."}</p>
+        : acceptedInitial ? <><p>Approved in the portal {acceptedInitialFiling?.reviewedAt ? dateTimeFormatter.format(acceptedInitialFiling.reviewedAt) : ""}. Once you file the opening document with the court, mark it below.</p>{canFileCourt && <form action={recordCourtFiling} className="case-court-filing-form"><input type="hidden" name="caseId" value={caseRecord.id}/><PendingSubmitButton label="Filed in Court" pendingLabel="Saving…" className="govbtn"/></form>}</>
+          : pendingInitial ? <p>The opening filing is in the Review Inbox. Portal approval will not mark it as filed with the court.</p>
+            : returnedInitial ? <p className="note-inline">The opening filing was returned{returnedInitial.reviewNote ? `: ${returnedInitial.reviewNote}` : ". Replace the PDF and submit it for review again."}</p>
         : <p>This staff case record has not been filed with the court.</p>}
       {!effectiveCourtFiledAt && !pendingInitial && !acceptedInitial && canFileCourt && <form action={fileCase} className="case-court-filing-form" encType="multipart/form-data">
         <input type="hidden" name="caseId" value={caseRecord.id} />
@@ -252,9 +252,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     <summary><h2>Filings &amp; evidence</h2><span>{visibleFilings.length + caseRecord.aopcs.length + caseRecord.evidence.length} records</span></summary>
     <div className="case-detail-fold-body">
       {courtFilingSection}
-      <section className="case-subsection" aria-labelledby="initial-documents-title"><div className="case-subsection-heading"><div><p className="eyebrow">Charging documents</p><h3 id="initial-documents-title">Initial complaint and AOPC</h3></div><span>{initialFilings.length + aopcFilings.length + caseRecord.aopcs.length}</span></div>
-        {initialFilings.length === 0 && aopcFilings.length === 0 && caseRecord.aopcs.length === 0 ? <p className="note-inline">No initial complaint or linked AOPC/report is recorded.</p> : <ul className="case-source-list">
-          {initialFilings.map((filing) => <li key={filing.id}><div><strong>{filing.title}</strong><span>Initial complaint · {filing.status === "ACCEPTED" ? "Approved" : filing.status === "PENDING" ? "Awaiting review" : filing.status === "REJECTED" ? "Returned" : "Draft"}{filing.filedAt || caseRecord.courtFiledAt ? ` · Filed ${dateTimeFormatter.format(filing.filedAt ?? caseRecord.courtFiledAt!)}` : " · Not marked filed in court"}</span></div><div className="case-filing-actions">{filing.pdfFileName && <a className="govbtn-outline" href={`/api/cases/filings/${filing.id}/pdf`} target="_blank" rel="noreferrer noopener">PDF</a>}{filing.url && <a className="govbtn-outline" href={filing.url} target="_blank" rel="noreferrer noopener">Source</a>}</div></li>)}
+      <section className="case-subsection" aria-labelledby="initial-documents-title"><div className="case-subsection-heading"><div><p className="eyebrow">Opening documents</p><h3 id="initial-documents-title">Opening filing and AOPC</h3></div><span>{initialFilings.length + aopcFilings.length + caseRecord.aopcs.length}</span></div>
+        {initialFilings.length === 0 && aopcFilings.length === 0 && caseRecord.aopcs.length === 0 ? <p className="note-inline">No opening filing or linked AOPC/report is recorded.</p> : <ul className="case-source-list">
+          {initialFilings.map((filing) => <li key={filing.id}><div><strong>{filing.title}</strong><span>Opening filing · {filing.status === "ACCEPTED" ? "Approved" : filing.status === "PENDING" ? "Awaiting review" : filing.status === "REJECTED" ? "Returned" : "Draft"}{filing.filedAt || caseRecord.courtFiledAt ? ` · Filed ${dateTimeFormatter.format(filing.filedAt ?? caseRecord.courtFiledAt!)}` : " · Not marked filed in court"}</span></div><div className="case-filing-actions">{filing.pdfFileName && <a className="govbtn-outline" href={`/api/cases/filings/${filing.id}/pdf`} target="_blank" rel="noreferrer noopener">PDF</a>}{filing.url && <a className="govbtn-outline" href={filing.url} target="_blank" rel="noreferrer noopener">Source</a>}</div></li>)}
           {aopcFilings.map((filing) => <li key={`aopc-filing-${filing.id}`}><div><strong>{filing.title}</strong><span>AOPC · {filing.status === "ACCEPTED" ? "Approved" : filing.status === "PENDING" ? "Awaiting review" : filing.status === "REJECTED" ? "Returned" : "Draft"}{filing.filedAt ? ` · Filed ${dateTimeFormatter.format(filing.filedAt)}` : " · Court filing not recorded"}</span></div><div className="case-filing-actions">{filing.pdfFileName && <a className="govbtn-outline" href={`/api/cases/filings/${filing.id}/pdf`} target="_blank" rel="noreferrer noopener">PDF</a>}{filing.url && <a className="govbtn-outline" href={filing.url} target="_blank" rel="noreferrer noopener">Source</a>}</div></li>)}
           {caseRecord.aopcs.map((aopc) => <li key={`aopc-${aopc.id}`}><div><strong>{aopc.reportId ?? aopc.title}</strong><span>{aopc.documentType === "INVESTIGATIVE_REPORT" ? "Investigative report" : "AOPC"} · {aopc.status === "ACCEPTED" ? "Approved" : aopc.status === "PENDING" ? "Awaiting review" : aopc.status} · {aopc.subject}</span>{aopc.reviewNote && <small>{aopc.reviewNote}</small>}</div><div className="case-filing-actions">{aopc.documentUrl && <a className="govbtn-outline" href={aopc.documentUrl} target="_blank" rel="noreferrer noopener">Source</a>}</div></li>)}
         </ul>}
@@ -274,11 +274,11 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const nextStep = pendingInitial
     ? "Initial filing is waiting for review. Its status will update when a reviewer decides."
     : acceptedInitial && !isCourtFiled
-      ? "The initial complaint is approved in the portal. Mark it filed after filing it with the court."
+    ? "The opening filing is approved in the portal. Mark it filed after filing it with the court."
     : returnedInitial && !isCourtFiled
-      ? "The complaint was returned. Correct the PDF and resubmit it for review."
+    ? "The opening filing was returned. Correct the PDF and resubmit it for review."
       : !isCourtFiled
-        ? canFileCourt ? "File the initial complaint to move this case into the court docket." : "This case is waiting for an authorized staff member to file the initial complaint."
+        ? canFileCourt ? "File the opening document to move this case into the court docket." : "This case is waiting for an authorized staff member to file the opening document."
         : nextCaseDate
               ? `Next scheduled date: ${courtDateFormatter.format(nextCaseDate)}.`
               : "Court filing is complete. Add hearing dates or case tasks when the court or office sets them.";

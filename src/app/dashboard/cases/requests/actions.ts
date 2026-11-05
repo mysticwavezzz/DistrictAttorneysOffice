@@ -133,11 +133,11 @@ async function reviewCaseRequestImpl(formData: FormData) {
         const eligible = await getDivisionCaseAssignees(requestDivision, { divisionGroup: caseGroup, restrictToGroup: requestDivision === "Criminal Division" && Boolean(caseGroup) });
         if (!eligible.some((attorney) => attorney.id === assignedAttorney.id)) throw new Error("The selected attorney is no longer on the active eligible roster. Update the assignment and resubmit.");
       }
-      const ciCandidate = data.criminalInformation ?? data.initialFiling;
-      const ci = ciCandidate && typeof ciCandidate === "object" ? ciCandidate as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string } : null;
+      const openingCandidate = data.openingFiling ?? data.criminalInformation ?? data.initialFiling;
+      const openingFiling = openingCandidate && typeof openingCandidate === "object" ? openingCandidate as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string } : null;
       const aopcCandidate = data.aopcFiling;
       const aopc = aopcCandidate && typeof aopcCandidate === "object" ? aopcCandidate as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string } : null;
-      if (requestDivision === "Criminal Division" && (!ci?.pdfData || !aopc?.pdfData)) throw new Error("This Criminal Division case opening cannot be approved without separate Criminal Information and AOPC PDFs. An investigative report does not replace the AOPC.");
+      if (requestDivision === "Criminal Division" && (!openingFiling?.pdfData || !aopc?.pdfData)) throw new Error("This Criminal Division case opening needs an opening filing PDF and a separate AOPC PDF. An investigative report does not replace the AOPC.");
       const caseNumber = emptyToNull(caseData.caseNumber) ?? (await generateCaseNumber());
       const created = await prisma.$transaction(async (tx) => {
         const claimed = await tx.caseActionRequest.updateMany({
@@ -179,11 +179,11 @@ async function reviewCaseRequestImpl(formData: FormData) {
           },
         });
         const openingFilings = [
-          ...(ci?.pdfData ? [{ caseId: caseRecord.id, title: ci.title || "Criminal Information", url: ci.url ?? null, pdfData: ci.pdfData, pdfFileName: ci.pdfFileName ?? null, addedById: request.requestedById, isInitial: true, documentType: "CRIMINAL_INFORMATION", status: "PENDING", submittedAt: request.createdAt }] : []),
+          ...(openingFiling?.pdfData ? [{ caseId: caseRecord.id, title: openingFiling.title || "Initial Filing", url: openingFiling.url ?? null, pdfData: openingFiling.pdfData, pdfFileName: openingFiling.pdfFileName ?? null, addedById: request.requestedById, isInitial: true, documentType: "OTHER", status: "PENDING", submittedAt: request.createdAt }] : []),
           ...(aopc?.pdfData ? [{ caseId: caseRecord.id, title: aopc.title || "Affidavit of Probable Cause (AOPC)", url: aopc.url ?? null, pdfData: aopc.pdfData, pdfFileName: aopc.pdfFileName ?? null, addedById: request.requestedById, isInitial: false, documentType: "AOPC", status: "ACCEPTED", submittedAt: request.createdAt }] : []),
         ];
         if (openingFilings.length) await tx.caseFiling.createMany({ data: openingFilings });
-        await tx.caseComment.create({ data: { caseId: caseRecord.id, body: `Case opening approved.${requestDivision === "Criminal Division" ? " Separate Criminal Information and AOPC PDFs attached." : ""} ${assignmentReason}`, isSystem: true } });
+        await tx.caseComment.create({ data: { caseId: caseRecord.id, body: `Case opening approved.${requestDivision === "Criminal Division" ? " Opening filing and separate AOPC PDFs attached." : ""} ${assignmentReason}`, isSystem: true } });
         return caseRecord;
       });
       createdCaseId = created.id;
