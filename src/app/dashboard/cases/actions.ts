@@ -113,7 +113,6 @@ async function createCaseImpl(formData: FormData) {
     ? { title: approvedAopc.title, pdfData: approvedAopc.pdfData, pdfFileName: approvedAopc.pdfFileName ?? "Affidavit of Probable Cause.pdf" }
     : uploadedAopc ?? previousAopc;
   const requiresCriminalDocuments = user.division === "Criminal Division";
-  if (requiresCriminalDocuments && !openingFilingPdf?.pdfData) throw new Error("An opening filing PDF is required before a Criminal Division case can open.");
   if (requiresCriminalDocuments && !aopcPdf?.pdfData) throw new Error("A separate AOPC PDF is required before a Criminal Division case can open. An investigative report cannot replace it.");
   const openingFiling = openingFilingPdf?.pdfData ? { title: openingFilingTitle || previousOpeningFiling?.title || "Initial Filing", url: null, ...openingFilingPdf } : null;
   const aopcFiling = aopcPdf?.pdfData ? { title: aopcTitle || approvedAopc?.title || previousAopc?.title || "Affidavit of Probable Cause (AOPC)", url: null, ...aopcPdf } : null;

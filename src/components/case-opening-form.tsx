@@ -68,9 +68,7 @@ export function CaseOpeningForm({
       return;
     }
     if (step === 2) {
-      const initialSelected = Boolean((document.getElementById("initial-filing-pdf") as HTMLInputElement | null)?.files?.length);
       const aopcSelected = Boolean((document.getElementById("aopc-pdf") as HTMLInputElement | null)?.files?.length);
-      if (requiresCriminalDocuments && !initialSelected && !revision?.filingName) { setValidationError("Attach an initial filing PDF before continuing."); return; }
       if (requiresCriminalDocuments && !aopcSelected && !intakeDraft?.approvedAopcTitle && !revision?.aopcName) { setValidationError("Attach the separate AOPC PDF before continuing."); return; }
     }
     setValidationError("");
@@ -92,7 +90,7 @@ export function CaseOpeningForm({
 
       {revision && <p className="message" role="status"><strong>Returned for revision.</strong> {revision.rejectionNote || "Update the submission and resubmit it for review."}</p>}
       {revision && <p className="message" role="note">Resubmitting returns this request to the leadership review queue.</p>}
-      {intakeDraft && <div className="message investigator-case-source"><strong>Approved investigator intake.</strong> Confirm the defendant and case title, then review possible duplicates. Attach the opening filing below. {intakeDraft.approvedAopcTitle ? `The approved AOPC will be attached separately: ${intakeDraft.approvedAopcTitle}.` : "A separate AOPC PDF is required; an investigative report does not replace it."}{intakeDraft.possibleDuplicates.length > 0 && <div><p>Possible existing cases to check before opening:</p><ul>{intakeDraft.possibleDuplicates.map((item) => <li key={item.id}><a href={`/dashboard/cases/${item.id}`} target="_blank" rel="noreferrer">{item.caseNumber} · {item.title}</a>{item.stage ? ` · ${item.stage}` : ""}</li>)}</ul></div>}</div>}
+      {intakeDraft && <div className="message investigator-case-source"><strong>Approved investigator intake.</strong> Confirm the defendant and case title, then review possible duplicates. An opening filing is optional and can be added later. {intakeDraft.approvedAopcTitle ? `The approved AOPC will be attached separately: ${intakeDraft.approvedAopcTitle}.` : "A separate AOPC PDF is required; an investigative report does not replace it."}{intakeDraft.possibleDuplicates.length > 0 && <div><p>Possible existing cases to check before opening:</p><ul>{intakeDraft.possibleDuplicates.map((item) => <li key={item.id}><a href={`/dashboard/cases/${item.id}`} target="_blank" rel="noreferrer">{item.caseNumber} · {item.title}</a>{item.stage ? ` · ${item.stage}` : ""}</li>)}</ul></div>}</div>}
       {!revision && canCreate && !reviewersCanAutoApprove && (
         <p className="message" role="note">Opening the case creates an unfiled record. When you press File on the case page, the opening filing will go to your division’s review inbox.</p>
       )}
@@ -121,10 +119,8 @@ export function CaseOpeningForm({
           setStep(1);
           setValidationError("Add at least one person or party before submitting.");
         } else {
-          const initialSelected = Boolean((document.getElementById("initial-filing-pdf") as HTMLInputElement | null)?.files?.length);
           const aopcSelected = Boolean((document.getElementById("aopc-pdf") as HTMLInputElement | null)?.files?.length);
-          if (requiresCriminalDocuments && !initialSelected && !revision?.filingName) { event.preventDefault(); setStep(2); setValidationError("Attach an initial filing PDF before submitting."); }
-          else if (requiresCriminalDocuments && !aopcSelected && !intakeDraft?.approvedAopcTitle && !revision?.aopcName) { event.preventDefault(); setStep(2); setValidationError("Attach the separate AOPC PDF before submitting."); }
+          if (requiresCriminalDocuments && !aopcSelected && !intakeDraft?.approvedAopcTitle && !revision?.aopcName) { event.preventDefault(); setStep(2); setValidationError("Attach the separate AOPC PDF before submitting."); }
         }
       }}>
         {validationError && <p className="message error" role="alert">{validationError}</p>}
@@ -169,10 +165,10 @@ export function CaseOpeningForm({
 
         <fieldset hidden={step !== 2}>
           <legend>Case opening documents</legend>
-          <p className="note-inline">{requiresCriminalDocuments ? "Attach the filing that will open the case and enter the title it should appear under. A separate AOPC is still required; an investigative report does not replace it." : "Attach the documents needed for this case. Portal approval and filing with the court remain separate steps."}</p>
+          <p className="note-inline">{requiresCriminalDocuments ? "An opening filing PDF is optional and can be added later. A separate AOPC is required; an investigative report does not replace it." : "Attach the documents needed for this case. Portal approval and filing with the court remain separate steps."}</p>
           {revision?.filingName && <p className="message">Current opening filing: {revision.filingTitle || revision.filingName}</p>}
-          <div className="field"><label htmlFor="initial-filing-title">Opening filing title</label><input id="initial-filing-title" name="openingFilingTitle" maxLength={200} value={documentName} onChange={(event) => setDocumentName(event.target.value)} placeholder="Enter the filing title" /></div>
-          <div className="field"><label htmlFor="initial-filing-pdf">Opening filing PDF {requiresCriminalDocuments && !revision?.filingName && "(required)"}</label><PdfUploadInput id="initial-filing-pdf" name="openingFilingPdf" required={requiresCriminalDocuments && !revision?.filingName} /></div>
+          <div className="field"><label htmlFor="initial-filing-title">Opening filing title (optional)</label><input id="initial-filing-title" name="openingFilingTitle" maxLength={200} value={documentName} onChange={(event) => setDocumentName(event.target.value)} placeholder="Enter the filing title if attaching a PDF" /></div>
+          <div className="field"><label htmlFor="initial-filing-pdf">Opening filing PDF (optional)</label><PdfUploadInput id="initial-filing-pdf" name="openingFilingPdf" /></div>
           {intakeDraft?.approvedAopcTitle && !revision?.aopcName ? <p className="message message-success">Approved AOPC attached from investigator intake: {intakeDraft.approvedAopcTitle}</p> : <>
             {revision?.aopcName && <p className="message">Current AOPC: {revision.aopcTitle || revision.aopcName}</p>}
             <div className="field"><label htmlFor="aopc-title">AOPC title</label><input id="aopc-title" name="aopcTitle" maxLength={200} value={aopcName} onChange={(event) => setAopcName(event.target.value)} /></div>
@@ -189,7 +185,7 @@ export function CaseOpeningForm({
             <p><strong>Opening filing</strong><span>{documentName || revision?.filingName || "No PDF attached"}</span></p>
             <p><strong>AOPC</strong><span>{intakeDraft?.approvedAopcTitle || aopcName || revision?.aopcName || "No PDF attached"}</span></p>
             <p><strong>Submitting officer</strong><span>{officerName}</span></p>
-            <p><strong>Next step</strong><span>{revision ? "Resubmission for review" : canCreate ? "Save an unfiled case with its opening filing and AOPC; court filing remains a separate action" : "Reviewer approval before the case record is created"}</span></p>
+            <p><strong>Next step</strong><span>{revision ? "Resubmission for review" : canCreate ? "Save an unfiled case with its AOPC; add an opening filing later if needed" : "Reviewer approval before the case record is created"}</span></p>
             <p className="note-inline">{revision ? "Check your changes, then resubmit this request for another review." : canCreate ? "No court filing is created until you use File on the case page." : "Check the case information and parties before submitting."}</p>
           </div>
         </fieldset>

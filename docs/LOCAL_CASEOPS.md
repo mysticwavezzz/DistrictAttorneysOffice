@@ -75,7 +75,7 @@ The credential can only be created from the authenticated `M_ysticWavezzz` owner
 
 The API exposes case listing and detail, eligible-attorney listing, case reassignment, guarded case-field updates, recording an opening filing as filed in court, selected manual-note management, PDF filing upload, and case creation. Mutating commands preview first and require `-Apply`; the API independently checks live portal permissions and concurrent changes.
 
-Open a new Criminal Division case directly from local PDFs:
+Open a new Criminal Division case with a separate AOPC PDF; an opening filing PDF is optional and can be added later:
 
 ```powershell
 pwsh -File .\scripts\dao-caseops.ps1 create-case `
@@ -86,7 +86,16 @@ pwsh -File .\scripts\dao-caseops.ps1 create-case `
   -AopcPdfPath "C:\path\to\AOPC.pdf"
 ```
 
-The command previews the case and both separate PDFs without writing anything. To create the case after reviewing the preview, add `-Apply`; PowerShell asks for confirmation. It creates an unfiled staff case, auto-assigns an eligible Criminal Division attorney by workload, and attaches the opening filing and separate AOPC as drafts. The opening filing can be any PDF and its portal title is set with `-OpeningFilingTitle`; it does not have to be a Criminal Information. The separate AOPC remains required for Criminal Division cases. Nothing is approved or filed with the court. Use `-CoDefendants name1,name2`, `-AssignedJudge`, `-Stage`, `-Summary`, `-AopcTitle`, or `-AssigneeId` when needed; a manually selected assignee must be eligible under the caller's current permissions. Each PDF must be valid, unencrypted, and 5 MB or smaller. Repeating the same title, defendant list, and PDFs returns the existing case rather than creating another; if the same title has different documents, the command stops for manual review. `-CiPdfPath` and `-CiTitle` remain aliases for the renamed opening-filing parameters.
+If there is no opening filing yet, omit both opening-filing parameters; the separate AOPC remains required:
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 create-case `
+  -CaseTitle "People v. ExampleUser" `
+  -DefendantName "ExampleUser" `
+  -AopcPdfPath "C:\path\to\AOPC.pdf"
+```
+
+The command previews the case and any supplied PDFs without writing anything. `-OpeningFilingPdfPath` and its title are optional; when supplied, the PDF can be any filing and its portal title is set with `-OpeningFilingTitle`. It does not have to be a Criminal Information. The separate AOPC remains required for Criminal Division cases. To create the case after reviewing the preview, add `-Apply`; PowerShell asks for confirmation. It creates an unfiled staff case, auto-assigns an eligible Criminal Division attorney by workload, and attaches the AOPC and any supplied opening filing as drafts. Nothing is approved or filed with the court. Use `-CoDefendants name1,name2`, `-AssignedJudge`, `-Stage`, `-Summary`, `-AopcTitle`, or `-AssigneeId` when needed; a manually selected assignee must be eligible under the caller's current permissions. Each supplied PDF must be valid, unencrypted, and 5 MB or smaller. Repeating the same title, defendant list, and PDFs returns the existing case rather than creating another; if the same title has different documents, the command stops for manual review. `-CiPdfPath` and `-CiTitle` remain aliases for the renamed opening-filing parameters.
 
 Case creation requires the signed endpoint `POST /api/automation/cases/create`, deployed to the portal. It requires live `cases:create` permission and current Criminal Division assignment authority, applies current roster/group eligibility, records case history and activity, and does not accept court filing dates or action numbers. Approved investigator intake conversion remains in the portal workflow.
 

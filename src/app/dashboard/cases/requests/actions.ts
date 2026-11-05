@@ -137,7 +137,7 @@ async function reviewCaseRequestImpl(formData: FormData) {
       const openingFiling = openingCandidate && typeof openingCandidate === "object" ? openingCandidate as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string } : null;
       const aopcCandidate = data.aopcFiling;
       const aopc = aopcCandidate && typeof aopcCandidate === "object" ? aopcCandidate as { title?: string; url?: string | null; pdfData?: string; pdfFileName?: string } : null;
-      if (requestDivision === "Criminal Division" && (!openingFiling?.pdfData || !aopc?.pdfData)) throw new Error("This Criminal Division case opening needs an opening filing PDF and a separate AOPC PDF. An investigative report does not replace the AOPC.");
+      if (requestDivision === "Criminal Division" && !aopc?.pdfData) throw new Error("This Criminal Division case opening needs a separate AOPC PDF. An investigative report does not replace the AOPC.");
       const caseNumber = emptyToNull(caseData.caseNumber) ?? (await generateCaseNumber());
       const created = await prisma.$transaction(async (tx) => {
         const claimed = await tx.caseActionRequest.updateMany({

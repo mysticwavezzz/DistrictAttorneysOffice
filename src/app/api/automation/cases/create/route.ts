@@ -31,10 +31,10 @@ const createSchema = z.object({
   stage: z.string().trim().max(80).default("Intake"),
   summary: z.string().trim().max(4000).default(""),
   assignedAttorneyId: z.string().trim().max(100).default(""),
-  openingFiling: documentSchema.optional(),
+  openingFiling: documentSchema.nullable().optional(),
   criminalInformation: documentSchema.optional(),
   aopc: documentSchema,
-}).strict().refine((value) => Boolean(value.openingFiling ?? value.criminalInformation), { message: "An opening filing PDF is required." });
+}).strict();
 
 function decodePdf(encoded: string): { bytes: Buffer; error: string | null } {
   if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   try { body = JSON.parse(rawBody); }
   catch { return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 }); }
   const parsed = createSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Provide a title, defendant, division, an opening filing PDF, and a separate AOPC PDF." }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: "Provide a title, defendant, division, and a separate AOPC PDF. An opening filing PDF is optional." }, { status: 400 });
 
   const { actor } = authResult;
   if (!hasCapability(actor.tiers, CAPABILITIES.CASES_CREATE)) {
@@ -76,12 +76,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This command can only create Criminal Division cases within your authorized assignment scope." }, { status: 403 });
   }
 
-  const openingFiling = parsed.data.openingFiling ?? parsed.data.criminalInformation!;
-  const initial = decodePdf(openingFiling.base64);
+  const openingFiling = parsed.data.openingFiling ?? parsed.data.criminalInformation ?? null;
+  const initial = openingFiling ? decodePdf(openingFiling.base64) : null;
   const aopc = decodePdf(parsed.data.aopc.base64);
-  if (initial.error) return NextResponse.json({ error: `Opening filing: ${initial.error}` }, { status: 400 });
+  if (initial?.error) return NextResponse.json({ error: `Opening filing: ${initial.error}` }, { status: 400 });
   if (aopc.error) return NextResponse.json({ error: `AOPC: ${aopc.error}` }, { status: 400 });
-  const initialBase64 = initial.bytes.toString("base64");
+  const initialBase64 = initial?.bytes.toString("base64") ?? null;
   const aopcBase64 = aopc.bytes.toString("base64");
   const parties = [parsed.data.defendantName, ...parsed.data.coDefendants].map((name) => name.trim());
   if (new Set(parties.map((name) => name.toLowerCase())).size !== parties.length) {
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     if (existingByTitle.length === 1 && existing) {
       const existingInitial = existing.filings.find((filing) => filing.isInitial || filing.documentType === "CRIMINAL_INFORMATION");
       const existingAopc = existing.filings.find((filing) => filing.documentType === "AOPC");
-      if (existing.partyDetails === partyDetails && existingInitial?.pdfData === initialBase64 && existingAopc?.pdfData === aopcBase64) {
+      if (existing.partyDetails === partyDetails && (openingFiling ? existingInitial?.pdfData === initialBase64 : !existingInitial?.pdfData) && existingAopc?.pdfData === aopcBase64) {
         return NextResponse.json({
           alreadyCreated: true,
           caseId: existing.id,
@@ -166,8 +166,8 @@ export async function POST(request: Request) {
     });
     await tx.caseFiling.createMany({
       data: [
-        { caseId: caseRecord.id, title: openingFiling.title, url: null, pdfData: initialBase64, pdfFileName: safePdfName(openingFiling.fileName), addedById: actor.user.id, status: "DRAFT", isInitial: true, documentType: "OTHER" },
-        { caseId: caseRecord.id, title: parsed.data.aopc.title, url: null, pdfData: aopcBase64, pdfFileName: safePdfName(parsed.data.aopc.fileName), addedById: actor.user.id, status: "DRAFT", isInitial: false, documentType: "AOPC" },
+        ...(openingFiling && initialBase64 ? [{ caseId: caseRecord.id, title: openingFiling.title, url: null, pdfData: initialBase64, pdfFileName: safePdfName(openingFiling.fileName), addedById: actor.user.id, status: "DRAFT" as const, isInitial: true, documentType: "OTHER" as const }] : []),
+        { caseId: caseRecord.id, title: parsed.data.aopc.title, url: null, pdfData: aopcBase64, pdfFileName: safePdfName(parsed.data.aopc.fileName), addedById: actor.user.id, status: "DRAFT" as const, isInitial: false, documentType: "AOPC" as const },
       ],
     });
     await tx.caseComment.create({
@@ -195,6 +195,6 @@ export async function POST(request: Request) {
     assignedAttorney: selectedAssignee.displayName,
     caseUrl: `/dashboard/cases/${created.id}`,
     status: "UNFILED",
-    note: "The opening filing and AOPC are attached as drafts. Nothing was filed with the court.",
+    note: openingFiling ? "The opening filing and AOPC are attached as drafts. Nothing was filed with the court." : "The AOPC is attached as a draft. An opening filing can be added later. Nothing was filed with the court.",
   }, { status: 201, headers: { "Cache-Control": "no-store" } });
 }

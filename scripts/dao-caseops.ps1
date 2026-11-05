@@ -280,12 +280,12 @@ function New-CaseFromPdfs {
   if (-not $CaseTitle -or -not $CaseTitle.Trim()) { throw "Provide -CaseTitle." }
   if (-not $DefendantName -or -not $DefendantName.Trim()) { throw "Provide -DefendantName." }
   if ($Division -ne "Criminal Division") { throw "This command currently opens Criminal Division cases only." }
-  if (-not $OpeningFilingTitle -or -not $OpeningFilingTitle.Trim()) { throw "Provide -OpeningFilingTitle." }
+  if ($OpeningFilingPdfPath -and (-not $OpeningFilingTitle -or -not $OpeningFilingTitle.Trim())) { throw "Provide -OpeningFilingTitle." }
   if (-not $AopcTitle -or -not $AopcTitle.Trim()) { throw "Provide -AopcTitle." }
 
-  $opening = Read-CaseOpeningPdf -Path $OpeningFilingPdfPath -Label "Opening filing"
+  $opening = if ($OpeningFilingPdfPath) { Read-CaseOpeningPdf -Path $OpeningFilingPdfPath -Label "Opening filing" } else { $null }
   $aopc = Read-CaseOpeningPdf -Path $AopcPdfPath -Label "AOPC"
-  $partyNames = @($DefendantName.Trim()) + @($CoDefendants | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  $partyNames = @($DefendantName.Trim()) + @($CoDefendants | Where-Object { $_ } | ForEach-Object { $_.Trim() })
   if ($partyNames.Count -gt 20) { throw "A case can include no more than 20 defendants." }
   if (@($partyNames | ForEach-Object { $_.ToLowerInvariant() } | Select-Object -Unique).Count -ne $partyNames.Count) { throw "A defendant name was entered more than once." }
 
@@ -296,9 +296,9 @@ function New-CaseFromPdfs {
     Stage = if ($Stage) { $Stage.Trim() } else { "Intake" }
     AssignedJudge = if ($AssignedJudge) { $AssignedJudge.Trim() } else { "Not set" }
     Assignee = if ($AssigneeId) { $AssigneeId } else { "Automatic workload assignment" }
-    OpeningFiling = "$($opening.File.Name) · $($opening.Bytes.Length) bytes"
+    OpeningFiling = if ($opening) { "$($opening.File.Name) · $($opening.Bytes.Length) bytes" } else { "None (not required)" }
     AOPC = "$($aopc.File.Name) · $($aopc.Bytes.Length) bytes"
-    Result = "Unfiled staff case; opening filing and AOPC attached as drafts"
+    Result = if ($opening) { "Unfiled staff case; opening filing and AOPC attached as drafts" } else { "Unfiled staff case; AOPC attached as a draft, no opening filing" }
   } | Format-List
 
   if (-not $Apply) {
@@ -309,17 +309,17 @@ function New-CaseFromPdfs {
     $payload = @{
       title = $CaseTitle.Trim()
       defendantName = $DefendantName.Trim()
-      coDefendants = @($CoDefendants | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+      coDefendants = @($CoDefendants | Where-Object { $_ } | ForEach-Object { $_.Trim() })
       division = $Division
       assignedJudge = if ($AssignedJudge) { $AssignedJudge.Trim() } else { "" }
       stage = if ($Stage) { $Stage.Trim() } else { "Intake" }
       summary = $Summary.Trim()
       assignedAttorneyId = if ($AssigneeId) { $AssigneeId } else { "" }
-      openingFiling = @{
+      openingFiling = if ($opening) { @{
         title = $OpeningFilingTitle.Trim()
         fileName = $opening.File.Name
         base64 = [Convert]::ToBase64String($opening.Bytes)
-      }
+      } } else { $null }
       aopc = @{
         title = $AopcTitle.Trim()
         fileName = $aopc.File.Name
