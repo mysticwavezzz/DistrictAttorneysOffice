@@ -6,7 +6,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing")]
+  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
@@ -19,6 +19,24 @@ param(
   [string]$ExportPath,
   [string]$Title,
   [string]$PdfPath,
+  [string]$CaseTitle,
+  [string]$DefendantName,
+  [string[]]$CoDefendants,
+  [string]$Division = "Criminal Division",
+  [string]$AssignedJudge,
+  [string]$Summary = "",
+  [string]$Stage,
+  [string]$Disclosures,
+  [string]$Outcome,
+  [string]$ArraignmentAt,
+  [string]$DiscoveryGivenAt,
+  [string]$DiscoveryDueAt,
+  [string]$PretrialAt,
+  [string]$ClosedAt,
+  [string]$CiTitle = "Criminal Information",
+  [string]$CiPdfPath,
+  [string]$AopcTitle = "Affidavit of Probable Cause (AOPC)",
+  [string]$AopcPdfPath,
   [switch]$Local,
   [switch]$Apply
 )
@@ -185,6 +203,139 @@ function Get-DaoCases([string]$RequestedScope) {
   return $items
 }
 
+function Get-DaoCaseDetail([string]$Number) {
+  if (-not $Number) { throw "Provide -CaseNumber." }
+  $safeNumber = [uri]::EscapeDataString($Number)
+  return Invoke-DaoApi -Method GET -Path "/api/automation/cases/$safeNumber"
+}
+
+function Convert-OptionalIsoDate([string]$Value, [string]$Name) {
+  if (-not $Value) { return $null }
+  $parsed = [DateTimeOffset]::MinValue
+  if (-not [DateTimeOffset]::TryParse($Value, [ref]$parsed)) { throw "$Name must be a valid date/time, preferably ISO 8601 (for example 2026-11-05T18:00:00-05:00)." }
+  return $parsed.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+}
+
+function Update-DaoCase {
+  $detail = Get-DaoCaseDetail -Number $CaseNumber
+  $case = $detail.case
+  $body = [ordered]@{ expectedUpdatedAt = ([DateTimeOffset]::Parse($case.updatedAt)).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ") }
+  if ($null -ne $Stage) { $body.stage = $Stage }
+  if ($null -ne $AssignedJudge) { $body.assignedJudge = $AssignedJudge }
+  if ($Summary.Length -gt 0) { $body.summary = $Summary }
+  if ($null -ne $Disclosures) { $body.disclosures = $Disclosures }
+  if ($null -ne $Outcome) { $body.outcome = $Outcome }
+  $dateFields = @(
+    @{ Key = "arraignmentAt"; Value = $ArraignmentAt; Label = "Arraignment date" },
+    @{ Key = "discGiven"; Value = $DiscoveryGivenAt; Label = "Discovery served date" },
+    @{ Key = "discDue"; Value = $DiscoveryDueAt; Label = "Discovery due date" },
+    @{ Key = "pretrial"; Value = $PretrialAt; Label = "Pretrial date" },
+    @{ Key = "closedOn"; Value = $ClosedAt; Label = "Closed date" }
+  )
+  foreach ($entry in $dateFields) {
+    if ($entry.Value) { $body[$entry.Key] = Convert-OptionalIsoDate -Value $entry.Value -Name $entry.Label }
+  }
+  if ($body.Keys.Count -eq 1) { throw "Provide at least one update field such as -Stage, -AssignedJudge, or -Outcome." }
+  [pscustomobject]@{ CaseNumber = $case.caseNumber; Title = $case.title; CurrentStage = $case.stage; ProposedFields = (($body.Keys | Where-Object { $_ -ne "expectedUpdatedAt" }) -join ", ") } | Format-List
+  if (-not $Apply) { Write-Host "Preview only. Add -Apply to save these fields. The portal records the change in the case history."; return }
+  if ($PSCmdlet.ShouldProcess($CaseNumber, "Update case fields: $($body.Keys -join ', ')")) {
+    $json = $body | ConvertTo-Json -Compress
+    $safeNumber = [uri]::EscapeDataString($CaseNumber)
+    $saved = Invoke-DaoApi -Method PATCH -Path "/api/automation/cases/$safeNumber" -Body $json
+    Write-Host "Updated $($saved.caseNumber) at $($saved.updatedAt)."
+  }
+}
+
+function Mark-DaoCaseFiledInCourt {
+  $detail = Get-DaoCaseDetail -Number $CaseNumber
+  $case = $detail.case
+  $initial = @($case.filings | Where-Object { $_.isInitial -and $_.status -eq "ACCEPTED" })
+  if ($case.courtFiledAt) { Write-Host "Already recorded filed in court: $($case.courtFiledAt)"; return }
+  if (-not $initial.Count) { throw "No approved initial Criminal Information is attached. The portal will not mark this case filed." }
+  [pscustomobject]@{ CaseNumber = $case.caseNumber; Title = $case.title; ApprovedInitialFiling = $initial[0].title; Action = "Record the current time as filed in court" } | Format-List
+  if (-not $Apply) { Write-Host "Preview only. Add -Apply after the court filing actually occurs. This does not submit anything to the court."; return }
+  if ($PSCmdlet.ShouldProcess($CaseNumber, "Record initial complaint as filed in court now")) {
+    $safeNumber = [uri]::EscapeDataString($CaseNumber)
+    $saved = Invoke-DaoApi -Method POST -Path "/api/automation/cases/$safeNumber/court-filing" -Body "{}"
+    Write-Host "Recorded $($saved.caseNumber) as filed in court at $($saved.filedAt)."
+  }
+}
+
+function Read-CaseOpeningPdf([string]$Path, [string]$Label) {
+  if (-not $Path) { throw "Provide a local file path to the separate $Label PDF." }
+  $resolvedPath = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
+  $file = Get-Item -LiteralPath $resolvedPath
+  if ($file.Length -gt 5MB) { throw "$Label PDF files must be 5 MB or smaller." }
+  if ($file.Length -lt 16) { throw "$Label PDF is too small to be a valid PDF." }
+  $bytes = [System.IO.File]::ReadAllBytes($resolvedPath)
+  if ([System.Text.Encoding]::ASCII.GetString($bytes, 0, 5) -ne "%PDF-") { throw "$Label file does not have a PDF header." }
+  $tailLength = [Math]::Min(8192, $bytes.Length)
+  $tail = [System.Text.Encoding]::Latin1.GetString($bytes, $bytes.Length - $tailLength, $tailLength)
+  if ($tail -match "/Encrypt\b") { throw "$Label PDF is password-protected. Remove the password before opening the case." }
+  if ($tail -notmatch "%%EOF\s*$") { throw "$Label PDF appears incomplete. Re-export it before opening the case." }
+  return @{ File = $file; Bytes = $bytes }
+}
+
+function New-CaseFromPdfs {
+  if (-not $CaseTitle -or -not $CaseTitle.Trim()) { throw "Provide -CaseTitle." }
+  if (-not $DefendantName -or -not $DefendantName.Trim()) { throw "Provide -DefendantName." }
+  if ($Division -ne "Criminal Division") { throw "This command currently opens Criminal Division cases only." }
+  if (-not $CiTitle -or -not $CiTitle.Trim()) { throw "Provide -CiTitle." }
+  if (-not $AopcTitle -or -not $AopcTitle.Trim()) { throw "Provide -AopcTitle." }
+
+  $ci = Read-CaseOpeningPdf -Path $CiPdfPath -Label "Criminal Information"
+  $aopc = Read-CaseOpeningPdf -Path $AopcPdfPath -Label "AOPC"
+  $partyNames = @($DefendantName.Trim()) + @($CoDefendants | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  if ($partyNames.Count -gt 20) { throw "A case can include no more than 20 defendants." }
+  if (@($partyNames | ForEach-Object { $_.ToLowerInvariant() } | Select-Object -Unique).Count -ne $partyNames.Count) { throw "A defendant name was entered more than once." }
+
+  [pscustomobject]@{
+    CaseTitle = $CaseTitle.Trim()
+    Division = $Division
+    DefendantNames = $partyNames -join ", "
+    Stage = if ($Stage) { $Stage.Trim() } else { "Intake" }
+    AssignedJudge = if ($AssignedJudge) { $AssignedJudge.Trim() } else { "Not set" }
+    Assignee = if ($AssigneeId) { $AssigneeId } else { "Automatic workload assignment" }
+    CriminalInformation = "$($ci.File.Name) · $($ci.Bytes.Length) bytes"
+    AOPC = "$($aopc.File.Name) · $($aopc.Bytes.Length) bytes"
+    Result = "Unfiled staff case; both PDFs attached as drafts"
+  } | Format-List
+
+  if (-not $Apply) {
+    Write-Host "Preview only. Add -Apply to create the unfiled case and attach both PDFs. No court filing will occur."
+    return
+  }
+  if ($PSCmdlet.ShouldProcess($CaseTitle.Trim(), "Create Criminal Division case with separate CI and AOPC PDFs")) {
+    $payload = @{
+      title = $CaseTitle.Trim()
+      defendantName = $DefendantName.Trim()
+      coDefendants = @($CoDefendants | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+      division = $Division
+      assignedJudge = if ($AssignedJudge) { $AssignedJudge.Trim() } else { "" }
+      stage = if ($Stage) { $Stage.Trim() } else { "Intake" }
+      summary = $Summary.Trim()
+      assignedAttorneyId = if ($AssigneeId) { $AssigneeId } else { "" }
+      criminalInformation = @{
+        title = $CiTitle.Trim()
+        fileName = $ci.File.Name
+        base64 = [Convert]::ToBase64String($ci.Bytes)
+      }
+      aopc = @{
+        title = $AopcTitle.Trim()
+        fileName = $aopc.File.Name
+        base64 = [Convert]::ToBase64String($aopc.Bytes)
+      }
+    } | ConvertTo-Json -Depth 8 -Compress
+
+    $result = Invoke-DaoApi -Method POST -Path "/api/automation/cases/create" -Body $payload
+    $action = if ($result.alreadyCreated) { "Already exists; no duplicate was made" } else { "Created unfiled case" }
+    Write-Host "$action $($result.caseNumber): $($result.title)"
+    if ($result.assignedAttorney) { Write-Host "Assigned to: $($result.assignedAttorney)" }
+    Write-Host "Case: $($script:DefaultBaseUrl)$($result.caseUrl)"
+    Write-Host "Status: $($result.status). The CI and AOPC are attached as drafts; nothing was filed in court."
+  }
+}
+
 function Submit-CaseFiling {
   if (-not $CaseNumber) { throw "Provide -CaseNumber, for example HCR-26-0025." }
   if (-not $Title -or -not $Title.Trim()) { throw "Provide -Title for the filing." }
@@ -233,6 +384,19 @@ switch ($Command) {
   }
   "save-token" {
     Save-LocalToken
+  }
+  "create-case" {
+    New-CaseFromPdfs
+  }
+  "case-detail" {
+    $detail = Get-DaoCaseDetail -Number $CaseNumber
+    $detail.case | ConvertTo-Json -Depth 12
+  }
+  "update-case" {
+    Update-DaoCase
+  }
+  "filed-in-court" {
+    Mark-DaoCaseFiledInCourt
   }
   "cases" {
     $cases = Get-DaoCases -RequestedScope $Scope

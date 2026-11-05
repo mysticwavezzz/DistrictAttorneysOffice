@@ -1,6 +1,6 @@
 # Local case operations
 
-`scripts/dao-caseops.ps1` provides signed case lookup, read-only docket reconciliation, and assignment commands for the authorized DAO owner account on one Windows computer. It does not automate the portal UI. The portal checks the account's current permissions for each request, restricts the docket to that account's case visibility, checks assignee eligibility, records an assignment history comment, and sends the usual assignment notification.
+`scripts/dao-caseops.ps1` provides signed, browserless case operations for the authorized DAO owner account on one Windows computer. It does not automate the portal UI. The portal checks the account's current permissions for each request, restricts the docket to that account's case visibility, checks assignee eligibility, and records case history for changes.
 
 ## One-time setup
 
@@ -73,7 +73,21 @@ Use `-AssigneeId UNASSIGNED` to preview or apply unassignment. Assignment reques
 
 The credential can only be created from the authenticated `M_ysticWavezzz` owner account, is bound server-side to that account, and the API rechecks live Roblox group roles and the current roster before returning case data or changing an assignment. Each request is signed by the Windows certificate key; copying the token or public certificate to another computer is not enough to sign requests. The token is stored encrypted for the current Windows user and expires after 90 days. Revoke it immediately if the computer or Windows account is compromised.
 
-The API exposes case listing, eligible attorney listing, case reassignment, selected manual-note management, and filing upload to an existing active case. It does not expose case creation, review decisions, or approval actions.
+The API exposes case listing and detail, eligible-attorney listing, case reassignment, guarded case-field updates, recording an initial complaint as filed in court, selected manual-note management, PDF filing upload, and case creation. Mutating commands preview first and require `-Apply`; the API independently checks live portal permissions and concurrent changes.
+
+Open a new Criminal Division case directly from local PDFs:
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 create-case `
+  -CaseTitle "People v. ExampleUser" `
+  -DefendantName "ExampleUser" `
+  -CiPdfPath "C:\path\to\Criminal Information.pdf" `
+  -AopcPdfPath "C:\path\to\AOPC.pdf"
+```
+
+The command previews the case and both separate PDFs without writing anything. To create the case after reviewing the preview, add `-Apply`; PowerShell asks for confirmation. It creates an unfiled staff case, auto-assigns an eligible Criminal Division attorney by workload, and attaches both PDFs as drafts. Nothing is approved or filed with the court. Use `-CoDefendants name1,name2`, `-AssignedJudge`, `-Stage`, `-Summary`, `-CiTitle`, `-AopcTitle`, or `-AssigneeId` when needed; a manually selected assignee must be eligible under the caller's current permissions. Each PDF must be valid, unencrypted, and 5 MB or smaller. Repeating the same title, defendant list, and PDFs returns the existing case rather than creating another; if the same title has different documents, the command stops for manual review.
+
+Case creation requires the signed endpoint `POST /api/automation/cases/create`, deployed to the portal. It requires live `cases:create` permission and current Criminal Division assignment authority, applies current roster/group eligibility, records case history and activity, and does not accept court filing dates or action numbers. Approved investigator intake conversion remains in the portal workflow.
 
 The signed local API also accepts a PDF filing for an existing active case. This avoids the browser file picker: the script reads a PDF from this computer and sends it through the same permission-checked portal API. The filing is added to the case and, when required, placed in the Review Inbox as pending. It is not approved and is not marked filed in court.
 
@@ -90,6 +104,32 @@ pwsh -File .\scripts\dao-caseops.ps1 submit-filing -CaseNumber HCR-26-0025 -Titl
 ```
 
 The command requires the one-time local case-operations setup above, accepts PDFs up to 5 MB, checks the PDF header and end marker, and refuses archived or draft cases. It reports the case and Review Inbox links after submission and avoids creating a duplicate when the same title and PDF were already submitted by the same account.
+
+Read the complete visible docket for a case, including filing status, case history, events, evidence links, and tasks:
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 case-detail -CaseNumber HCR-26-0025
+```
+
+Update selected case fields. The update carries the version timestamp returned by the detail request, so a concurrent edit fails with a conflict rather than being overwritten. Dates should be entered as ISO 8601 values with a timezone.
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 update-case -CaseNumber HCR-26-0025 -Stage "Pretrial" -AssignedJudge "Judge Name"
+pwsh -File .\scripts\dao-caseops.ps1 update-case -CaseNumber HCR-26-0025 -Stage "Pretrial" -AssignedJudge "Judge Name" -Apply
+```
+
+After the approved initial Criminal Information has actually been filed in court, record that fact in the portal. This records the current time; it does not file anything with the court.
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 filed-in-court -CaseNumber HCR-26-0025
+pwsh -File .\scripts\dao-caseops.ps1 filed-in-court -CaseNumber HCR-26-0025 -Apply
+```
+
+These added case endpoints must be deployed to the DAO portal before the production commands work. The local script and API changes do not deploy themselves.
+
+## Current coverage boundary
+
+This is the first browserless operations tranche, not a claim that every portal feature is scriptable yet. Public pages, investigator ticket conversations and review, tip decryption/review, general filing approvals, roster profile CRUD and rank control, announcements, settings/configuration, training, weekly reports, and records requests still need dedicated permission-checked endpoints and matching commands. They must not be exposed through a generic unrestricted database-write command.
 
 List manual notes written by the signed-in account on accessible Criminal Division cases, then preview or remove selected IDs. Deletion rejects system history, notes by other staff, and notes outside the Criminal Division.
 
