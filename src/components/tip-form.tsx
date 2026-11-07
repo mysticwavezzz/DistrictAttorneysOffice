@@ -78,7 +78,7 @@ export function TipForm({
   }
 
   if (typeof state === "object" && "receipt" in state) {
-    return <div className="message message-success" role="status"><strong>Report submitted.</strong> Reference: <span className="mono">{state.receipt}</span>. The reference was included with the submission to the office&apos;s configured Google Form. Access and any notifications from that form are controlled by its owner. This confirmation does not guarantee an investigation or reply. <button type="button" className="linklike" onClick={() => { renderedAtRef.current = Date.now(); submissionReferenceRef.current = null; setState("idle"); }}>Submit another report</button></div>;
+    return <div className="message message-success" role="status"><strong>Report submitted.</strong> Reference: <span className="mono">{state.receipt}</span>. Keep this reference if you contact the office about your report. Submission does not guarantee an investigation or reply. <button type="button" className="linklike" onClick={() => { renderedAtRef.current = Date.now(); submissionReferenceRef.current = null; setState("idle"); }}>Submit another report</button></div>;
   }
 
   return (

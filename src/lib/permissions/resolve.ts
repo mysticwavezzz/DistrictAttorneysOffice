@@ -56,6 +56,11 @@ export function capabilitiesForTiers(tiers: PermissionTier[]): Set<Capability> {
     }
   }
   for (const capability of denied) capabilities.delete(capability);
+  // The office head and deputy must retain access to incoming public tips even
+  // when an older saved tierCapabilities override omitted this newer capability.
+  if (tiers.includes("district_attorney") || tiers.includes("deputy_district_attorney")) {
+    capabilities.add(CAPABILITIES.TIPS_REVIEW);
+  }
   return capabilities;
 }
 

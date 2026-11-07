@@ -17,7 +17,7 @@ export const metadata = shareMetadata("Review Inbox", "Review pending case openi
 type ReviewItem = { id: string; kind: "case" | "filing" | "records" | "aopc" | "contact" | "investigator" | "tip" | "gang-tip"; title: string; summary: string; submittedBy: string; division: string; createdAt: Date; href: string; actionLabel?: string; details?: string; contact?: string; documentHref?: string; documentName?: string; hasOpeningDocument?: boolean; hasAopcDocument?: boolean; relatedDocuments?: { href: string; name: string }[]; crimeTip?: { status: string; assignedToId: string | null; linkedCaseId: string | null; fields: { label: string; value: string }[]; attachments?: { id: string; fileName: string; byteSize: number; sha256: string }[] } };
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
-export default async function ReviewInboxPage({ searchParams }: { searchParams: Promise<{ type?: string; age?: string; division?: string }> }) {
+export default async function ReviewInboxPage({ searchParams }: { searchParams: Promise<{ type?: string; age?: string; division?: string; reference?: string }> }) {
   const session = await auth();
   if (!session?.user) redirect("/login?error=forbidden");
   const canReviewAllCases = hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS);
@@ -35,7 +35,8 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   if (!canReviewCases && !canReviewRecords && !canReviewContact && !canReviewInvestigator && !canReviewTips) redirect("/login?error=forbidden");
 
   const filters = await searchParams;
-  const selectedType = ["case", "filing", "records", "aopc", "contact", "investigator", "tip", "gang-tip"].includes(filters.type ?? "") ? filters.type! : "all";
+  const tipReference = (filters.reference ?? "").trim().toUpperCase().slice(0, 100);
+  const selectedType = tipReference ? "tip" : ["case", "filing", "records", "aopc", "contact", "investigator", "tip", "gang-tip"].includes(filters.type ?? "") ? filters.type! : "all";
   const ageHours = ["24", "72", "168"].includes(filters.age ?? "") ? Number(filters.age) : 0;
   const selectedDivision = (filters.division ?? "").trim().slice(0, 100);
   const now = Date.now();
@@ -142,7 +143,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   const tipCaseScope = viewer ? caseVisibilityWhere(session.user.tiers, viewer.id, viewer.division, viewer.divisionGroup) : null;
   const tipCaseOptions = canReviewTips && tipCaseScope ? await prisma.case.findMany({ where: { archived: false, AND: [tipCaseScope] }, select: { id: true, caseNumber: true, title: true }, orderBy: { updatedAt: "desc" }, take: 100 }) : [];
   if (canReviewTips && (selectedType === "all" || selectedType === "tip" || selectedType === "gang-tip")) {
-    const rows = await prisma.crimeTip.findMany({ where: { status: { notIn: ["CLOSED", "NO_JURISDICTION", "DUPLICATE", "INSUFFICIENT"] }, ...(selectedType === "tip" ? { category: "CRIME" } : selectedType === "gang-tip" ? { category: "GANG" } : {}) }, include: { assignedTo: { select: { displayName: true } }, attachments: { select: { id: true, fileName: true, byteSize: true, sha256: true }, orderBy: { createdAt: "asc" } } }, orderBy: { createdAt: "asc" }, take: 200 });
+    const rows = await prisma.crimeTip.findMany({ where: { ...(tipReference ? { reference: tipReference } : { status: { notIn: ["CLOSED", "NO_JURISDICTION", "DUPLICATE", "INSUFFICIENT"] } }), ...(selectedType === "tip" ? { category: "CRIME" } : selectedType === "gang-tip" ? { category: "GANG" } : {}) }, include: { assignedTo: { select: { displayName: true } }, attachments: { select: { id: true, fileName: true, byteSize: true, sha256: true }, orderBy: { createdAt: "asc" } } }, orderBy: { createdAt: "desc" }, take: 200 });
     for (const row of rows) {
       let fields: { label: string; value: string }[];
       try {
@@ -165,7 +166,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
   }
 
   const divisions = Array.from(new Set(items.map((item) => item.division).filter((value) => value && value !== "Unassigned"))).sort();
-  const visible = items.filter((item) => (!selectedDivision || item.division === selectedDivision) && (!ageHours || now - item.createdAt.getTime() >= ageHours * 3_600_000));
+  const visible = items.filter((item) => (!selectedDivision || item.division === selectedDivision) && (Boolean(tipReference) || !ageHours || now - item.createdAt.getTime() >= ageHours * 3_600_000));
   visible.sort((a, b) => {
     const aAge = now - a.createdAt.getTime(), bAge = now - b.createdAt.getTime();
     const aUrgency = aAge >= 72 * 3_600_000 ? 2 : aAge >= 24 * 3_600_000 ? 1 : 0;
@@ -189,6 +190,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
     const params = new URLSearchParams();
     if (key !== "all") params.set("type", key);
     if (filters.age) params.set("age", filters.age);
+    if (tipReference) params.set("reference", tipReference);
     if (selectedDivision) params.set("division", selectedDivision);
     return `/dashboard/review${params.size ? `?${params.toString()}` : ""}`;
   };
@@ -201,6 +203,7 @@ export default async function ReviewInboxPage({ searchParams }: { searchParams: 
       <div className="field"><label htmlFor="review-type">Request type</label><select id="review-type" name="type" defaultValue={selectedType}><option value="all">All types</option>{canReviewCases && <><option value="case">Case requests</option><option value="filing">Case filings</option><option value="aopc">AOPCs</option></>}{canReviewRecords && <option value="records">Records requests</option>}{canReviewContact && <option value="contact">Contact Us</option>}{canReviewInvestigator && <option value="investigator">Investigator intake</option>}{canReviewTips && <><option value="tip">Crime tips</option><option value="gang-tip">Gang tips</option></>}</select></div>
       <div className="field"><label htmlFor="review-age">Waiting at least</label><select id="review-age" name="age" defaultValue={filters.age ?? ""}><option value="">Any age</option><option value="24">24 hours</option><option value="72">3 days</option><option value="168">7 days</option></select></div>
       <div className="field"><label htmlFor="review-division">Division / queue</label><select id="review-division" name="division" defaultValue={selectedDivision}><option value="">All queues</option>{divisions.map((division) => <option key={division} value={division}>{division}</option>)}</select></div>
+      {canReviewTips && <div className="field"><label htmlFor="review-tip-reference">Tip reference</label><input id="review-tip-reference" name="reference" defaultValue={tipReference} maxLength={100} placeholder="HCD-…" /></div>}
       <button type="submit" className="govbtn">Filter</button><Link href="/dashboard/review" className="govbtn-outline">Clear</Link>
     </form>
     <p className="review-inbox-count" aria-live="polite">{visible.length} item{visible.length === 1 ? "" : "s"} in this queue</p>
