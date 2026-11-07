@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { localUser, canAccessCase, canReviewDivision } from "@/lib/case-access";
+import { localUser, canAccessCase, canReviewDivision, canViewCases } from "@/lib/case-access";
 import { decodeCasePdf } from "@/lib/filing-upload";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
