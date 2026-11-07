@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { LEGACY_BUREAU_UNITS, normalizeDivisionPlacement } from "@/config/units";
 
 const ASSIGNABLE_ATTORNEY_RANKS = [
   "Assistant District Attorney",
   "Senior Assistant District Attorney",
+  "County Solicitor",
   // Retired label remains readable for historical roster rows until their next group sync.
   "Supervisory Assistant District Attorney",
   "Chief Assistant District Attorney",
@@ -27,7 +29,7 @@ export async function getDivisionCaseAssignees(
   const entries = await prisma.rosterEntry.findMany({
     where: {
       isActive: true,
-      ...(division ? { unit: division } : {}),
+      ...(division ? { unit: division === "Criminal Division" ? { in: [division, ...Object.keys(LEGACY_BUREAU_UNITS)] } : division } : {}),
       rank: { in: [...ASSIGNABLE_ATTORNEY_RANKS] },
       ...(options.restrictToGroup ? { divisionGroup: options.divisionGroup ?? "__no_group__" } : {}),
     },
@@ -47,7 +49,8 @@ export async function getDivisionCaseAssignees(
       ? await prisma.user.findUnique({ where: { discordUserId: entry.discordUserId } })
       : null;
     const existing = byRoblox ?? byDiscord;
-    const divisionData = { division: entry.unit, divisionGroup: entry.divisionGroup };
+    const placement = normalizeDivisionPlacement(entry.unit);
+    const divisionData = { division: placement.unit, divisionGroup: entry.divisionGroup };
 
     let user;
     if (existing) {

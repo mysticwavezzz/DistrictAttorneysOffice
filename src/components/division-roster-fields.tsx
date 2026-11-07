@@ -9,6 +9,7 @@ export function DivisionRosterFields({
   unitId,
   initialUnit = "",
   initialGroup = "",
+  initialBureau = "",
   unitRequired = false,
   allowNoUnit = true,
   unitHint,
@@ -18,12 +19,14 @@ export function DivisionRosterFields({
   unitId: string;
   initialUnit?: string;
   initialGroup?: string;
+  initialBureau?: string;
   unitRequired?: boolean;
   allowNoUnit?: boolean;
   unitHint: string;
   groupHint: string;
 }) {
   const [unit, setUnit] = useState(initialUnit);
+  const bureauOptions = ["Trial Bureau", "Public Integrity Bureau", "Organized Crime Bureau"];
 
   return (
     <>
@@ -40,6 +43,13 @@ export function DivisionRosterFields({
           <option value="">No group assigned</option>
           <option value="1">Group 1</option>
           <option value="2">Group 2</option>
+        </select>
+      </div>}
+      {unit === "Criminal Division" && <div className="field">
+        <label htmlFor={`${unitId}-bureau`}>Bureau <span className="hint">Optional; Criminal Division remains the reporting division.</span></label>
+        <select id={`${unitId}-bureau`} name="bureau" defaultValue={initialBureau}>
+          <option value="">No bureau assigned</option>
+          {bureauOptions.map((bureau) => <option key={bureau} value={bureau}>{bureau}</option>)}
         </select>
       </div>}
     </>

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { hasCapability } from "@/lib/permissions";
 import { TIER_DEFINITIONS, ALL_TIERS } from "@/lib/permissions/tiers";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
-import { UNITS } from "@/config/units";
+import { canonicalDivisionOptions, UNITS, type UnitOption } from "@/config/units";
 import { getSiteSettings } from "@/lib/site-settings";
 import { env } from "@/lib/env";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
@@ -44,15 +44,16 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     ...(auditQuery ? { OR: [{ actorName: { contains: auditQuery } }, { action: { contains: auditQuery } }, { details: { contains: auditQuery } }] } : {}),
     ...(auditFrom || auditTo ? { createdAt: { ...(auditFrom ? { gte: new Date(`${auditFrom}T00:00:00.000Z`) } : {}), ...(auditTo ? { lt: (() => { const end = new Date(`${auditTo}T00:00:00.000Z`); end.setUTCDate(end.getUTCDate() + 1); return end; })() } : {}) } } : {}),
   };
-  const [savedCapabilities, divisions, ranks, caseStatuses] = await Promise.all([
+  const [savedCapabilities, savedDivisions, ranks, caseStatuses] = await Promise.all([
     getSiteConfiguration<Record<string, string[]>>(
       "tierCapabilities",
       Object.fromEntries(ALL_TIERS.map((tier) => [tier, TIER_DEFINITIONS[tier].capabilities]))
     ),
-    getSiteConfiguration("divisions", UNITS),
+    getSiteConfiguration<UnitOption[]>("divisions", UNITS),
     getSiteConfiguration("ranks", RANKS),
     getSiteConfiguration("caseStatuses", CASE_STATUSES),
   ]);
+  const divisions = canonicalDivisionOptions(savedDivisions);
   const configuredCapabilities = {
     ...Object.fromEntries(ALL_TIERS.map((tier) => [tier, TIER_DEFINITIONS[tier].capabilities])),
     ...savedCapabilities,

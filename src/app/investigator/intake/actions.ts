@@ -28,7 +28,7 @@ async function assignReviewer() {
   const users = await prisma.user.findMany({ where: { division: "Criminal Division" }, select: { id: true, tiers: true, divisionGroup: true } });
   const reviewers = users.filter((user) => {
     const tiers = parseStoredTiers(user.tiers);
-    return hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS);
+    return hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.INVESTIGATOR_REVIEW);
   });
   if (!reviewers.length) return null;
   const loads = await Promise.all(reviewers.map(async (user) => ({
@@ -82,7 +82,7 @@ async function createTicketImpl(formData: FormData): Promise<void> {
 
 async function reviewerIdsFallback(): Promise<string[]> {
   const users = await prisma.user.findMany({ where: { division: "Criminal Division" }, select: { id: true, tiers: true } });
-  return users.filter((user) => { const tiers = parseStoredTiers(user.tiers); return hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS); }).map((user) => user.id);
+  return users.filter((user) => { const tiers = parseStoredTiers(user.tiers); return hasCapability(tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(tiers, CAPABILITIES.CASES_APPROVE_EDITS) || hasCapability(tiers, CAPABILITIES.INVESTIGATOR_REVIEW); }).map((user) => user.id);
 }
 
 async function replyImpl(ticketId: string, formData: FormData) {
@@ -123,28 +123,35 @@ async function supplementalImpl(ticketId: string, formData: FormData): Promise<v
 
 async function reviewerActionImpl(ticketId: string, formData: FormData) {
   const session = await auth();
-  if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS))) throw new Error("Forbidden");
+  const attorneyReview = Boolean(session?.user && (hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION) || hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS)));
+  const canReviewAllInvestigator = Boolean(session?.user && hasCapability(session.user.tiers, CAPABILITIES.INVESTIGATOR_REVIEW));
+  if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) && !canReviewAllInvestigator)) throw new Error("Forbidden");
   const reviewer = await prisma.user.findFirst({ where: { robloxUserId: session.user.robloxUserId ?? "" }, select: { id: true, division: true, divisionGroup: true } });
   const ticket = await prisma.contactTicket.findFirst({ where: { id: ticketId, category: "INVESTIGATOR_INTAKE" }, include: { requester: { select: { id: true } } } });
-  if (!reviewer || !ticket || ticket.division !== "Criminal Division" || (ticket.assigneeId !== reviewer.id && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS)) || !canReviewDivision(session.user.tiers, reviewer.division, ticket.division, reviewer.divisionGroup, ticket.divisionGroup)) throw new Error("This ticket is outside your review assignment.");
+  if (!reviewer || !ticket || ticket.division !== "Criminal Division" || (!canReviewAllInvestigator && ticket.assigneeId !== reviewer.id && !hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS)) || (!canReviewAllInvestigator && !canReviewDivision(session.user.tiers, reviewer.division, ticket.division, reviewer.divisionGroup, ticket.divisionGroup))) throw new Error("This ticket is outside your review assignment.");
   const action = String(formData.get("ticketAction") ?? "");
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   const docId = String(formData.get("documentId") ?? "").trim();
   if (docId) {
     const decision = String(formData.get("decision") ?? "");
     if (!["ACCEPTED", "RETURNED", "REJECTED"].includes(decision) || ((decision === "RETURNED" || decision === "REJECTED") && !note)) throw new Error("Choose a document decision and include a note when returning or denying it.");
+    const document = await prisma.aopc.findFirst({ where: { id: docId, intakeTicketId: ticket.id }, select: { documentType: true } });
+    if (!document) throw new Error("This document is not part of the intake ticket.");
+    if (!attorneyReview && (document.documentType !== "INVESTIGATIVE_REPORT" || decision === "REJECTED")) throw new Error("Investigators may review investigative reports and return corrections. An attorney must accept an AOPC or deny a document.");
     const result = await prisma.aopc.updateMany({ where: { id: docId, intakeTicketId: ticket.id, status: { in: ["PENDING", "RETURNED"] } }, data: { status: decision, reviewedById: reviewer.id, reviewedAt: new Date(), reviewNote: note || null } });
     if (!result.count) throw new Error("This document was already reviewed.");
     await prisma.contactMessage.create({ data: { ticketId, authorId: reviewer.id, body: `${decision === "ACCEPTED" ? "Accepted" : decision === "RETURNED" ? "Returned for correction" : "Denied"} document: ${note || "No additional note."}` } });
     if (decision === "RETURNED") await prisma.contactTicket.update({ where: { id: ticketId }, data: { intakeStatus: "NEEDS_INFO", updatedAt: new Date() } });
     await notify({ userId: ticket.requesterId, type: "aopc_reviewed", title: `Intake document ${decision === "ACCEPTED" ? "accepted" : decision === "RETURNED" ? "returned" : "denied"}`, body: `${ticket.subject}${note ? ` · ${note}` : ""}`, link: `/investigator/intake/tickets/${ticketId}` }).catch(() => undefined);
   } else if (action === "request-info" || action === "deny") {
+    if (action === "deny" && !attorneyReview) throw new Error("Only an attorney may deny an intake. Investigators may request corrections or more information.");
     if (!note) throw new Error("Add a message for the investigator.");
     const intakeStatus = action === "request-info" ? "NEEDS_INFO" : "DENIED";
     await prisma.contactTicket.update({ where: { id: ticketId }, data: { intakeStatus, status: action === "deny" ? "CLOSED" : "OPEN", updatedAt: new Date() } });
     await prisma.contactMessage.create({ data: { ticketId, authorId: reviewer.id, body: `${action === "deny" ? "Intake denied" : "Additional information requested"}: ${note}` } });
     await notify({ userId: ticket.requesterId, type: "aopc_reviewed", title: action === "deny" ? "Investigator intake denied" : "More information requested", body: note, link: `/investigator/intake/tickets/${ticketId}` }).catch(() => undefined);
   } else if (action === "approve") {
+    if (!attorneyReview) throw new Error("Only an attorney may approve an intake for case-opening review.");
     const pending = await prisma.aopc.count({ where: { intakeTicketId: ticketId, status: "PENDING" } });
     const accepted = await prisma.aopc.count({ where: { intakeTicketId: ticketId, status: "ACCEPTED" } });
     if (pending || !accepted) throw new Error("Accept at least one report and finish every pending document before approving the ticket.");

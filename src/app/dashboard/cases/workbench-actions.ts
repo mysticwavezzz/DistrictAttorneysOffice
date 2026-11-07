@@ -112,10 +112,28 @@ export async function updateCaseTask(formData: FormData) {
   const task = await prisma.caseTask.findUnique({ where: { id: taskId }, select: { id: true, caseId: true } });
   if (!task) throw new Error("Task not found.");
   const { session, user } = await requireCaseEditor(task.caseId);
-  await prisma.caseTask.update({ where: { id: taskId }, data: { status } });
+  const reviewNote = String(formData.get("reviewNote") ?? "").trim().slice(0, 1200);
+  if (status === "OPEN" && !reviewNote) throw new Error("Add a short note explaining what needs revision.");
+  await prisma.caseTask.update({ where: { id: taskId }, data: { status, reviewNote, reviewedAt: new Date(), reviewedById: user.id } });
   await logActivity(session.user.displayName, `Updated case task to ${status.toLowerCase()}`, "Case", task.caseId);
   revalidatePath(`/dashboard/cases/${task.caseId}/workbench`);
   revalidatePath(`/dashboard/cases/${task.caseId}/readiness`);
+}
+
+export async function submitAssignedCaseTask(formData: FormData) {
+  const taskId = String(formData.get("taskId") ?? "").trim();
+  const draftText = String(formData.get("draftText") ?? "").trim();
+  const session = await auth();
+  if (!taskId || !session?.user?.providerUserId || !hasCapability(session.user.tiers, CAPABILITIES.CASE_TASKS_SUBMIT)) throw new Error("Forbidden");
+  if (draftText.length < 20 || draftText.length > 20000) throw new Error("Draft must be between 20 and 20,000 characters.");
+  const user = await localUser(session.user);
+  const task = user ? await prisma.caseTask.findFirst({ where: { id: taskId, assignedToId: user.id }, select: { id: true, caseId: true, status: true } }) : null;
+  if (!user || !task || !["OPEN", "RETURNED"].includes(task.status)) throw new Error("This task is not assigned to you or is no longer accepting a draft.");
+  await prisma.caseTask.update({ where: { id: task.id }, data: { draftText, status: "SUBMITTED", submittedAt: new Date(), reviewNote: "" } });
+  await logActivity(session.user.displayName, "Submitted a paralegal work product for attorney review", "Case", task.caseId);
+  revalidatePath("/dashboard/my-tasks");
+  revalidatePath(`/dashboard/cases/${task.caseId}`);
+  revalidatePath(`/dashboard/cases/${task.caseId}/workbench`);
 }
 
 export async function addCaseTask(formData: FormData) {
@@ -125,8 +143,12 @@ export async function addCaseTask(formData: FormData) {
   const details = String(formData.get("details") ?? "").trim().slice(0, 1500);
   const sourceReference = String(formData.get("sourceReference") ?? "").trim().slice(0, 500);
   const assigneeId = String(formData.get("assigneeId") ?? "").trim();
-  const assignee = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true, displayName: true, division: true } }) : null;
-  if (!title || (assigneeId && (!assignee || assignee.division !== caseRecord.division))) throw new Error("Choose an eligible attorney in this case division.");
+  const assignee = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true, displayName: true, division: true, tiers: true, robloxUserId: true } }) : null;
+  const assigneeTiers = assignee?.tiers.split(",").filter(Boolean) ?? [];
+  const isParalegal = assigneeTiers.some((tier) => ["secretary", "secretary_supervisor", "da_paralegal"].includes(tier));
+  const isSameDivision = assignee?.division === caseRecord.division;
+  const isRosterPlacedParalegal = isParalegal && Boolean(await prisma.rosterEntry.findFirst({ where: { robloxUserId: assignee?.robloxUserId ?? "__none__", unit: caseRecord.division, isActive: true }, select: { id: true } }));
+  if (!title || (assigneeId && (!assignee || (!isSameDivision && !isRosterPlacedParalegal)))) throw new Error("Choose an active attorney or paralegal placed in this case division.");
   await prisma.caseTask.create({ data: { caseId, title, details, sourceReference, status: "OPEN", assignedToId: assignee?.id ?? null, assignedToName: assignee?.displayName ?? null, createdById: user.id, createdByName: session.user.displayName } });
   await logActivity(session.user.displayName, "Added case task", "Case", caseId);
   revalidatePath(`/dashboard/cases/${caseId}/workbench`);

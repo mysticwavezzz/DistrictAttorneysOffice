@@ -3,8 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { RANKS } from "@/config/ranks";
-import { UNITS } from "@/config/units";
-import { updateRosterEntry, removeRosterEntry, setRosterRankOverride } from "../actions";
+import { canonicalDivisionOptions, normalizeDivisionPlacement, UNITS, type UnitOption } from "@/config/units";
+import { updateRosterEntry, removeRosterEntry, setRosterRankOverride, assignParalegalUnit } from "../actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
 import { DivisionRosterFields } from "@/components/division-roster-fields";
@@ -24,21 +24,24 @@ function toDateInputValue(date: Date | null): string {
 export default async function EditRosterEntryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
-  if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION))) {
+  if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION) && !hasCapability(session.user.tiers, CAPABILITIES.PARALEGAL_ASSIGN))) {
     redirect("/login?error=forbidden");
   }
 
-  const entry = await prisma.rosterEntry.findUnique({ where: { id } });
-  if (!entry) notFound();
+  const savedEntry = await prisma.rosterEntry.findUnique({ where: { id } });
+  if (!savedEntry) notFound();
+  const entry = { ...savedEntry, ...normalizeDivisionPlacement(savedEntry.unit, savedEntry.bureau) };
   const user = await localUser(session.user);
-  const mayManageEntry = canManageRosterInDivision(session.user.tiers, user?.division, entry.unit)
+  const canAssignParalegal = hasCapability(session.user.tiers, CAPABILITIES.PARALEGAL_ASSIGN) && entry.isActive && ["Secretary", "Paralegal", "Paralegal in Training"].includes(entry.rank ?? "");
+  const mayManageEntry = canAssignParalegal || canManageRosterInDivision(session.user.tiers, user?.division, entry.unit)
     || canManageUnassignedRosterEntry(session.user.tiers, user?.division, entry.unit, entry.rank);
   if (!user || !mayManageEntry) notFound();
-  const [ranks, divisions] = await Promise.all([
+  const [ranks, savedDivisions] = await Promise.all([
     getSiteConfiguration("ranks", RANKS),
-    getSiteConfiguration("divisions", UNITS),
+    getSiteConfiguration<UnitOption[]>("divisions", UNITS),
   ]);
-  const visibleDivisions = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) ? divisions : divisions.filter((division) => division.value === user.division);
+  const divisions = canonicalDivisionOptions(savedDivisions);
+  const visibleDivisions = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) || canAssignParalegal ? divisions : divisions.filter((division) => division.value === user.division);
   const canControl = canControlStaff(session.user.tiers, session.user.providerUserId, user.division, entry);
   const assignableRanks = ranks.filter((rank) => canAssignStaffRank(session.user.tiers, rank.value));
 
@@ -46,7 +49,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
     <div>
       <h1>Edit Roster Entry</h1>
 
-      <FormWithPendingSubmit
+      {!canAssignParalegal || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION) ? <FormWithPendingSubmit
         action={updateRosterEntry}
         submitLabel="Save Changes"
         pendingLabel="Saving…"
@@ -60,7 +63,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
           </div>
           <div className="field">
             <label htmlFor="rank">Rank</label>
-            <input type="text" id="rank" value={entry.rank ?? "Not assigned"} readOnly />
+            <input type="text" id="rank" value={entry.rank === "Secretary" ? "Paralegal" : entry.rank === "Secretary Supervisor" ? "Chief Paralegal" : entry.rank ?? "Not assigned"} readOnly />
             <input type="hidden" name="rank" value={entry.rank ?? ""} />
             {entry.rankOverride && <span className="hint">Manual rank override. Roblox rank: {entry.robloxRoleName ?? "not recorded"}.</span>}
           </div>
@@ -69,6 +72,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
             unitId="unit"
             initialUnit={entry.unit ?? ""}
             initialGroup={entry.divisionGroup ?? ""}
+            initialBureau={entry.bureau ?? ""}
             unitRequired={!canManageRosterInDivision(session.user.tiers, user.division, entry.unit)}
             unitHint={!canManageRosterInDivision(session.user.tiers, user.division, entry.unit) ? "(select your division to assign this unassigned staff member)" : "(optional. Determines which leadership position a leadership rank fills)"}
             groupHint="(Group 1 or 2; sets the employee’s case-review team)"
@@ -144,7 +148,16 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
           </label>
           <textarea id="about" name="about" rows={3} maxLength={2000} defaultValue={entry.about ?? ""} />
         </div>
-      </FormWithPendingSubmit>
+      </FormWithPendingSubmit> : null}
+
+      {canAssignParalegal && <section className="formbox" aria-labelledby="paralegal-placement-heading">
+        <h2 id="paralegal-placement-heading">Paralegal placement</h2>
+        <p className="hint">Assign this paralegal to a division for support work. Roblox still records the underlying group rank as Secretary.</p>
+        <FormWithPendingSubmit action={assignParalegalUnit} submitLabel="Save placement" pendingLabel="Saving placement…">
+          <input type="hidden" name="id" value={entry.id}/>
+          <div className="field-row"><div className="field"><label htmlFor="paralegal-unit">Assigned division</label><select id="paralegal-unit" name="unit" defaultValue={entry.unit ?? ""} required><option value="" disabled>Select division</option>{visibleDivisions.map((division) => <option key={division.value} value={division.value}>{division.label}</option>)}</select></div><div className="field"><label htmlFor="paralegal-bureau">Criminal bureau <span className="hint">Optional</span></label><select id="paralegal-bureau" name="bureau" defaultValue={entry.bureau ?? ""}><option value="">No bureau</option><option value="Trial Bureau">Trial Bureau</option><option value="Public Integrity Bureau">Public Integrity Bureau</option><option value="Organized Crime Bureau">Organized Crime Bureau</option></select></div></div>
+        </FormWithPendingSubmit>
+      </section>}
 
       {canControl && <section className="formbox" style={{ marginTop: 16 }} aria-labelledby="rank-control-title">
         <h2 id="rank-control-title">Rank and access</h2>

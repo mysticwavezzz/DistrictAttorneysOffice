@@ -12,6 +12,7 @@ import { ProfileMenu } from "./profile-menu";
 import { isDeveloperProfileIdentity } from "@/config/developer-profiles";
 import { prisma } from "@/lib/prisma";
 import { StaffToolsMenu, type StaffToolGroup } from "./staff-tools-menu";
+import { getInvestigatorRobloxIds } from "@/lib/investigator-intake";
 
 export interface NavItem {
   label: string;
@@ -33,10 +34,17 @@ export async function SiteHeader({ staffNav, staffToolGroups = [] }: SiteHeaderP
   const canViewDashboard =
     isStaff && hasCapability(session!.user.tiers, CAPABILITIES.DASHBOARD_VIEW);
   const canViewBulletin = isStaff && hasCapability(session!.user.tiers, CAPABILITIES.BULLETIN_VIEW);
+  const isConfiguredInvestigator = session?.user.identityProvider === "roblox"
+    && Boolean(session.user.robloxUserId)
+    && (await getInvestigatorRobloxIds()).includes(session!.user.robloxUserId!);
 
   const navItems =
     staffNav ??
-    (canViewBulletin ? [...siteConfig.nav, { label: "LE Bulletin", href: "/bulletin" }] : siteConfig.nav);
+    [
+      ...siteConfig.nav,
+      ...(isConfiguredInvestigator ? [{ label: "Investigator Intake", href: "/investigator/intake" }] : []),
+      ...(canViewBulletin ? [{ label: "LE Bulletin", href: "/bulletin" }] : []),
+    ];
 
   return (
     <>
@@ -77,7 +85,7 @@ export async function SiteHeader({ staffNav, staffToolGroups = [] }: SiteHeaderP
         <div className="mast-est">
           Established 1869
           <br />
-          Criminal Division
+          County Legal Office
         </div>
       </div>
 

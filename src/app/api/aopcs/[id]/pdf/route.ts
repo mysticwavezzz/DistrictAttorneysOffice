@@ -4,12 +4,7 @@ import { decodeCasePdf } from "@/lib/filing-upload";
 import { localUser, canAccessCase, canReviewDivision, canViewCases } from "@/lib/case-access";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.providerUserId || !canViewCases(session.user.tiers)) {
-    return new Response("Unauthorized", { status: 401 });
-  }
   const { id } = await params;
-  const viewer = await localUser(session.user);
   const aopc = await prisma.aopc.findUnique({
     where: { id },
     select: {
@@ -32,15 +27,24 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       },
     },
   });
-  if (!viewer || !aopc) return new Response("Not found", { status: 404 });
+  if (!aopc || !aopc.pdfData) return new Response("Not found", { status: 404 });
+  const approvedForLinkAccess = aopc.status === "ACCEPTED" && Boolean(aopc.linkedCase) && !aopc.linkedCase?.isDraft;
+  let viewer: Awaited<ReturnType<typeof localUser>> = null;
+  let session = null;
+  if (!approvedForLinkAccess) {
+    session = await auth();
+    if (!session?.user?.providerUserId || !canViewCases(session.user.tiers)) return new Response("Unauthorized", { status: 401 });
+    viewer = await localUser(session.user);
+  }
+  if (!approvedForLinkAccess && (!viewer || !session?.user)) return new Response("Not found", { status: 404 });
   const mayViewLinkedCase = aopc.linkedCase && canAccessCase(
-    session.user.tiers,
-    viewer.id,
+    session?.user?.tiers ?? [],
+    viewer?.id ?? "",
     aopc.linkedCase,
-    viewer.division,
-    viewer.divisionGroup,
+    viewer?.division ?? null,
+    viewer?.divisionGroup ?? null,
   );
-  const mayReviewUnlinked = aopc.status === "PENDING" && (
+  const mayReviewUnlinked = !approvedForLinkAccess && aopc.status === "PENDING" && viewer && session?.user && (
     aopc.submittedById === viewer.id || canReviewDivision(
       session.user.tiers,
       viewer.division,
@@ -49,9 +53,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       aopc.targetUnit === "Criminal Division" ? viewer.divisionGroup : null,
     )
   );
-  if (!mayViewLinkedCase && !mayReviewUnlinked) return new Response("Not found", { status: 404 });
-  if (!aopc?.pdfData) return new Response("Not found", { status: 404 });
+  if (!approvedForLinkAccess && !mayViewLinkedCase && !mayReviewUnlinked) return new Response("Not found", { status: 404 });
   const fileName = (aopc.pdfFileName ?? "aopc.pdf").replace(/[\r\n"\\/]/g, "_");
   const body = Uint8Array.from(decodeCasePdf(aopc.pdfData)).buffer as ArrayBuffer;
-  return new Response(body, { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+  return new Response(body, { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`, "Cache-Control": approvedForLinkAccess ? "public, max-age=0, must-revalidate" : "private, no-store", "X-Content-Type-Options": "nosniff" } });
 }

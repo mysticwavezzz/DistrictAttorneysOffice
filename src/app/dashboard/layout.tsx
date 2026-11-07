@@ -10,6 +10,7 @@ import { shareMetadata } from "@/lib/share-metadata";
 import { hasActiveDeveloperProfile } from "@/lib/developer-profile-access";
 import { getOnboardingAccessTiers } from "@/lib/onboarding-access";
 import { prisma } from "@/lib/prisma";
+import { normalizeDivisionPlacement } from "@/config/units";
 
 export const metadata = { ...shareMetadata("Staff Portal", "Staff workspace for assigned cases, filings, and office workflows.", "/dashboard"), robots: { index: false, follow: false } };
 
@@ -18,18 +19,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!session?.user?.providerUserId) redirect("/login?callbackUrl=/dashboard");
   const [tiers, divisionRoster] = await Promise.all([
     getOnboardingAccessTiers(session.user.robloxUserId, session.user.tiers),
-    session.user.robloxUserId ? prisma.rosterEntry.findUnique({ where: { robloxUserId: session.user.robloxUserId }, select: { unit: true, isActive: true } }) : null,
+    session.user.robloxUserId ? prisma.rosterEntry.findUnique({ where: { robloxUserId: session.user.robloxUserId }, select: { unit: true, bureau: true, isActive: true } }) : null,
   ]);
   if (!hasCapability(tiers, CAPABILITIES.DASHBOARD_VIEW)) redirect("/login?error=forbidden");
   const isTrainee = tiers.includes("prosecutor_in_training");
   const orientationPending = tiers.includes("attorney_orientation_pending");
   const mayViewCases = canViewCases(tiers);
-  const isCriminalDivisionStaff = divisionRoster?.isActive && divisionRoster.unit === "Criminal Division";
+  const staffDivision = normalizeDivisionPlacement(divisionRoster?.unit, divisionRoster?.bureau).unit;
+  const isCriminalDivisionStaff = divisionRoster?.isActive && staffDivision === "Criminal Division";
+  const isCivilDivisionStaff = divisionRoster?.isActive && staffDivision === "Civil Division";
   const hasDeveloperProfile = await hasActiveDeveloperProfile(session.user);
   const canEditWeeklyReport = tiers.includes("district_attorney") || hasDeveloperProfile;
-  const canReviewInbox = [CAPABILITIES.CASES_APPROVE_EDITS, CAPABILITIES.CASES_APPROVE_DIVISION, CAPABILITIES.REQUESTS_VIEW, CAPABILITIES.TIPS_REVIEW].some((capability) => hasCapability(tiers, capability));
+  const canReviewInbox = [CAPABILITIES.CASES_APPROVE_EDITS, CAPABILITIES.CASES_APPROVE_DIVISION, CAPABILITIES.REQUESTS_VIEW, CAPABILITIES.TIPS_REVIEW, CAPABILITIES.INVESTIGATOR_REVIEW].some((capability) => hasCapability(tiers, capability));
   const primaryNav: NavItem[] = isTrainee ? [{ label: "Learning Course", href: "/dashboard/learning" }] : orientationPending ? [{ label: "Attorney Orientation", href: "/dashboard/orientation" }] : [
-    ...(mayViewCases ? [{ label: "Work Queue", href: "/dashboard/work-queue" }, { label: "Cases", href: "/dashboard/cases" }] : [{ label: "Overview", href: "/dashboard" }]),
+    ...(hasCapability(tiers, CAPABILITIES.CASE_TASKS_VIEW_ASSIGNED) ? [{ label: "My Assigned Work", href: "/dashboard/my-tasks" }] : []),
+    ...(mayViewCases ? [{ label: "Work Queue", href: "/dashboard/work-queue" }, { label: staffDivision === "Criminal Division" ? "Criminal Cases" : isCivilDivisionStaff ? "Civil Docket" : "Cases", href: isCivilDivisionStaff ? "/dashboard/civil" : "/dashboard/cases" }] : [{ label: "Overview", href: "/dashboard" }]),
     ...((hasCapability(tiers, CAPABILITIES.CASES_CREATE) || hasCapability(tiers, CAPABILITIES.CASES_PROPOSE_EDIT)) ? [{ label: "Intake", href: "/dashboard/intake" }] : []),
     ...(canReviewInbox ? [{ label: "Review Inbox", href: "/dashboard/review" }] : []),
   ];
@@ -38,13 +42,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
       label: "Casework",
       items: [
         ...(mayViewCases ? [...((hasCapability(tiers, CAPABILITIES.CASES_ASSIGN) || hasCapability(tiers, CAPABILITIES.CASES_ASSIGN_DIVISION)) ? [{ label: "Workload & Assignment", href: "/dashboard/workload" }] : []), { label: "Filing History", href: "/dashboard/filings" }, { label: "Case Calendar", href: "/dashboard/cases/calendar" }] : []),
+        ...(!isCivilDivisionStaff && hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) ? [{ label: "Civil Matters", href: "/dashboard/civil" }] : []),
         { label: "Search", href: "/dashboard/search" },
       ],
     },
     {
       label: "Office Management",
       items: [
-        ...((hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)) ? [{ label: "Staff Roster", href: "/dashboard/roster" }] : []),
+        ...((hasCapability(tiers, CAPABILITIES.ROSTER_VIEW) || hasCapability(tiers, CAPABILITIES.ROSTER_VIEW_DIVISION) || hasCapability(tiers, CAPABILITIES.PARALEGAL_ASSIGN)) ? [{ label: "Staff Roster", href: "/dashboard/roster" }] : []),
         ...(hasCapability(tiers, CAPABILITIES.ANNOUNCEMENTS_MANAGE) ? [{ label: "Public Releases", href: "/dashboard/announcements" }] : []),
         ...(hasCapability(tiers, CAPABILITIES.ACTIVITY_VIEW) ? [{ label: "Activity Log", href: "/dashboard/activity" }] : []),
         ...((hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL) || hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION)) ? [{ label: "Supervisor Reports", href: "/dashboard/reports" }] : []),

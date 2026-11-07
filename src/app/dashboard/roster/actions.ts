@@ -12,7 +12,7 @@ import { emptyToNull, toDate } from "@/lib/validation/case";
 import { logActivity } from "@/lib/activity-log";
 import { getSiteConfiguration } from "@/lib/site-settings";
 import { RANKS, type RankOption } from "@/config/ranks";
-import { UNITS, type UnitOption } from "@/config/units";
+import { canonicalDivisionOptions, normalizeDivisionPlacement, UNITS, type UnitOption } from "@/config/units";
 import { canAssignStaffRank, canControlStaff, replaceGroupRankTier } from "@/lib/staff-rank-control";
 import { parseStoredTiers } from "@/lib/contact-mail";
 import { isAssignableAttorneyRank } from "@/lib/case-assignees";
@@ -21,6 +21,7 @@ async function requireManager() {
   const session = await auth();
   const canManageRoster = session?.user && (hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE)
     || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION)
+    || hasCapability(session.user.tiers, CAPABILITIES.PARALEGAL_ASSIGN)
     || (session.user.tiers.includes("senior_assistant_district_attorney") && hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION)));
   if (!session?.user?.providerUserId || !canManageRoster) {
     throw new Error("Forbidden");
@@ -28,6 +29,27 @@ async function requireManager() {
   const user = await localUser(session.user);
   if (!user) throw new Error("Forbidden");
   return { session, user };
+}
+
+export async function assignParalegalUnit(formData: FormData) {
+  const { session } = await requireManager();
+  if (!hasCapability(session.user.tiers, CAPABILITIES.PARALEGAL_ASSIGN)) throw new Error("Forbidden");
+  const id = String(formData.get("id") ?? "");
+  const unit = String(formData.get("unit") ?? "").trim();
+  const bureau = String(formData.get("bureau") ?? "").trim();
+  const entry = await prisma.rosterEntry.findUnique({ where: { id }, select: { id: true, name: true, rank: true, robloxUserId: true, isActive: true } });
+  if (!entry || !entry.isActive || !["Secretary", "Paralegal", "Paralegal in Training"].includes(entry.rank ?? "")) throw new Error("Only active paralegal roster entries can be placed by the Chief Paralegal.");
+  const divisions = canonicalDivisionOptions(await getSiteConfiguration<UnitOption[]>("divisions", UNITS));
+  if (!divisions.some((option) => option.value === unit)) throw new Error("Choose a configured division.");
+  if (bureau && (unit !== "Criminal Division" || !["Trial Bureau", "Public Integrity Bureau", "Organized Crime Bureau"].includes(bureau))) throw new Error("Choose a valid Criminal Division bureau.");
+  await prisma.$transaction(async (tx) => {
+    await tx.rosterEntry.update({ where: { id }, data: { unit, bureau: bureau || null, divisionGroup: null } });
+    if (entry.robloxUserId) await tx.user.updateMany({ where: { robloxUserId: entry.robloxUserId }, data: { division: unit, divisionGroup: null } });
+  });
+  await logActivity(session.user.displayName, "assigned paralegal placement", "roster entry", `${entry.name} → ${unit}${bureau ? ` / ${bureau}` : ""}`);
+  revalidatePath("/dashboard/roster");
+  revalidatePath(`/dashboard/roster/${id}`);
+  redirect("/dashboard/roster");
 }
 
 async function addRosterEntryImpl(formData: FormData) {
@@ -41,7 +63,9 @@ async function addRosterEntryImpl(formData: FormData) {
   if (!data.rank) throw new Error("Select a configured rank.");
   if (!canManageRosterInDivision(session.user.tiers, user.division, data.unit)) throw new Error("You can only add roster entries to your assigned division.");
   if (data.divisionGroup && data.unit !== "Criminal Division") throw new Error("Groups 1 and 2 are only available in the Criminal Division.");
-  const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
+  if (data.bureau && data.unit !== "Criminal Division") throw new Error("Bureau placement is only available within the Criminal Division.");
+  const [ranks, savedDivisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
+  const divisions = canonicalDivisionOptions(savedDivisions);
   if (!ranks.some((rank) => rank.value === data.rank) || (data.unit && !divisions.some((unit) => unit.value === data.unit))) throw new Error("Select a configured rank and division");
   if (data.robloxUserId && await prisma.revokedStaffAccess.findUnique({ where: { robloxUserId: data.robloxUserId } })) throw new Error("This Roblox account has been removed from site access.");
 
@@ -50,6 +74,7 @@ async function addRosterEntryImpl(formData: FormData) {
       name: data.name,
       rank: data.rank,
       unit: emptyToNull(data.unit),
+      bureau: data.unit === "Criminal Division" ? emptyToNull(data.bureau) : null,
       divisionGroup: data.unit === "Criminal Division" ? emptyToNull(data.divisionGroup) : null,
       discordUserId: emptyToNull(data.discordUserId),
       robloxUserId: emptyToNull(data.robloxUserId),
@@ -73,8 +98,9 @@ async function updateRosterEntryImpl(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing roster entry id");
 
-  const previous = await prisma.rosterEntry.findUnique({ where: { id }, select: { robloxUserId: true, unit: true, divisionGroup: true, robloxSynced: true, name: true, rank: true, isProsecutorInTraining: true, isActive: true, orientationAcknowledgedAt: true, onboardingRoute: true } });
-  if (!previous) throw new Error("Roster entry not found. Refresh the roster and try again.");
+  const savedPrevious = await prisma.rosterEntry.findUnique({ where: { id }, select: { robloxUserId: true, unit: true, bureau: true, divisionGroup: true, robloxSynced: true, name: true, rank: true, isProsecutorInTraining: true, isActive: true, orientationAcknowledgedAt: true, onboardingRoute: true } });
+  if (!savedPrevious) throw new Error("Roster entry not found. Refresh the roster and try again.");
+  const previous = { ...savedPrevious, ...normalizeDivisionPlacement(savedPrevious.unit, savedPrevious.bureau) };
   const raw = Object.fromEntries(formData);
   // Synced entries may legitimately have no configured rank. Preserve the
   // saved Roblox value instead of rejecting an otherwise valid unit/group edit.
@@ -92,6 +118,7 @@ async function updateRosterEntryImpl(formData: FormData) {
     || canManageUnassignedRosterEntry(session.user.tiers, user.division, current.unit, current.rank)));
   if (!current || !mayManageCurrent || !canManageRosterInDivision(session.user.tiers, user.division, data.unit)) throw new Error("You can only assign unassigned staff to your division or edit entries already in your division.");
   if (data.divisionGroup && data.unit !== "Criminal Division") throw new Error("Groups 1 and 2 are only available in the Criminal Division.");
+  if (data.bureau && data.unit !== "Criminal Division") throw new Error("Bureau placement is only available within the Criminal Division.");
   if (requestedOnboardingRoute !== "UNASSIGNED" && requestedOnboardingRoute !== "EXPERIENCED" && requestedOnboardingRoute !== "TRAINING") throw new Error("Select a valid attorney onboarding route.");
   if (requestedOnboardingRoute === "EXPERIENCED" && (!current.isActive || !current.robloxUserId || data.unit !== "Criminal Division" || !isAssignableAttorneyRank(current.rank) || !data.divisionGroup || exemptionReason.length < 20)) {
     throw new Error("For the experienced route, record an active linked Criminal Division attorney, assign Group 1 or 2, and give at least 20 characters explaining the supervisor's experience review.");
@@ -103,7 +130,8 @@ async function updateRosterEntryImpl(formData: FormData) {
     && !canControlStaff(session.user.tiers, session.user.providerUserId, user.division, current)) {
     throw new Error("Only authorized leadership may change the attorney onboarding route or Prosecutor-in-Training access.");
   }
-  const [ranks, divisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
+  const [ranks, savedDivisions] = await Promise.all([getSiteConfiguration<RankOption[]>("ranks", RANKS), getSiteConfiguration<UnitOption[]>("divisions", UNITS)]);
+  const divisions = canonicalDivisionOptions(savedDivisions);
   if (data.unit && !divisions.some((unit) => unit.value === data.unit)) throw new Error("Select a configured division");
   if (!current.robloxSynced && data.robloxUserId && await prisma.revokedStaffAccess.findUnique({ where: { robloxUserId: data.robloxUserId } })) throw new Error("This Roblox account has been removed from site access.");
 
@@ -113,6 +141,7 @@ async function updateRosterEntryImpl(formData: FormData) {
       name: current.robloxSynced ? current.name : data.name,
       rank: current.rank,
       unit: emptyToNull(data.unit),
+      bureau: data.unit === "Criminal Division" ? emptyToNull(data.bureau) : null,
       divisionGroup: data.unit === "Criminal Division" ? emptyToNull(data.divisionGroup) : null,
       discordUserId: emptyToNull(data.discordUserId),
       robloxUserId: current.robloxSynced ? current.robloxUserId : emptyToNull(data.robloxUserId),
@@ -153,7 +182,8 @@ async function removeRosterEntryImpl(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) throw new Error("Missing roster entry id");
 
-  const entry = await prisma.rosterEntry.findUnique({ where: { id } });
+  const savedEntry = await prisma.rosterEntry.findUnique({ where: { id } });
+  const entry = savedEntry ? { ...savedEntry, ...normalizeDivisionPlacement(savedEntry.unit, savedEntry.bureau) } : null;
   if (!entry || !canControlStaff(session.user.tiers, session.user.providerUserId, user.division, entry)) throw new Error("Only CADA or higher can remove staff within their authority.");
   await prisma.$transaction(async (tx) => {
     if (entry.robloxUserId) {
@@ -178,8 +208,8 @@ async function setRosterActiveImpl(formData: FormData) {
   const { session, user } = await requireManager();
   const id = String(formData.get("id") ?? "");
   const isActive = formData.get("isActive") === "true";
-  const current = await prisma.rosterEntry.findUnique({ where: { id }, select: { unit: true, robloxSynced: true } });
-  if (!current || !canManageRosterInDivision(session.user.tiers, user.division, current.unit)) throw new Error("You can only manage roster entries in your assigned division.");
+  const current = await prisma.rosterEntry.findUnique({ where: { id }, select: { unit: true, bureau: true, robloxSynced: true } });
+  if (!current || !canManageRosterInDivision(session.user.tiers, user.division, normalizeDivisionPlacement(current.unit, current.bureau).unit)) throw new Error("You can only manage roster entries in your assigned division.");
   if (current.robloxSynced) throw new Error("Active membership is managed by Roblox group sync. Remove the member from the Roblox group and run a sync to mark them inactive.");
   const entry = await prisma.rosterEntry.update({ where: { id }, data: { isActive, ...(!isActive ? { isProsecutorInTraining: false } : {}) } });
   await logActivity(session.user.displayName, isActive ? "reactivated" : "deactivated", "roster entry", entry.name);
@@ -191,7 +221,8 @@ async function setRosterRankOverrideImpl(formData: FormData) {
   const { session, user } = await requireManager();
   const id = String(formData.get("id") ?? "");
   const requestedRank = String(formData.get("rankOverride") ?? "").trim();
-  const entry = await prisma.rosterEntry.findUnique({ where: { id } });
+  const savedEntry = await prisma.rosterEntry.findUnique({ where: { id } });
+  const entry = savedEntry ? { ...savedEntry, ...normalizeDivisionPlacement(savedEntry.unit, savedEntry.bureau) } : null;
   if (!entry || !canControlStaff(session.user.tiers, session.user.providerUserId, user.division, entry)) throw new Error("Only CADA or higher can change this staff member's rank.");
   if (!requestedRank && !entry.robloxSynced) throw new Error("Manual roster entries require a rank.");
   if (requestedRank) {
@@ -220,14 +251,15 @@ async function updateCriminalGroupAssignmentImpl(formData: FormData) {
   if (!id || (divisionGroup !== null && divisionGroup !== "1" && divisionGroup !== "2")) throw new Error("Choose a valid Criminal Division group.");
 
   const entry = await prisma.rosterEntry.findUnique({ where: { id }, select: { id: true, name: true, unit: true, divisionGroup: true, robloxUserId: true } });
-  if (!entry || entry.unit !== "Criminal Division" || !canManageCriminalGroupRosterEntry(session.user.tiers, user.division, user.divisionGroup, entry.unit, entry.divisionGroup)
-    || (divisionGroup !== null && !canManageCriminalGroupRosterEntry(session.user.tiers, user.division, user.divisionGroup, entry.unit, divisionGroup))) {
+  const placement = entry ? normalizeDivisionPlacement(entry.unit) : null;
+  if (!entry || placement?.unit !== "Criminal Division" || !canManageCriminalGroupRosterEntry(session.user.tiers, user.division, user.divisionGroup, placement.unit, entry.divisionGroup)
+    || (divisionGroup !== null && !canManageCriminalGroupRosterEntry(session.user.tiers, user.division, user.divisionGroup, placement!.unit, divisionGroup))) {
     throw new Error("You can only place ungrouped Criminal Division staff into your assigned SADA group.");
   }
 
   const linkedUser = entry.robloxUserId ? await prisma.user.findUnique({ where: { robloxUserId: entry.robloxUserId }, select: { id: true } }) : null;
   await prisma.$transaction(async (tx) => {
-    await tx.rosterEntry.update({ where: { id }, data: { divisionGroup } });
+    await tx.rosterEntry.update({ where: { id }, data: { unit: "Criminal Division", bureau: placement?.bureau ?? null, divisionGroup } });
     if (entry.robloxUserId) await tx.user.updateMany({ where: { robloxUserId: entry.robloxUserId }, data: { division: "Criminal Division", divisionGroup } });
     if (linkedUser && entry.divisionGroup !== divisionGroup) {
       await tx.case.updateMany({ where: { division: "Criminal Division", assignedAttorneyId: linkedUser.id }, data: { divisionGroup } });

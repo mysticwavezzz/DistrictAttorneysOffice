@@ -5,6 +5,8 @@ const RANK_TIERS: Record<string, PermissionTier> = {
   "Deputy District Attorney": PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY,
   "Chief Assistant District Attorney": PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY,
   "Senior Assistant District Attorney": PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY,
+  "County Solicitor": PERMISSION_TIERS.COUNTY_SOLICITOR,
+  "Chief Investigator": PERMISSION_TIERS.SPECIAL_INVESTIGATIONS,
   "Executive Secretary": PERMISSION_TIERS.EXECUTIVE_SECRETARY,
   "Assistant District Attorney": PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY,
   "Secretary Supervisor": PERMISSION_TIERS.SECRETARY_SUPERVISOR,
@@ -21,6 +23,7 @@ const GROUP_RANK_TIERS = new Set<PermissionTier>([
   PERMISSION_TIERS.DEPUTY_DISTRICT_ATTORNEY,
   PERMISSION_TIERS.CHIEF_ASSISTANT_DISTRICT_ATTORNEY,
   PERMISSION_TIERS.SENIOR_ASSISTANT_DISTRICT_ATTORNEY,
+  PERMISSION_TIERS.COUNTY_SOLICITOR,
   PERMISSION_TIERS.EXECUTIVE_SECRETARY,
   PERMISSION_TIERS.ASSISTANT_DISTRICT_ATTORNEY,
   PERMISSION_TIERS.DA_ATTORNEY,
@@ -66,7 +69,7 @@ function authorityLevel(tiers: PermissionTier[]): number {
 function rankLevel(rank: string | null): number {
   if (rank === "District Attorney") return 3;
   if (rank === "Deputy District Attorney") return 2;
-  if (rank === "Chief Assistant District Attorney" || rank === "Executive Secretary") return 1;
+  if (rank === "Chief Assistant District Attorney" || rank === "County Solicitor" || rank === "Chief Investigator" || rank === "Executive Secretary") return 1;
   return 0;
 }
 

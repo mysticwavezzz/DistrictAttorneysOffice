@@ -111,8 +111,10 @@ async function updateCrimeTipImpl(formData: FormData) {
   const assigneeId = String(formData.get("assigneeId") ?? "").trim() || null;
   const linkedCaseId = String(formData.get("linkedCaseId") ?? "").trim() || null;
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
+  const mayOpenCase = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
   const allowedStatuses = new Set(["NEW", "UNDER_REVIEW", "FOLLOW_UP", "REFERRED", "NO_JURISDICTION", "INSUFFICIENT", "DUPLICATE", "OPENED_AS_CASE", "CLOSED"]);
   if (!id || !allowedStatuses.has(status)) throw new Error("Choose a valid tip status.");
+  if (!mayOpenCase && (status === "OPENED_AS_CASE" || linkedCaseId)) throw new Error("Only an attorney may link a tip to a case or mark it opened as a case.");
   const tip = await prisma.crimeTip.findUnique({ where: { id }, select: { id: true, status: true, assignedToId: true, linkedCaseId: true, reference: true } });
   if (!tip) throw new Error("Tip not found.");
   if (linkedCaseId) {

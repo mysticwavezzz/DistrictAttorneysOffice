@@ -2,15 +2,20 @@ import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import type { PermissionTier } from "@/lib/permissions/tiers";
 import type { Prisma } from "@prisma/client";
+import { normalizeDivisionPlacement } from "@/config/units";
 
 export async function localUser(identity: { identityProvider: "discord" | "roblox"; providerUserId: string }) {
   if (!identity.providerUserId) return null;
   if (identity.identityProvider !== "roblox") return prisma.user.findUnique({ where: { discordUserId: identity.providerUserId } });
   const user = await prisma.user.findUnique({ where: { robloxUserId: identity.providerUserId } });
   if (!user) return null;
-  const rosterEntry = await prisma.rosterEntry.findUnique({ where: { robloxUserId: identity.providerUserId }, select: { unit: true, divisionGroup: true } });
-  const division = rosterEntry ? rosterEntry.unit : user.division;
+  const rosterEntry = await prisma.rosterEntry.findUnique({ where: { robloxUserId: identity.providerUserId }, select: { unit: true, bureau: true, divisionGroup: true } });
+  const placement = normalizeDivisionPlacement(rosterEntry ? rosterEntry.unit : user.division, rosterEntry?.bureau);
+  const division = placement.unit;
   const divisionGroup = rosterEntry ? rosterEntry.divisionGroup : user.divisionGroup;
+  if (rosterEntry && (rosterEntry.unit !== placement.unit || rosterEntry.bureau !== placement.bureau)) {
+    await prisma.rosterEntry.update({ where: { robloxUserId: identity.providerUserId }, data: { unit: placement.unit, bureau: placement.bureau } });
+  }
   if (user.division !== division || user.divisionGroup !== divisionGroup) return prisma.user.update({ where: { id: user.id }, data: { division, divisionGroup } });
   return user;
 }
@@ -25,7 +30,7 @@ export function canAccessCase(
   const canViewAll = hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL);
   if (canViewAll) return true;
   const isSada = tiers.includes("senior_assistant_district_attorney");
-  const isDivisionAttorney = tiers.some((tier) => tier === "assistant_district_attorney" || tier === "da_attorney" || tier === "senior_assistant_district_attorney" || tier === "chief_assistant_district_attorney" || tier === "executive_secretary");
+  const isDivisionAttorney = tiers.some((tier) => tier === "assistant_district_attorney" || tier === "da_attorney" || tier === "senior_assistant_district_attorney" || tier === "chief_assistant_district_attorney" || tier === "county_solicitor" || tier === "executive_secretary");
   if (isDivisionAttorney && (!userDivision || target.division !== userDivision)) return false;
   if (isSada && target.division === "Criminal Division" && (!userGroup || target.divisionGroup !== userGroup)) return false;
   const canViewDivision = hasCapability(tiers, CAPABILITIES.CASES_VIEW_DIVISION) && Boolean(userDivision) && target.division === userDivision;

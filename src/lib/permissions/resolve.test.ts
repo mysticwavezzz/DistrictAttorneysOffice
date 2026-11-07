@@ -154,12 +154,14 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect([...executiveSecretary].sort()).toEqual([...cada].sort());
   });
 
-  it("paralegal can view all cases and propose edits, but not delete or assign", async () => {
+  it("paralegal can only access assigned tasks, not the case docket", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
     const tiers = [PERMISSION_TIERS.DA_PARALEGAL];
-    expect(hasCapability(tiers, CAPABILITIES.CASES_VIEW)).toBe(true);
-    expect(hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL)).toBe(true);
-    expect(hasCapability(tiers, CAPABILITIES.CASES_PROPOSE_EDIT)).toBe(true);
+    expect(hasCapability(tiers, CAPABILITIES.CASE_TASKS_VIEW_ASSIGNED)).toBe(true);
+    expect(hasCapability(tiers, CAPABILITIES.CASE_TASKS_SUBMIT)).toBe(true);
+    expect(hasCapability(tiers, CAPABILITIES.CASES_VIEW)).toBe(false);
+    expect(hasCapability(tiers, CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
+    expect(hasCapability(tiers, CAPABILITIES.CASES_PROPOSE_EDIT)).toBe(false);
     expect(hasCapability(tiers, CAPABILITIES.CASES_DELETE)).toBe(false);
     expect(hasCapability(tiers, CAPABILITIES.CASES_ASSIGN)).toBe(false);
   });
@@ -213,10 +215,12 @@ describe("capabilitiesForTiers / hasCapability / hasAnyCapability", () => {
     expect(hasAnyCapability([], [CAPABILITIES.DASHBOARD_VIEW])).toBe(false);
   });
 
-  it("allows SIB to submit case openings without granting review or full-docket access", async () => {
+  it("limits SIB supervisors to investigator and tip review, not attorney case-opening powers", async () => {
     const { hasCapability, PERMISSION_TIERS, CAPABILITIES } = await freshResolveModule();
-    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_CREATE)).toBe(true);
-    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_VIEW)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.INVESTIGATOR_REVIEW)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.TIPS_REVIEW)).toBe(true);
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_CREATE)).toBe(false);
+    expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_VIEW)).toBe(false);
     expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_APPROVE_EDITS)).toBe(false);
     expect(hasCapability([PERMISSION_TIERS.SPECIAL_INVESTIGATIONS], CAPABILITIES.CASES_VIEW_ALL)).toBe(false);
   });

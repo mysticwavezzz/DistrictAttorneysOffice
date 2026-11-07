@@ -65,6 +65,6 @@ describe("getDivisionCaseAssignees", () => {
 
     await getDivisionCaseAssignees("Criminal Division", { divisionGroup: "2", restrictToGroup: true });
 
-    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ unit: "Criminal Division", divisionGroup: "2" }) }));
+    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ unit: { in: ["Criminal Division", "Public Integrity Bureau"] }, divisionGroup: "2" }) }));
   });
 });

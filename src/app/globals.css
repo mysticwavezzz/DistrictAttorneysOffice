@@ -1605,6 +1605,39 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .tip-notice h2 { margin: 0 0 8px; }
 .tip-notice p:last-child { margin-bottom: 0; }
 .tip-emergency { border-left: 4px solid var(--down); }
+.gang-tip-form textarea { width: 100%; }
+.gang-tip-paste { margin: 0 14px 14px; padding: 16px; border: 1px dashed var(--bd); border-radius: 6px; background: var(--box-alt); color: var(--ink-soft); cursor: pointer; text-align: center; }
+.gang-tip-paste:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.gang-tip-files { display: grid; gap: 6px; margin: 0 14px 14px; padding-left: 20px; }
+.gang-tip-files li { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tip-review-attachments { margin: 14px 0; padding: 12px; border: 1px solid var(--bd-lt); background: var(--box-alt); overflow-wrap: anywhere; }
+.tip-review-attachments h3 { margin-top: 0; }
+.tip-review-attachments code { font-size: 11px; }
+.civil-page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.civil-page-heading h1, .civil-page-heading .lede { margin-bottom: 0; }
+.civil-page-heading .govbtn { flex: 0 0 auto; }
+.civil-page-heading .lede { max-width: 760px; }
+.civil-matter-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.civil-matter-summary article { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--bd); background: var(--box-alt); }
+.civil-matter-summary span { color: var(--ink-soft); font-size: 13px; }
+.civil-matter-summary strong { color: var(--navy); font-family: Georgia, serif; font-size: 28px; line-height: 1; }
+.civil-matter-list { display: grid; gap: 12px; }
+.roster-bureau-section + .roster-bureau-section { margin-top: 20px; }
+.roster-bureau-heading { margin: 14px 0 10px; border-bottom: 1px solid var(--bd); padding-bottom: 6px; color: var(--navy); font-size: 17px; }
+.civil-matter-card { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, 1fr); gap: 18px; padding: 16px; border: 1px solid var(--bd); background: var(--box); }
+.civil-matter-card .eyebrow { margin: 0 0 5px; }
+.civil-matter-card h2 { margin: 0 0 7px; font-size: 20px; }
+.civil-matter-card > div > p:last-child { margin: 0; color: var(--ink-soft); }
+.civil-matter-card dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 12px; border: 1px solid var(--bd); background: var(--box-alt); }
+.civil-matter-card dl div { min-width: 0; }
+.civil-matter-card dt { margin-bottom: 4px; color: var(--ink-soft); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.civil-matter-card dd { margin: 0; overflow-wrap: anywhere; font-weight: 700; }
+.civil-new-page { display: grid; max-width: 940px; gap: 14px; margin: 0 auto; }
+.civil-new-page > h1, .civil-new-page > .lede { margin-bottom: 0; }
+.civil-party-list { display: grid; gap: 10px; }
+.work-queue-header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 720px) { .civil-matter-card { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .civil-page-heading { align-items: stretch; } .civil-page-heading .govbtn { align-self: flex-start; } .civil-matter-summary { grid-template-columns: 1fr; } .civil-matter-card dl { grid-template-columns: 1fr; } }
 :root[data-theme="dark"] .staff-nav-groups,
 :root[data-theme="dark"] .tip-form-section { background: var(--box); }
 :root[data-theme="dark"] .dashboard-overview a.card:hover { box-shadow: 0 5px 16px rgba(0, 0, 0, .28); }
@@ -1908,6 +1941,7 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .recent-filings-list small { color: var(--ink-soft); }
 .recent-filings-list time { flex: none; color: var(--ink-soft); font-size: 11px; }
 .case-opening-shell { max-width: 940px; margin: 0 auto; }
+.case-opening-shell, .case-opening-form, .case-opening-form fieldset { min-width: 0; }
 .case-opening-heading h1 { margin-bottom: 4px; }
 .case-opening-steps { display: flex; gap: 0; overflow-x: auto; margin: 18px 0 14px; padding: 0; border: 1px solid var(--bd-lt); list-style: none; }
 .case-opening-steps li { flex: 0 0 auto; }
@@ -1956,6 +1990,17 @@ table.stat.mobile-cards td[colspan] { display: block; text-align: center; }
 .crime-tip-review-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
 .crime-tip-review-form .field:last-of-type { grid-column: 1 / -1; }
 @media (max-width: 720px) { .crime-tip-review-form { grid-template-columns: 1fr; } .crime-tip-review-form .field:last-of-type { grid-column: auto; } }
+.paralegal-task-list { display: grid; gap: 1rem; }
+.paralegal-task-card, .paralegal-review-card { border: 1px solid var(--bd); border-radius: 6px; padding: 1rem; background: var(--box); }
+.paralegal-task-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.paralegal-task-card h2, .paralegal-review-card h4 { margin: .1rem 0 .55rem; }
+.paralegal-task-case { font-weight: 700; }
+.paralegal-task-form, .paralegal-return-form { display: grid; gap: .75rem; margin-top: 1rem; }
+.paralegal-draft-preview, .paralegal-review-card pre { border: 1px solid var(--bd-lt); border-radius: 4px; padding: .85rem; background: var(--box-alt); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.paralegal-review-card { margin-top: .75rem; }
+.paralegal-return-form { grid-template-columns: 1fr 1fr; align-items: end; }
+.paralegal-return-form label, .paralegal-return-form textarea { grid-column: 1 / -1; }
+@media (max-width: 700px) { .paralegal-task-card > header { flex-direction: column; } .paralegal-return-form { grid-template-columns: 1fr; } }
 .review-aopc-form, .review-record-action { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .review-aopc-form .field { flex: 1 1 100%; }
 .review-case-decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; align-items: start; }
@@ -1994,6 +2039,16 @@ button:disabled { cursor: wait; opacity: .7; }
 @media (max-width: 420px) {
   .case-staff-filter { grid-template-columns: 1fr; }
   .case-staff-filter .govbtn-outline { justify-self: start; }
+}
+
+@media (max-width: 520px) {
+  .civil-new-page, .civil-new-page > * { min-width: 0; }
+  .civil-new-page .case-opening-shell { width: 100%; }
+  .case-opening-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; overflow: visible; box-sizing: border-box; }
+  .case-opening-steps li { min-width: 0; }
+  .case-opening-steps button { width: 100%; justify-content: flex-start; padding: 0 8px; border-bottom: 1px solid var(--bd-lt); }
+  .case-opening-form { padding: 12px; }
+  .case-opening-form input, .case-opening-form select, .case-opening-form textarea { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
 }
 
 @media (max-width: 460px) {

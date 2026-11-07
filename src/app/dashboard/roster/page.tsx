@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
 import { RANKS, isLeadershipRank } from "@/config/ranks";
-import { UNITS } from "@/config/units";
+import { canonicalDivisionOptions, LEGACY_BUREAU_UNITS, UNITS, type UnitOption, normalizeDivisionPlacement } from "@/config/units";
 import { addRosterEntry, removeRosterEntry, setRosterActive, updateCriminalGroupAssignment, placeTrainingGraduate, reviewTrainingAttempt } from "./actions";
 import { RemoveButton } from "@/components/remove-button";
 import { FormWithPendingSubmit } from "@/components/form-with-pending-submit";
@@ -25,7 +25,7 @@ type RosterEntry = Awaited<ReturnType<typeof prisma.rosterEntry.findMany>>[numbe
 export default async function RosterPage({ searchParams }: { searchParams: Promise<{ q?: string; rank?: string; unit?: string; group?: string; active?: string }> }) {
   const session = await auth();
   const hasGroupLeadTier = Boolean(session?.user?.tiers.includes("senior_assistant_district_attorney") && hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_DIVISION));
-  if (!session?.user || (!hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW_DIVISION) && !hasGroupLeadTier)) {
+  if (!session?.user || (!hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW_DIVISION) && !hasCapability(session.user.tiers, CAPABILITIES.PARALEGAL_ASSIGN) && !hasGroupLeadTier)) {
     redirect("/login?error=forbidden");
   }
 
@@ -43,9 +43,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
     || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE_DIVISION)
   );
   const canManage = canManageAll || canManageDivision;
+  const canAssignParalegals = hasCapability(session.user.tiers, CAPABILITIES.PARALEGAL_ASSIGN);
   const canManageOwnGroup = hasGroupLeadTier && !canManageAll && !canManageDivision && user.division === "Criminal Division" && Boolean(user.divisionGroup);
   const canViewOwnGroup = hasGroupLeadTier && Boolean(user.divisionGroup) && !canManageAll && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW_DIVISION);
-  const allDivisions = await getSiteConfiguration("divisions", UNITS);
+  const allDivisions = canonicalDivisionOptions(await getSiteConfiguration<UnitOption[]>("divisions", UNITS));
   const divisions = canManageAll || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) ? allDivisions : allDivisions.filter((division) => division.value === user.division);
   const ranks = await getSiteConfiguration("ranks", RANKS);
   const filters = await searchParams;
@@ -53,17 +54,19 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
   let entries: RosterEntry[] = [];
   try {
     entries = await prisma.rosterEntry.findMany({
-      where: canManageAll || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW)
+      where: canAssignParalegals && !canManageAll && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW) && !hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW_DIVISION)
+        ? { rank: { in: ["Secretary", "Paralegal", "Paralegal in Training"] } }
+        : canManageAll || hasCapability(session.user.tiers, CAPABILITIES.ROSTER_VIEW)
         ? {}
         : canViewOwnGroup
-          ? { unit: "Criminal Division", OR: [{ divisionGroup: user.divisionGroup }, { divisionGroup: null }] }
+          ? { unit: { in: ["Criminal Division", ...Object.keys(LEGACY_BUREAU_UNITS)] }, OR: [{ divisionGroup: user.divisionGroup }, { divisionGroup: null }] }
         : canManageDivision
-          ? { OR: [{ unit: user.division }, { unit: null }, { unit: "" }] }
+          ? { OR: [{ unit: user.division === "Criminal Division" ? { in: ["Criminal Division", ...Object.keys(LEGACY_BUREAU_UNITS)] } : user.division }, { unit: null }, { unit: "" }] }
           : canViewUnassignedOnly
             ? { OR: [{ unit: null }, { unit: "" }] }
-            : { unit: user.division ?? "__unassigned__" },
+          : { unit: user.division === "Criminal Division" ? { in: ["Criminal Division", ...Object.keys(LEGACY_BUREAU_UNITS)] } : user.division ?? "__unassigned__" },
       orderBy: { name: "asc" },
-    });
+    }).then((result) => result.map((entry) => ({ ...entry, ...normalizeDivisionPlacement(entry.unit, entry.bureau) })));
   } catch (error) {
     console.error("Failed to load roster", error);
   }
@@ -113,33 +116,45 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
 
   function renderGroup(group: (typeof groups)[number]) {
     if (group.entries.length === 0 && group.key !== "__office__") return null;
+    const criminalBureaus = ["Trial Bureau", "Public Integrity Bureau", "Organized Crime Bureau", "__unassigned__"];
+    const rosterSections = group.key === "Criminal Division"
+      ? criminalBureaus.map((bureau) => ({
+        key: bureau,
+        label: bureau === "__unassigned__" ? "Criminal Division · bureau not placed" : bureau,
+        entries: group.entries.filter((entry) => (entry.bureau ?? "__unassigned__") === bureau),
+      })).filter((section) => section.entries.length)
+      : [{ key: group.key, label: "", entries: group.entries }];
     return (
       <details key={group.key} className="roster-division" data-fold-key={`roster:${group.key || "unassigned"}`}>
         <summary><span>{group.label}</span><span className="roster-division-count">{group.entries.length} staff</span></summary>
         <div className="roster-division-body">
         {group.description && <p className="note-inline">{group.description}</p>}
+        {rosterSections.map((section) => <section key={section.key} className={group.key === "Criminal Division" ? "roster-bureau-section" : undefined}>
+        {section.label && <h3 className="roster-bureau-heading">{section.label}</h3>}
         <div className="roster-cards">
-          {group.entries.map((entry) => <article className="roster-card" key={entry.id}>
+          {section.entries.map((entry) => <article className="roster-card" key={entry.id}>
             {entry.imageUrl && <SafeImage src={entry.imageUrl} alt="" width={54} height={54} />}
             <h4>{entry.name}</h4>
-            <p>{entry.rank ?? "Rank not set"} {isLeadershipRank(entry.rank) && <span className="pill pill-gold">Leadership</span>}</p>
+            <p>{entry.rank === "Secretary" ? "Paralegal" : entry.rank === "Secretary Supervisor" ? "Chief Paralegal" : entry.rank ?? "Rank not set"} {isLeadershipRank(entry.rank) && <span className="pill pill-gold">Leadership</span>}</p>
             <p className="roster-case-load">Assigned active cases: <strong>{caseLoad(entry)}</strong></p>
             <p className="mono">Discord: {linkedDiscordId(entry) ?? "Not linked"}</p>
             <p>Start date: {entry.startDate ? dateFormatter.format(entry.startDate) : "Not set"}</p>
             <div className="roster-card-badges">
               <span className={`pill ${entry.isActive ? "pill-green" : "pill-muted"}`}>{entry.isActive ? "Roster active" : "Roster inactive"}</span>
               {entry.divisionGroup && <span className="pill pill-navy">Group {entry.divisionGroup}</span>}
+              {entry.bureau && <span className="pill pill-navy">{entry.bureau}</span>}
               {entry.robloxSynced && <span className="pill pill-gold">Roblox synced</span>}
               {entry.rankOverride && <span className="pill pill-navy">Rank override</span>}
             </div>
-            {(canManage || (canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup))) && <div className="roster-card-actions">
-              {canManage && <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>{!entry.unit && !canManageAll ? "Assign to my division" : "Edit profile"}</Link>}
+            {(canManage || canAssignParalegals && ["Secretary", "Paralegal", "Paralegal in Training"].includes(entry.rank ?? "") || (canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup))) && <div className="roster-card-actions">
+              {(canManage || canAssignParalegals && ["Secretary", "Paralegal", "Paralegal in Training"].includes(entry.rank ?? "")) && <Link className="govbtn-outline" href={`/dashboard/roster/${entry.id}`}>{canAssignParalegals && !canManage ? "Assign support placement" : !entry.unit && !canManageAll ? "Assign to my division" : "Edit profile"}</Link>}
               {canManageOwnGroup && canManageCriminalGroupRosterEntry(viewerTiers, viewerDivision, viewerGroup, entry.unit, entry.divisionGroup) && <form action={updateCriminalGroupAssignment} className="roster-group-assignment"><input type="hidden" name="id" value={entry.id} /><label htmlFor={`group-${entry.id}`}>Group</label><select id={`group-${entry.id}`} name="divisionGroup" defaultValue={entry.divisionGroup ?? ""}><option value="">Unassigned</option><option value={viewerGroup!}>Group {viewerGroup}</option></select><button className="govbtn-outline" type="submit">Save</button></form>}
               {canManage && (canManageAll || entry.unit === (user?.division ?? null)) && !entry.robloxSynced && <form action={setRosterActive}><input type="hidden" name="id" value={entry.id}/><input type="hidden" name="isActive" value={String(!entry.isActive)}/><button className="linklike" type="submit">Mark {entry.isActive ? "inactive" : "active"}</button></form>}
               {canControlStaff(session!.user.tiers, session!.user.providerUserId, user!.division, entry) && <RemoveButton id={entry.id} action={removeRosterEntry} label="Remove access" confirmMessage={`Remove ${entry.name} from the roster${entry.robloxUserId ? " and revoke this Roblox account's website access" : ""}? Group sync will not restore a revoked account.`} />}
             </div>}
           </article>)}
         </div>
+        </section>)}
         </div>
       </details>
     );

@@ -15,6 +15,7 @@ export default async function WorkQueuePage({ searchParams }: { searchParams: Pr
   if (!session?.user?.providerUserId || (!hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW) && !hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION))) redirect("/login?error=forbidden");
   const user = await localUser(session.user);
   if (!user) redirect("/login?error=forbidden");
+  const rosterPlacement = session.user.robloxUserId ? await prisma.rosterEntry.findUnique({ where: { robloxUserId: session.user.robloxUserId }, select: { bureau: true } }) : null;
   const visibility = caseVisibilityWhere(session.user.tiers, user.id, user.division, user.divisionGroup);
   const cases = visibility ? await prisma.case.findMany({ where: { archived: false, AND: [visibility] }, select: { id: true, caseNumber: true, title: true, filings: { where: { status: "PENDING" }, select: { id: true, title: true, createdAt: true } } }, orderBy: { updatedAt: "desc" }, take: 150 }) : [];
   const pendingFilingItems: QueueItem[] = [];
@@ -42,7 +43,16 @@ export default async function WorkQueuePage({ searchParams }: { searchParams: Pr
   const reviewCount = caseRequests + pendingFilings + pendingAopcs + openTips + openInvestigatorTickets + openRecordsRequests;
   const intakeTickets = canReview ? await prisma.contactTicket.findMany({ where: { category: "INVESTIGATOR_INTAKE", status: "OPEN", intakeStatus: { in: ["OPEN", "NEEDS_INFO"] }, ...(hasCapability(session.user.tiers, CAPABILITIES.CASES_APPROVE_EDITS) ? {} : { assigneeId: user.id }) }, orderBy: { updatedAt: "asc" }, take: 20, select: { id: true, subject: true, intakeStatus: true, updatedAt: true, requester: { select: { displayName: true } } } }) : [];
   pendingFilingItems.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  return <main className="work-queue-page"><p className="eyebrow">District Attorney&apos;s Office</p><div className="workbench-section-heading"><div><h1>Work Queue</h1><p className="lede">Your next actions, review items, and incoming reports.</p></div><Link className="govbtn-outline" href="/settings?notificationView=unread#notifications">Notification history</Link></div>
+  const workspace = user.division === "Criminal Division"
+    ? `Criminal Division${rosterPlacement?.bureau ? ` · ${rosterPlacement.bureau}` : ""}`
+    : user.division === "Civil Division"
+      ? "Civil Division"
+      : user.division === "Administrative Services"
+        ? "Administrative Services"
+        : user.division ?? "District Attorney's Office";
+  const civilOpener = user.division === "Civil Division" || session.user.tiers.includes("district_attorney") || session.user.tiers.includes("deputy_district_attorney") || session.user.tiers.includes("developer_profile");
+  const criminalOpener = user.division === "Criminal Division" && hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
+  return <main className="work-queue-page"><p className="eyebrow">{workspace}</p><div className="workbench-section-heading"><div><h1>{user.division ? `${workspace} Work Queue` : "Office Work Queue"}</h1><p className="lede">Your division&apos;s assigned work, review items, and incoming reports.</p></div><div className="work-queue-header-actions">{civilOpener && <Link className="govbtn" href="/dashboard/civil/new">Start civil matter</Link>}{criminalOpener && <Link className="govbtn-outline" href="/dashboard/cases/new">Open criminal case</Link>}<Link className="govbtn-outline" href="/settings?notificationView=unread#notifications">Notification history</Link></div></div>
     {query.caseSubmitted === "review" && <p className="message message-success" role="status">The case opening is in the Review Inbox. It will appear on the docket after approval.</p>}
     <div className="work-queue-stats">{canReviewInbox && <Link href="/dashboard/review"><strong>{reviewCount}</strong><span>Items awaiting review</span></Link>}<article><strong>{unreadCount}</strong><span>Unread alerts</span></article><article><strong>{intakeTickets.length}</strong><span>My intake tickets</span></article><article><strong>{pendingFilingItems.length}</strong><span>Pending filings</span></article></div>
     <div className="work-queue-grid">

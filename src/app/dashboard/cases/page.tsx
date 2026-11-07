@@ -39,6 +39,7 @@ export default async function CasesPage({
   const canCreate = hasCapability(session.user.tiers, CAPABILITIES.CASES_CREATE);
   const canPropose = hasCapability(session.user.tiers, CAPABILITIES.CASES_PROPOSE_EDIT);
   const viewAll = hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_ALL);
+  const canStartCivilMatter = user.division === "Civil Division" || session.user.tiers.includes("district_attorney") || session.user.tiers.includes("developer_profile");
   const canFilterStaff = viewAll || hasCapability(session.user.tiers, CAPABILITIES.CASES_VIEW_DIVISION);
   const canBulkAssign = canAssignCase(session.user.tiers, user.division);
   const canBulkArchive = hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT) || hasCapability(session.user.tiers, CAPABILITIES.CASES_EDIT_DIVISION);
@@ -117,6 +118,7 @@ export default async function CasesPage({
         <div className="cases-page-title"><p className="eyebrow">Casework</p><h1>{allAccessible ? "All Accessible Cases" : "My Cases"}</h1><p className="lede">Find a case, check its next scheduled court date, or continue assigned work.</p></div>
         <div className="cases-page-actions">
           {(canCreate || canPropose) && <Link href="/dashboard/cases/new" className="govbtn">Open a Case</Link>}
+          {canStartCivilMatter && <Link href="/dashboard/civil/new" className="govbtn-outline">Start civil matter</Link>}
         </div>
       </header>
 

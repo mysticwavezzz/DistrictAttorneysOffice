@@ -7,7 +7,7 @@ import { hasCapability } from "@/lib/permissions";
 import { updateSiteSettings } from "@/lib/site-settings";
 import { logActivity } from "@/lib/activity-log";
 import { CLEAR_DATA_CONFIRMATION } from "./constants";
-import { UNITS } from "@/config/units";
+import { canonicalDivisionOptions, UNITS, type UnitOption } from "@/config/units";
 import { RANKS } from "@/config/ranks";
 import { CASE_STATUSES } from "@/config/case-statuses";
 import { ALL_TIERS, DEVELOPER_PROFILE_TIER, TIER_DEFINITIONS } from "@/lib/permissions/tiers";
@@ -174,7 +174,7 @@ async function saveApplicationConfigurationImpl(formData: FormData) {
     ]))
     : rawTierCapabilities;
   const tierCapabilities = tierCapabilitiesSchema.parse(normalizedTierCapabilities) as Record<string, string[]>;
-  const divisions = divisionsSchema.parse(parseJsonField(formData, "divisions"));
+  const divisions = canonicalDivisionOptions(divisionsSchema.parse(parseJsonField(formData, "divisions")) as UnitOption[]);
   const ranks = ranksSchema.parse(parseJsonField(formData, "ranks"));
   const caseStatuses = statusesSchema.parse(parseJsonField(formData, "caseStatuses"));
   const crimeTipFormSchema = z.object({

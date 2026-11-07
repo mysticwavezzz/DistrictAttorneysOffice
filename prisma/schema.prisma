@@ -336,6 +336,11 @@ model CaseTask {
   dueAt           DateTime?
   assignedToId    String?
   assignedToName  String?
+  draftText       String    @default("")
+  reviewNote      String    @default("")
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  reviewedById    String?
   createdById     String
   createdByName   String
   createdAt       DateTime  @default(now())
@@ -517,6 +522,7 @@ model RosterEntry {
   lastRobloxSyncAt DateTime?
   rank             String?
   unit             String?
+  bureau           String?
   divisionGroup    String?
   imageUrl         String?
   about            String?
@@ -660,6 +666,7 @@ model CrimeTip {
   id                 String   @id @default(cuid())
   reference          String   @unique
   encryptedPayload   String
+  category           String   @default("CRIME")
   crimeType          String
   status             String   @default("NEW")
   assignedToId       String?
@@ -672,9 +679,25 @@ model CrimeTip {
   assignedTo  User?         @relation("CrimeTipAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   linkedCase  Case?         @relation("CrimeTipLinkedCase", fields: [linkedCaseId], references: [id], onDelete: SetNull)
   events      CrimeTipEvent[]
+  attachments CrimeTipAttachment[]
 
   @@index([status, createdAt])
   @@index([assignedToId, status])
+}
+
+model CrimeTipAttachment {
+  id           String   @id @default(cuid())
+  tipId        String
+  fileName     String
+  mimeType     String
+  byteSize     Int
+  sha256       String
+  encryptedData String
+  createdAt    DateTime @default(now())
+
+  tip CrimeTip @relation(fields: [tipId], references: [id], onDelete: Cascade)
+
+  @@index([tipId, createdAt])
 }
 
 model CrimeTipEvent {
