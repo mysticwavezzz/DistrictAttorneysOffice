@@ -8,6 +8,7 @@ import { runWithActionDebug } from "@/lib/action-debug";
 import { encryptCrimeTip } from "@/lib/crime-tip-encryption";
 import { CAPABILITIES } from "@/lib/permissions";
 import { notifyMany, userIdsWithCapability } from "@/lib/notifications";
+import { auth } from "@/lib/auth";
 
 const MIN_HUMAN_FILL_TIME_MS = 3_000;
 
@@ -28,6 +29,10 @@ function normalizeTipIdentifier(value: string): string {
 
 async function postTip(req: NextRequest) {
   if (!isSameOriginRequest(req)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  const session = await auth();
+  if (session?.user?.identityProvider !== "roblox" || !session.user.robloxUserId || !session.user.username) {
+    return NextResponse.json({ error: "Sign in with Roblox before submitting a crime tip." }, { status: 401 });
+  }
 
   let body: unknown;
   try { body = await req.json(); }
@@ -36,7 +41,12 @@ async function postTip(req: NextRequest) {
   const parsed = tipFormSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Please check the form for errors and try again." }, { status: 400 });
 
-  const { website, renderedAt, ...tip } = parsed.data;
+  const { website, renderedAt, ...submittedTip } = parsed.data;
+  const tip = {
+    ...submittedTip,
+    submitterRoblox: `${session.user.username} / ${session.user.robloxUserId}`,
+    signature: session.user.username.toUpperCase(),
+  };
   if (website) return NextResponse.json({ success: true });
   if (Date.now() - renderedAt < MIN_HUMAN_FILL_TIME_MS) return NextResponse.json({ error: "Please wait a moment and try submitting again." }, { status: 429 });
   if (Number.isNaN(Date.parse(tip.incidentDateTime))) return NextResponse.json({ error: "Please check the incident date." }, { status: 400 });
@@ -45,7 +55,7 @@ async function postTip(req: NextRequest) {
   const previous = await prisma.crimeTip.findUnique({ where: { reference: receipt }, select: { id: true } });
   if (previous) return NextResponse.json({ success: true, receipt, status: "received" });
 
-  const robloxKey = normalizeTipIdentifier(tip.submitterRoblox);
+  const robloxKey = normalizeTipIdentifier(session.user.robloxUserId);
   const discordKey = normalizeTipIdentifier(tip.submitterDiscord);
   const blacklist = await prisma.crimeTipBlacklist.findFirst({
     where: { OR: [{ kind: "roblox", identifierKey: `roblox:${robloxKey}` }, { kind: "discord", identifierKey: `discord:${discordKey}` }] },

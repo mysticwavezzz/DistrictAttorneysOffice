@@ -5,18 +5,18 @@ import { siteConfig } from "@/config/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { SignOutButton } from "@/components/sign-out-button";
-import { staffPageMetadata } from "@/lib/staff-metadata";
+import { shareMetadata } from "@/lib/share-metadata";
 
-export const metadata = staffPageMetadata("Staff Sign In", "Sign in with Roblox to access staff casework and office tools.", "/login");
+export const metadata = shareMetadata("Sign In", "Sign in with Roblox to submit a tip, contact the office, or access staff tools when your account has an active role.", "/login");
 
 const ERROR_MESSAGES: Record<string, string> = {
-  forbidden: "Your account doesn't hold a staff role that grants access to that page.",
+  forbidden: "Your Roblox sign-in is valid for public services, but this account does not currently have a role for the requested staff page.",
   OAuthSignin: "We couldn't start the sign-in flow. Please try again.",
   OAuthCallback: "Sign-in didn't complete successfully. Please try again.",
   OAuthAccountNotLinked:
     "This account isn't linked correctly. Please contact an administrator.",
   AccessDenied: "Access was denied by the identity provider. Please try again.",
-  Configuration: "Staff login is misconfigured. Please contact an administrator.",
+  Configuration: "Roblox sign-in is misconfigured. Please contact the office.",
   Default: "Something went wrong signing in. Please try again.",
 };
 
@@ -28,11 +28,19 @@ export default async function LoginPage({
   const query = await searchParams;
   const session = await auth();
   const providerReady = Boolean(process.env.ROBLOX_CLIENT_ID && process.env.ROBLOX_CLIENT_SECRET);
-  const requestedCallbackUrl = query.callbackUrl ?? "/dashboard";
+  const requestedCallbackUrl = query.callbackUrl ?? "/";
   const callbackUrl = requestedCallbackUrl.startsWith("/") && !requestedCallbackUrl.startsWith("//") && !requestedCallbackUrl.includes("\\")
     ? requestedCallbackUrl
-    : "/dashboard";
-  const isContactFlow = callbackUrl === "/contacts" || callbackUrl.startsWith("/contacts?");
+    : "/";
+  const returnDestination = callbackUrl.startsWith("/contacts")
+    ? "Contact Us"
+    : callbackUrl.startsWith("/report-crime")
+      ? "the crime tip line"
+      : callbackUrl.startsWith("/gang-tip")
+        ? "the gang tip line"
+        : callbackUrl.startsWith("/dashboard")
+          ? "the staff portal"
+          : "the public website";
 
   if (session?.user?.providerUserId && session.user.identityProvider === "roblox" && !query.error) {
     redirect(callbackUrl);
@@ -42,7 +50,7 @@ export default async function LoginPage({
     ? ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.Default
     : null;
 
-  const isSignedInButForbidden = Boolean(session?.user?.providerUserId) && (Boolean(query.error) || session?.user.identityProvider !== "roblox");
+  const isDifferentProvider = Boolean(session?.user?.providerUserId) && session?.user.identityProvider !== "roblox";
 
   return (
     <div className="wrap">
@@ -66,12 +74,8 @@ export default async function LoginPage({
 
         <main className="paper" id="main">
           <p className="eyebrow">{siteConfig.county}</p>
-          <h1>{isContactFlow ? "Continue to Contact Us" : "Staff Sign In"}</h1>
-          <p className="lede">
-            {isContactFlow
-              ? "Verify your Roblox account to open your private Contact Us mailbox. You will return to your message inbox automatically after verification."
-              : "Authorized personnel only. Sign in with your Roblox account. Your current Roblox group roles determine which staff pages are available."}
-          </p>
+          <h1>Sign In</h1>
+          <p className="lede">Sign in with Roblox to continue to {returnDestination}. Roblox verification is used to identify public submissions. Staff tools remain limited to accounts with an active role.</p>
 
           {errorMessage && (
             <p className="message message-error" role="alert">
@@ -86,11 +90,9 @@ export default async function LoginPage({
           )}
 
           <div className="formbox" style={{ maxWidth: 420 }}>
-            {isSignedInButForbidden ? (
+            {isDifferentProvider ? (
               <>
-                <p>
-                  Signed in as <strong>{session!.user.displayName}</strong> with {session!.user.identityProvider}. Sign out to switch to the configured sign-in provider.
-                </p>
+                <p>Signed in as <strong>{session!.user.displayName}</strong> with {session!.user.identityProvider}. Sign out to use Roblox sign-in.</p>
                 <SignOutButton redirectTo="/login" className="govbtn">Sign Out</SignOutButton>
               </>
             ) : (
@@ -101,15 +103,21 @@ export default async function LoginPage({
                 }}
               >
                 <button type="submit" className="govbtn">
-                  {isContactFlow ? "Verify with Roblox" : "Sign in with Roblox"}
+                  Continue with Roblox
                 </button>
               </form> : <p className="message message-error" role="alert">Roblox sign-in is not configured yet. Add its client ID and rotated secret in Railway.</p>
             )}
           </div>
 
-          <p className="note-inline" style={{ marginTop: 14 }}>
-            Don&apos;t have staff access but think you should? Contact the District Attorney or Deputy District Attorney on our <Link href="/contacts">Contact Us page</Link>.
-          </p>
+          <section className="tip-notice" aria-label="Available services" style={{ marginTop: 18 }}>
+            <h2>Use the site</h2>
+            <ul>
+              <li><Link href="/report-crime">Submit a crime tip</Link></li>
+              <li><Link href="/gang-tip">Submit a gang tip</Link></li>
+              <li><Link href="/contacts">Contact the office</Link></li>
+            </ul>
+            <p>Staff access is based on active Roblox group roles. If you believe your role is wrong, contact the office.</p>
+          </section>
         </main>
       </div>
 

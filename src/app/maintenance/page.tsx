@@ -48,7 +48,7 @@ export default async function MaintenancePage() {
         <p className="maintenance-meta">Website version: {version}</p>
         {user && !maintenanceExempt && user.tiers.length > 0 && <p className="message message-error" role="alert">While you may be an employee or law enforcement, currently the website is restricted to your roles for maintenance.</p>}
         <div className="maintenance-actions">
-          <Link className="maintenance-login" href="/login?callbackUrl=%2F98981">{user ? "Staff Login" : "Login"}</Link>
+          <Link className="maintenance-login" href="/login?callbackUrl=%2F98981">Sign In</Link>
           {maintenanceExempt && canManageSite && <Link className="maintenance-login" href="/98981">Admin login</Link>}
         </div>
       </main>

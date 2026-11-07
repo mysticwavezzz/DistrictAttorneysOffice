@@ -8,17 +8,14 @@ import { SiteFooter } from "@/components/site-footer";
 import { Sidebar } from "@/components/sidebar";
 import { TipForm } from "@/components/tip-form";
 import { shareMetadata } from "@/lib/share-metadata";
+import { redirect } from "next/navigation";
 
 export const metadata = shareMetadata("Official Criminal Tip Line", "Submit incident details and supporting information through the dedicated report form. Not for emergencies.", "/report-crime");
 
 export default async function ReportCrimePage() {
-  const [session, form] = await Promise.all([
-    auth(),
-    getSiteConfiguration<CrimeTipFormConfiguration>("crimeTipForm", CRIME_TIP_FORM),
-  ]);
-  const robloxIdentity = session?.user?.identityProvider === "roblox"
-    ? `${session.user.username} / ${session.user.robloxUserId}`
-    : "";
+  const session = await auth();
+  if (session?.user?.identityProvider !== "roblox" || !session.user.robloxUserId || !session.user.username) redirect("/login?callbackUrl=%2Freport-crime");
+  const form = await getSiteConfiguration<CrimeTipFormConfiguration>("crimeTipForm", CRIME_TIP_FORM);
   const discordIdentity = session?.user?.discordUserId
     ? `${session.user.username} / ${session.user.discordUserId}`
     : "";
@@ -37,7 +34,7 @@ export default async function ReportCrimePage() {
 
           <section className="tip-notice" aria-labelledby="confidentiality-heading">
             <h2 id="confidentiality-heading">Confidentiality Notice</h2>
-            <p>Tips are stored in this portal in encrypted form and can be opened by authorized tip reviewers. The form asks for Roblox and Discord identifiers, so it is not anonymous; do not include passwords, real-world addresses, or other sensitive information.</p>
+            <p>Sign in with Roblox to submit a tip. Your verified Roblox username and ID are included automatically and cannot be edited. The form also asks for a Discord identifier, so this report is not anonymous; do not include passwords, real-world addresses, or other sensitive information.</p>
             <p>Authorized reviewers may route a report for follow up or connect it to a case. A reporter may be contacted if additional information is needed.</p>
           </section>
 
@@ -46,7 +43,7 @@ export default async function ReportCrimePage() {
             <p>This tip line is not monitored for emergencies. If someone is in immediate danger, contact local emergency services now.</p>
           </section>
 
-          <TipForm crimeTypes={form.crimeTypes} defaultRobloxIdentity={robloxIdentity} defaultDiscordIdentity={discordIdentity} />
+          <TipForm crimeTypes={form.crimeTypes} username={session.user.username} robloxUserId={session.user.robloxUserId} defaultDiscordIdentity={discordIdentity} />
           <p className="source"><Link href="/">← Return to the office homepage</Link></p>
         </main>
       </div>

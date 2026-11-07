@@ -6,11 +6,13 @@ type SubmitState = "idle" | "submitting" | { receipt: string } | { error: string
 
 export function TipForm({
   crimeTypes,
-  defaultRobloxIdentity = "",
+  username,
+  robloxUserId,
   defaultDiscordIdentity = "",
 }: {
   crimeTypes: readonly string[];
-  defaultRobloxIdentity?: string;
+  username: string;
+  robloxUserId: string;
   defaultDiscordIdentity?: string;
 }) {
   const [state, setState] = useState<SubmitState>("idle");
@@ -27,7 +29,7 @@ export function TipForm({
     if (!submissionReferenceRef.current) submissionReferenceRef.current = `HCD-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
     const data = new FormData(form);
     const body = {
-      submitterRoblox: String(data.get("submitterRoblox") ?? ""),
+      submitterRoblox: `${username} / ${robloxUserId}`,
       submitterDiscord: String(data.get("submitterDiscord") ?? ""),
       legalAcknowledgment: data.get("legalAcknowledgment") === "on",
       crimeType: String(data.get("crimeType") ?? ""),
@@ -86,7 +88,7 @@ export function TipForm({
       <details className="tip-form-section" open>
       <summary><h2>1. Submitter information</h2></summary>
       <div className="field-row">
-        <div className="field"><label htmlFor="tip-roblox">Your Roblox username and ID *</label><input id="tip-roblox" name="submitterRoblox" required maxLength={120} defaultValue={defaultRobloxIdentity} placeholder="Username / numeric ID" /></div>
+        <div className="field"><label htmlFor="tip-roblox">Your verified Roblox username and ID</label><input id="tip-roblox" value={`${username} / ${robloxUserId}`} readOnly aria-readonly="true" /><small>Verified through Roblox sign-in and added automatically.</small></div>
         <div className="field"><label htmlFor="tip-discord">Your Discord username and ID *</label><input id="tip-discord" name="submitterDiscord" required maxLength={120} defaultValue={defaultDiscordIdentity} placeholder="Username / numeric ID" /><small>This is report information only. Website access and staff permissions come from Roblox group roles.</small></div>
       </div>
       <div className="field">
@@ -116,7 +118,7 @@ export function TipForm({
       <summary><h2>3. Final review and declaration</h2></summary>
       <div className="field"><label className="checkline"><input type="checkbox" name="identityWaiver" required /> I understand this is not anonymous to the form owner or investigators, and I may be contacted if additional information is needed.</label></div>
       <div className="field"><label className="checkline"><input type="checkbox" name="truthAffirmation" required /> I affirm that this report is accurate and submitted in good faith.</label></div>
-      <div className="field"><label htmlFor="tip-signature">Electronic signature: Roblox username in ALL CAPS *</label><input id="tip-signature" name="signature" required maxLength={120} pattern="[A-Z0-9_ ]+" onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }} /></div>
+      <div className="field"><label htmlFor="tip-signature">Electronic signature: verified Roblox username</label><input id="tip-signature" name="signature" value={username.toUpperCase()} readOnly aria-readonly="true" /></div>
       </details>
 
       {typeof state === "object" && "error" in state && <p className="message message-error" role="alert">{state.error} Your entries are still here. If the report reference is shown, check its status before trying again.</p>}

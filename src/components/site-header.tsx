@@ -65,7 +65,7 @@ export async function SiteHeader({ staffNav, staffToolGroups = [] }: SiteHeaderP
                 {!isTrainee && <NotificationBell />}
               </>
             ) : (
-              <Link href="/login">Staff Login</Link>
+              <Link href="/login">Sign In</Link>
             )}
           </div>
         </div>

@@ -19,7 +19,7 @@ export function SiteFooter() {
                 </li>
               ))}
               <li>
-                <Link href="/login">Staff Login</Link>
+                <Link href="/login">Sign In</Link>
               </li>
               <li><Link href="/privacy-policy">Privacy Policy</Link></li>
               <li><Link href="/terms-of-service">Terms of Service</Link></li>
