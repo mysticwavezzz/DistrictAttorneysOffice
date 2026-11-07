@@ -160,7 +160,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const otherFilingsSection = (
     <section className="case-subsection" aria-labelledby="other-filings-title">
       <div className="case-subsection-heading"><div><p className="eyebrow">Portal documents</p><h3 id="other-filings-title">Other filings</h3></div><span>{visibleOtherFilings.length}</span></div>
-      {canFileDocument && isCourtFiled && <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn-outline">File a document</Link>}
+      {canFileDocument && <Link href={`/dashboard/filings/new?caseId=${caseRecord.id}`} className="govbtn-outline">File a document</Link>}
       {visibleOtherFilings.length === 0 ? <p className="note-inline">No other filings attached.</p> : <ul className="case-filings-list">
         {visibleOtherFilings.map((f) => (
           <li className="case-filing-row" key={f.id}>
