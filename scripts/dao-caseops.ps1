@@ -6,7 +6,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court")]
+  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
@@ -33,6 +33,9 @@ param(
   [string]$DiscoveryDueAt,
   [string]$PretrialAt,
   [string]$ClosedAt,
+  [string]$FilingId,
+  [ValidateSet("ACCEPTED", "REJECTED")][string]$Decision = "ACCEPTED",
+  [string]$Reason,
   [Alias("CiTitle")][string]$OpeningFilingTitle = "Initial Filing",
   [Alias("CiPdfPath")][string]$OpeningFilingPdfPath,
   [string]$AopcTitle = "Affidavit of Probable Cause (AOPC)",
@@ -378,7 +381,50 @@ function Submit-CaseFiling {
   }
 }
 
+function Review-CaseFiling {
+  if (-not $CaseNumber -or -not $CaseNumber.Trim()) { throw "Provide -CaseNumber." }
+  if (-not $FilingId -or -not $FilingId.Trim()) { throw "Provide -FilingId." }
+  if ($Decision -eq "REJECTED" -and (-not $Reason -or -not $Reason.Trim())) {
+    throw "Provide -Reason when rejecting a filing."
+  }
+
+  [pscustomobject]@{
+    CaseNumber = $CaseNumber.Trim()
+    FilingId   = $FilingId.Trim()
+    Decision   = $Decision
+    Reason     = if ($Reason) { $Reason.Trim() } else { "None" }
+  } | Format-List
+
+  if (-not $Apply) {
+    Write-Host "Preview only. Add -Apply to record this filing review decision in the DAO portal."
+    return
+  }
+
+  if ($PSCmdlet.ShouldProcess("$CaseNumber / $FilingId", "$Decision filing")) {
+    $payload = @{
+      decision = $Decision
+      note     = if ($Reason) { $Reason.Trim() } else { "" }
+    } | ConvertTo-Json -Compress
+    $safeCaseNumber = [uri]::EscapeDataString($CaseNumber.Trim())
+    $safeFilingId   = [uri]::EscapeDataString($FilingId.Trim())
+    $result = Invoke-DaoApi -Method POST -Path "/api/automation/cases/$safeCaseNumber/filings/$safeFilingId/review" -Body $payload
+    Write-Host "Filing $($result.filingId) on $($result.caseNumber) reviewed: $($result.status)."
+    return $result
+  }
+}
+
 switch ($Command) {
+  "review-filing" {
+    Review-CaseFiling
+  }
+  "approve-filing" {
+    $script:Decision = "ACCEPTED"
+    Review-CaseFiling
+  }
+  "reject-filing" {
+    $script:Decision = "REJECTED"
+    Review-CaseFiling
+  }
   "setup" {
     Initialize-LocalKey
   }
