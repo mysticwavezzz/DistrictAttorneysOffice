@@ -6,7 +6,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing", "review-inbox", "review-aopc", "approve-aopc", "reject-aopc", "tips", "tip-detail", "update-tip", "convert-tip", "send-reminder", "sweep-reminders")]
+  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing", "review-inbox", "review-aopc", "approve-aopc", "reject-aopc", "tips", "tip-detail", "update-tip", "convert-tip", "send-reminder", "sweep-reminders", "sync-discord")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
@@ -586,6 +586,16 @@ function Send-DaoReminder {
   return $result
 }
 
+function Sync-DaoDiscordMembers {
+  Write-Host "Syncing and matching DAO staff with Discord guild members..." -ForegroundColor Cyan
+  $result = Invoke-DaoApi -Method POST -Path "/api/automation/reminders/sync-members"
+  Write-Host "Sync complete! Evaluated $($result.totalUsers) user(s), newly linked $($result.linkedCount) to Discord IDs." -ForegroundColor Green
+  if ($result.linked.Count -gt 0) {
+    $result.linked | Select-Object displayName, discordUserId | Format-Table -AutoSize
+  }
+  return $result
+}
+
 function Sweep-DaoReminders {
   $query = if ($Apply) { "?dispatch=true" } else { "" }
   $result = Invoke-DaoApi -Method GET -Path "/api/automation/reminders$query"
@@ -647,6 +657,9 @@ switch ($Command) {
   }
   "sweep-reminders" {
     Sweep-DaoReminders
+  }
+  "sync-discord" {
+    Sync-DaoDiscordMembers
   }
   "setup" {
     Initialize-LocalKey

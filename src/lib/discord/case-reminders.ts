@@ -1,8 +1,182 @@
 import { prisma } from "@/lib/prisma";
+import daoMembersData from "@/config/dao-discord-members.json";
 
 const DISCORD_REMINDERS_WEBHOOK =
   process.env.DISCORD_REMINDERS_WEBHOOK_URL ||
   "https://discord.com/api/webhooks/1566848656856977711/q2DpzAZiyVbeUOUhPZ0W76s9nsREk9J-xUiXMg_ud6T98UwBs4-G6Yo4O6ME4zU_ftPf";
+
+const DAO_GUILD_ID = process.env.DISCORD_GUILD_ID || "1140770936442851429";
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
+
+export interface CompactDiscordMember {
+  id: string;
+  nick: string | null;
+  globalName: string | null;
+  username: string;
+}
+
+const daoMembers: CompactDiscordMember[] = daoMembersData as CompactDiscordMember[];
+
+export function normalizeName(name?: string | null): string {
+  if (!name) return "";
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Searches Discord members (from cached guild members or live Bot API)
+ * to find the member who best matches the given Roblox username / display name.
+ */
+export function findBestDiscordMemberMatch(
+  targetName: string,
+  memberPool: CompactDiscordMember[] = daoMembers
+): CompactDiscordMember | null {
+  const normTarget = normalizeName(targetName);
+  if (!normTarget) return null;
+
+  // 1. Exact match on server nickname
+  for (const m of memberPool) {
+    if (normalizeName(m.nick) === normTarget) return m;
+  }
+
+  // 2. Exact match on Discord display name (global_name)
+  for (const m of memberPool) {
+    if (normalizeName(m.globalName) === normTarget) return m;
+  }
+
+  // 3. Exact match on Discord username
+  for (const m of memberPool) {
+    if (normalizeName(m.username) === normTarget) return m;
+  }
+
+  // 4. Substring/contains match (min length 4 to avoid false positive collisions)
+  if (normTarget.length >= 4) {
+    for (const m of memberPool) {
+      const normNick = normalizeName(m.nick);
+      if (normNick && (normNick.includes(normTarget) || normTarget.includes(normNick))) {
+        return m;
+      }
+    }
+    for (const m of memberPool) {
+      const normGlobal = normalizeName(m.globalName);
+      if (normGlobal && (normGlobal.includes(normTarget) || normTarget.includes(normGlobal))) {
+        return m;
+      }
+    }
+    for (const m of memberPool) {
+      const normUser = normalizeName(m.username);
+      if (normUser && (normUser.includes(normTarget) || normTarget.includes(normUser))) {
+        return m;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Resolves a Discord user ID for an attorney:
+ * 1. Checks attorney.discordUserId in User table
+ * 2. Checks RosterEntry.discordUserId by robloxUserId
+ * 3. Pulls/matches against Discord members using display name or username
+ * 4. Automatically saves matched discordUserId to database for future calls
+ */
+export async function resolveDiscordUserId(attorney: {
+  id: string;
+  displayName: string;
+  username?: string | null;
+  discordUserId?: string | null;
+  robloxUserId?: string | null;
+}): Promise<string | null> {
+  // 1. Already linked directly on User
+  if (attorney.discordUserId?.trim()) {
+    return attorney.discordUserId.trim();
+  }
+
+  // 2. Check RosterEntry by robloxUserId
+  if (attorney.robloxUserId) {
+    try {
+      const roster = await prisma.rosterEntry.findUnique({
+        where: { robloxUserId: attorney.robloxUserId },
+        select: { discordUserId: true },
+      });
+      if (roster?.discordUserId?.trim()) {
+        const id = roster.discordUserId.trim();
+        // Backfill User record
+        await prisma.user.update({
+          where: { id: attorney.id },
+          data: { discordUserId: id },
+        }).catch(() => null);
+        return id;
+      }
+    } catch {
+      // Continue to member matching
+    }
+  }
+
+  // 3. Match against Discord guild members
+  let matched = findBestDiscordMemberMatch(attorney.displayName);
+  if (!matched && attorney.username) {
+    matched = findBestDiscordMemberMatch(attorney.username);
+  }
+
+  // Optional: Try live bot search if configured and no match yet
+  if (!matched && DISCORD_BOT_TOKEN) {
+    try {
+      const searchRes = await fetch(
+        `https://discord.com/api/v10/guilds/${DAO_GUILD_ID}/members/search?query=${encodeURIComponent(
+          attorney.displayName
+        )}&limit=10`,
+        {
+          headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+          cache: "no-store",
+        }
+      );
+      if (searchRes.ok) {
+        const results = (await searchRes.json()) as Array<{
+          nick?: string | null;
+          user: { id: string; global_name?: string | null; username: string };
+        }>;
+        const livePool: CompactDiscordMember[] = results.map((r) => ({
+          id: r.user.id,
+          nick: r.nick ?? null,
+          globalName: r.user.global_name ?? null,
+          username: r.user.username,
+        }));
+        matched = findBestDiscordMemberMatch(attorney.displayName, livePool);
+      }
+    } catch (botErr) {
+      console.warn("[discord-member-matching] Bot API search failed:", botErr);
+    }
+  }
+
+  if (matched?.id) {
+    const resolvedId = matched.id;
+    // Persist to User and RosterEntry so future lookups are instant
+    try {
+      await prisma.user.update({
+        where: { id: attorney.id },
+        data: { discordUserId: resolvedId },
+      });
+    } catch (updateErr) {
+      console.warn(`[discord-member-matching] Could not persist discordUserId to user ${attorney.id}:`, updateErr);
+    }
+
+    if (attorney.robloxUserId) {
+      try {
+        await prisma.rosterEntry.updateMany({
+          where: { robloxUserId: attorney.robloxUserId },
+          data: { discordUserId: resolvedId },
+        });
+      } catch (updateErr) {
+        console.warn(`[discord-member-matching] Could not persist discordUserId to rosterEntry ${attorney.robloxUserId}:`, updateErr);
+      }
+    }
+
+    return resolvedId;
+  }
+
+  return null;
+}
 
 export type ReminderType =
   | "INITIAL_FILING_APPROVED"
@@ -46,17 +220,8 @@ export async function sendDiscordCaseReminder(
       return { ok: false, error: `Case ${caseRecord.caseNumber} has no assigned attorney.` };
     }
 
-    // Resolve Discord user ID from User, or fallback to RosterEntry
-    let discordUserId = attorney.discordUserId;
-    if (!discordUserId && attorney.robloxUserId) {
-      const roster = await prisma.rosterEntry.findUnique({
-        where: { robloxUserId: attorney.robloxUserId },
-        select: { discordUserId: true },
-      });
-      if (roster?.discordUserId) {
-        discordUserId = roster.discordUserId;
-      }
-    }
+    // Resolve Discord user ID (checks DB, or pulls/matches Discord guild members)
+    const discordUserId = await resolveDiscordUserId(attorney);
 
     const mention = discordUserId ? `<@${discordUserId}>` : `**@${attorney.displayName}**`;
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://districtattorneysoffice-production.up.railway.app").replace(/\/+$/, "");

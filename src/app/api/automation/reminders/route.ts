@@ -17,7 +17,7 @@ const postSchema = z.object({
     "FILING_RETURNED",
     "INACTIVITY_ALERT",
   ]),
-  note: z.string().trim().max(1000).optional(),
+  note: z.string().trim().max(1000).nullable().optional(),
 }).strict();
 
 export async function POST(request: Request) {
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const result = await sendDiscordCaseReminder(
     parsed.data.type as ReminderType,
     parsed.data.caseNumber,
-    { note: parsed.data.note }
+    { note: parsed.data.note ?? undefined }
   );
 
   if (!result.ok) {

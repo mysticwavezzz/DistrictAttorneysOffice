@@ -11,6 +11,7 @@ import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 import { validateCasePdf, MAX_CASE_PDF_BYTES } from "@/lib/filing-upload";
 import { logActivity } from "@/lib/activity-log";
 import { notify } from "@/lib/notifications";
+import { sendDiscordCaseReminder } from "@/lib/discord/case-reminders";
 
 export const runtime = "nodejs";
 
@@ -182,6 +183,13 @@ export async function POST(request: Request) {
       await notify({ userId: created.assignedAttorneyId, type: "case_assigned", title: `You were assigned to ${created.caseNumber}`, body: created.title, link: `/dashboard/cases/${created.id}` });
     } catch (error) {
       console.error(`[local case creation ${created.id}] Case saved, but assignment notification failed.`, error);
+    }
+  }
+  if (created.assignedAttorneyId) {
+    try {
+      await sendDiscordCaseReminder("CASE_ASSIGNED", created.caseNumber);
+    } catch (error) {
+      console.error(`[case create reminder] Discord reminder failed for ${created.caseNumber}`, error);
     }
   }
   revalidatePath("/dashboard/cases");
