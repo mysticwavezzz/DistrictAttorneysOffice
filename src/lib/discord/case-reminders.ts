@@ -258,10 +258,9 @@ export async function sendDiscordCaseReminder(
 
     const payload = {
       content,
-      allowed_mentions: {
-        parse: ["users"],
-        users: discordUserId ? [discordUserId] : [],
-      },
+      allowed_mentions: discordUserId
+        ? { users: [discordUserId] }
+        : { parse: [] },
     };
 
     const res = await fetch(DISCORD_REMINDERS_WEBHOOK, {

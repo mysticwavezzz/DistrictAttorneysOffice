@@ -76,7 +76,7 @@ function Initialize-LocalKey {
   if (-not $IsWindows) { throw "This local credential tool is limited to Windows." }
   Ensure-ConfigDirectory
 
-  $config = if (Test-Path -LiteralPath $script:ConfigPath) { Get-LocalConfig } else { $null }
+  $config = if (Test-Path -LiteralPath $script:ConfigPath) { Get-LocalConfig } else { "" }
   $certificate = $null
   if ($config -and $config.thumbprint) {
     $certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$($config.thumbprint)" -ErrorAction SilentlyContinue
@@ -310,7 +310,7 @@ function New-CaseFromPdfs {
   if ($OpeningFilingPdfPath -and (-not $OpeningFilingTitle -or -not $OpeningFilingTitle.Trim())) { throw "Provide -OpeningFilingTitle." }
   if (-not $AopcTitle -or -not $AopcTitle.Trim()) { throw "Provide -AopcTitle." }
 
-  $opening = if ($OpeningFilingPdfPath) { Read-CaseOpeningPdf -Path $OpeningFilingPdfPath -Label "Opening filing" } else { $null }
+  $opening = if ($OpeningFilingPdfPath) { Read-CaseOpeningPdf -Path $OpeningFilingPdfPath -Label "Opening filing" } else { "" }
   $aopc = Read-CaseOpeningPdf -Path $AopcPdfPath -Label "AOPC"
   $partyNames = @($DefendantName.Trim()) + @($CoDefendants | Where-Object { $_ } | ForEach-Object { $_.Trim() })
   if ($partyNames.Count -gt 20) { throw "A case can include no more than 20 defendants." }
@@ -346,7 +346,7 @@ function New-CaseFromPdfs {
         title = $OpeningFilingTitle.Trim()
         fileName = $opening.File.Name
         base64 = [Convert]::ToBase64String($opening.Bytes)
-      } } else { $null }
+      } } else { "" }
       aopc = @{
         title = $AopcTitle.Trim()
         fileName = $aopc.File.Name
@@ -576,7 +576,7 @@ function Send-DaoReminder {
   $payload = @{
     caseNumber = $CaseNumber.Trim()
     type       = $ReminderType
-    note       = if ($Reason) { $Reason.Trim() } elseif ($Note) { $Note.Trim() } else { $null }
+    note       = if ($Reason) { $Reason.Trim() } elseif ($Note) { $Note.Trim() } else { "" }
   } | ConvertTo-Json -Compress
 
   Write-Host "Sending $ReminderType reminder for $CaseNumber to Discord #reminders..."
@@ -775,7 +775,7 @@ switch ($Command) {
     }
     foreach ($case in $targets) {
       if ($PSCmdlet.ShouldProcess($case.caseNumber, "Assign to $nextName")) {
-        $payload = @{ expectedAssignedAttorneyId = $case.assignedAttorneyId; assignedAttorneyId = if ($assignee) { $assignee.id } else { $null } } | ConvertTo-Json -Compress
+        $payload = @{ expectedAssignedAttorneyId = $case.assignedAttorneyId; assignedAttorneyId = if ($assignee) { $assignee.id } else { "" } } | ConvertTo-Json -Compress
         $safeCaseNumber = [uri]::EscapeDataString($case.caseNumber)
         $result = Invoke-DaoApi -Method POST -Path "/api/automation/cases/$safeCaseNumber/assignment" -Body $payload
         if ($result.changed) { Write-Host "Assignment saved for $($result.case.caseNumber)." } else { Write-Host "No change. $($result.case.caseNumber) is already assigned to $nextName." }
