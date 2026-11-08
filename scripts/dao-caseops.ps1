@@ -6,7 +6,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing")]
+  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing", "review-inbox", "review-aopc", "approve-aopc", "reject-aopc", "tips", "tip-detail", "update-tip", "convert-tip")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
@@ -34,6 +34,11 @@ param(
   [string]$PretrialAt,
   [string]$ClosedAt,
   [string]$FilingId,
+  [string]$AopcId,
+  [string]$TipId,
+  [string]$Note,
+  [string]$Category,
+  [string]$Status,
   [ValidateSet("ACCEPTED", "REJECTED")][string]$Decision = "ACCEPTED",
   [string]$Reason,
   [Alias("CiTitle")][string]$OpeningFilingTitle = "Initial Filing",
@@ -142,7 +147,7 @@ function Get-Sha256Hex([string]$value) {
   return [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
 }
 
-function Invoke-DaoApi([string]$Method, [string]$Path, [string]$Body = "") {
+function Invoke-DaoApiOnce([string]$Method, [string]$Path, [string]$Body = "") {
   $config = Get-LocalConfig
   $token = Get-LocalTokenText
   $certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$($config.thumbprint)" -ErrorAction SilentlyContinue
@@ -190,6 +195,24 @@ function Invoke-DaoApi([string]$Method, [string]$Path, [string]$Body = "") {
   } finally {
     $token = $null
     $signedMessage = $null
+  }
+}
+
+function Invoke-DaoApi([string]$Method, [string]$Path, [string]$Body = "") {
+  $maxAttempts = 4
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    try {
+      return Invoke-DaoApiOnce -Method $Method -Path $Path -Body $Body
+    } catch {
+      $msg = $_.Exception.Message
+      $isRetryable = ($msg -match "Retry shortly" -or $msg -match "429" -or $msg -match "503")
+      if ($isRetryable -and $attempt -lt $maxAttempts) {
+        Write-Warning "DAO request throttled ($msg). Retrying in $($attempt * 3) seconds (attempt $attempt of $maxAttempts)..."
+        Start-Sleep -Seconds ($attempt * 3)
+        continue
+      }
+      throw
+    }
   }
 }
 
@@ -413,7 +436,144 @@ function Review-CaseFiling {
   }
 }
 
+function Get-DaoReviewInbox {
+  $inbox = Invoke-DaoApi -Method GET -Path "/api/automation/review-inbox"
+  Write-Host "=== DAO REVIEW INBOX ===" -ForegroundColor Cyan
+  Write-Host "Total pending: $($inbox.counts.total) (Filings: $($inbox.counts.filings), AOPCs: $($inbox.counts.aopcs), Case Requests: $($inbox.counts.caseRequests), Tips: $($inbox.counts.tips))`n"
+
+  if ($inbox.filings.Count -gt 0) {
+    Write-Host "--- PENDING FILINGS ($($inbox.filings.Count)) ---" -ForegroundColor Yellow
+    $inbox.filings | Select-Object id, caseNumber, title, submittedBy, isInitial, createdAt | Format-Table -AutoSize
+  }
+
+  if ($inbox.aopcs.Count -gt 0) {
+    Write-Host "--- PENDING AOPCs & CID REPORTS ($($inbox.aopcs.Count)) ---" -ForegroundColor Yellow
+    $inbox.aopcs | Select-Object id, documentType, reportId, title, subject, targetUnit, submittedBy, createdAt | Format-Table -AutoSize
+  }
+
+  if ($inbox.caseRequests.Count -gt 0) {
+    Write-Host "--- PENDING CASE REQUESTS ($($inbox.caseRequests.Count)) ---" -ForegroundColor Yellow
+    $inbox.caseRequests | Select-Object id, kind, caseNumber, title, division, requestedBy, createdAt | Format-Table -AutoSize
+  }
+
+  if ($inbox.tips.Count -gt 0) {
+    Write-Host "--- PENDING CRIME & GANG TIPS ($($inbox.tips.Count)) ---" -ForegroundColor Yellow
+    $inbox.tips | Select-Object id, reference, category, status, summary, submitter, assignedTo, createdAt | Format-Table -AutoSize
+  }
+
+  return $inbox
+}
+
+function Review-DaoAopc {
+  if (-not $AopcId -or -not $AopcId.Trim()) { throw "Provide -AopcId." }
+  if ($Decision -eq "REJECTED" -and (-not $Reason -or -not $Reason.Trim())) {
+    throw "Provide -Reason when rejecting an AOPC or report."
+  }
+
+  [pscustomobject]@{
+    AopcId   = $AopcId.Trim()
+    Decision = $Decision
+    Reason   = if ($Reason) { $Reason.Trim() } else { "None" }
+  } | Format-List
+
+  if (-not $Apply) {
+    Write-Host "Preview only. Add -Apply to record this AOPC review decision in the DAO portal."
+    return
+  }
+
+  if ($PSCmdlet.ShouldProcess($AopcId.Trim(), "$Decision AOPC")) {
+    $payload = @{
+      decision = $Decision
+      note     = if ($Reason) { $Reason.Trim() } else { "" }
+    } | ConvertTo-Json -Compress
+    $safeId = [uri]::EscapeDataString($AopcId.Trim())
+    $result = Invoke-DaoApi -Method POST -Path "/api/automation/aopcs/$safeId/review" -Body $payload
+    Write-Host "AOPC $($result.reportId ?? $result.title ?? $result.aopcId) reviewed: $($result.status)."
+    return $result
+  }
+}
+
+function Get-DaoTips {
+  $params = [System.Collections.Generic.List[string]]::new()
+  if ($Status) { $params.Add("status=$([uri]::EscapeDataString($Status.Trim()))") }
+  if ($Category) { $params.Add("category=$([uri]::EscapeDataString($Category.Trim()))") }
+  $query = if ($params.Count) { "?" + ($params -join "&") } else { "" }
+  $result = Invoke-DaoApi -Method GET -Path "/api/automation/tips$query"
+  $result.tips | Select-Object reference, category, status, suspect, crimeType, narrativeSnippet, assignedTo, id | Format-Table -AutoSize
+  Write-Host "$($result.count) tip(s) found."
+  return $result.tips
+}
+
+function Get-DaoTipDetail {
+  if (-not $TipId -or -not $TipId.Trim()) { throw "Provide -TipId." }
+  $safeId = [uri]::EscapeDataString($TipId.Trim())
+  $result = Invoke-DaoApi -Method GET -Path "/api/automation/tips/$safeId"
+  $tip = $result.tip
+  Write-Host "=== TIP $($tip.reference) ($($tip.category)) ===" -ForegroundColor Cyan
+  Write-Host "Status: $($tip.status) | Crime Type: $($tip.crimeType)"
+  if ($tip.assignedTo) { Write-Host "Assigned: $($tip.assignedTo.displayName)" }
+  if ($tip.linkedCase) { Write-Host "Linked Case: $($tip.linkedCase.caseNumber) - $($tip.linkedCase.title)" }
+  Write-Host "`nDetails:"
+  $tip.details | Format-List
+  if ($tip.attachments.Count -gt 0) {
+    Write-Host "`nAttachments ($($tip.attachments.Count)):"
+    $tip.attachments | Select-Object id, fileName, byteSize | Format-Table -AutoSize
+  }
+  if ($tip.events.Count -gt 0) {
+    Write-Host "`nHistory:"
+    $tip.events | Select-Object createdAt, actor, action, note | Format-Table -AutoSize
+  }
+  return $tip
+}
+
+function Update-DaoTip {
+  if (-not $TipId -or -not $TipId.Trim()) { throw "Provide -TipId." }
+  $payload = @{}
+  if ($Status) { $payload["status"] = $Status.Trim().ToUpperInvariant() }
+  if ($AssigneeId) { $payload["assigneeId"] = if ($AssigneeId -eq "UNASSIGNED") { $null } else { $AssigneeId.Trim() } }
+  if ($Note) { $payload["note"] = $Note.Trim() }
+  if ($payload.Count -eq 0) { throw "Provide at least one of -Status, -AssigneeId, or -Note." }
+
+  if (-not $Apply) {
+    Write-Host "Preview only for Tip $TipId. Add -Apply to update this tip in the DAO portal."
+    $payload | Format-List
+    return
+  }
+
+  $safeId = [uri]::EscapeDataString($TipId.Trim())
+  $body = $payload | ConvertTo-Json -Compress
+  $result = Invoke-DaoApi -Method PATCH -Path "/api/automation/tips/$safeId" -Body $body
+  Write-Host "Tip $($result.reference) updated. Status: $($result.status)."
+  return $result
+}
+
+function Convert-DaoTipToCase {
+  if (-not $TipId -or -not $TipId.Trim()) { throw "Provide -TipId." }
+  $payload = @{}
+  if ($CaseTitle) { $payload["title"] = $CaseTitle.Trim() }
+  if ($DefendantName) { $payload["defendantName"] = $DefendantName.Trim() }
+  if ($Division) { $payload["division"] = $Division.Trim() }
+  if ($AssigneeId -and $AssigneeId -ne "UNASSIGNED") { $payload["assignedAttorneyId"] = $AssigneeId.Trim() }
+  if ($AssignedJudge) { $payload["assignedJudge"] = $AssignedJudge.Trim() }
+  if ($Summary) { $payload["summary"] = $Summary.Trim() }
+
+  if (-not $Apply) {
+    Write-Host "Preview only. Add -Apply to convert Tip $TipId into a new DA case docket."
+    $payload | Format-List
+    return
+  }
+
+  $safeId = [uri]::EscapeDataString($TipId.Trim())
+  $body = $payload | ConvertTo-Json -Compress
+  $result = Invoke-DaoApi -Method POST -Path "/api/automation/tips/$safeId/convert" -Body $body
+  Write-Host "Tip $($result.tipReference) converted! Opened new docket $($result.caseNumber): $($result.caseTitle)." -ForegroundColor Green
+  return $result
+}
+
 switch ($Command) {
+  "review-inbox" {
+    Get-DaoReviewInbox
+  }
   "review-filing" {
     Review-CaseFiling
   }
@@ -424,6 +584,29 @@ switch ($Command) {
   "reject-filing" {
     $script:Decision = "REJECTED"
     Review-CaseFiling
+  }
+  "review-aopc" {
+    Review-DaoAopc
+  }
+  "approve-aopc" {
+    $script:Decision = "ACCEPTED"
+    Review-DaoAopc
+  }
+  "reject-aopc" {
+    $script:Decision = "REJECTED"
+    Review-DaoAopc
+  }
+  "tips" {
+    Get-DaoTips
+  }
+  "tip-detail" {
+    Get-DaoTipDetail
+  }
+  "update-tip" {
+    Update-DaoTip
+  }
+  "convert-tip" {
+    Convert-DaoTipToCase
   }
   "setup" {
     Initialize-LocalKey
