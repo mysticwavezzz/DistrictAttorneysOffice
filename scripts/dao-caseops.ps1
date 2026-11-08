@@ -276,7 +276,7 @@ function Update-DaoCase {
 function Mark-DaoCaseFiledInCourt {
   $detail = Get-DaoCaseDetail -Number $CaseNumber
   $case = $detail.case
-  $initial = @($case.filings | Where-Object { $_.isInitial -and $_.status -eq "ACCEPTED" })
+  $initial = @($case.filings | Where-Object { ($_.isInitial -or $_.title -match "Criminal Information" -or $_.title -match "Complaint" -or $_.documentType -eq "AOPC") -and $_.status -eq "ACCEPTED" })
   if ($case.courtFiledAt) { Write-Host "Already recorded filed in court: $($case.courtFiledAt)"; return }
   if (-not $initial.Count) { throw "No approved opening filing is attached. The portal will not mark this case filed." }
   [pscustomobject]@{ CaseNumber = $case.caseNumber; Title = $case.title; ApprovedInitialFiling = $initial[0].title; Action = "Record the current time as filed in court" } | Format-List

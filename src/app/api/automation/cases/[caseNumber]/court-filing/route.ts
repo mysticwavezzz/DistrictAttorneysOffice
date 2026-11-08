@@ -13,7 +13,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ cas
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status, headers: { "Cache-Control": "no-store" } });
   const { actor } = result;
   const { caseNumber } = await params;
-  const record = await prisma.case.findUnique({ where: { caseNumber }, include: { filings: { where: { isInitial: true, status: "ACCEPTED" }, take: 1, select: { id: true } } } });
+  const record = await prisma.case.findUnique({
+    where: { caseNumber },
+    include: {
+      filings: {
+        where: {
+          status: "ACCEPTED",
+          OR: [
+            { isInitial: true },
+            { title: { contains: "Criminal Information" } },
+            { title: { contains: "Complaint" } },
+          ],
+        },
+        take: 1,
+        select: { id: true },
+      },
+    },
+  });
   if (!record || !canAccessCase(actor.tiers, actor.user.id, record, actor.user.division, actor.user.divisionGroup)) return NextResponse.json({ error: "Case not found or not accessible." }, { status: 404 });
   const mayRecord = canEditCase(actor.tiers, actor.user.division, record.division) || (hasCapability(actor.tiers, CAPABILITIES.CASES_CREATE) && record.createdById === actor.user.id);
   if (!mayRecord) return NextResponse.json({ error: "Your current role cannot record court filing on this case." }, { status: 403 });
