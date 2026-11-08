@@ -62,7 +62,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ca
   if (!canEditCase(actor.tiers, actor.user.division, record.division)) return NextResponse.json({ error: "Your current role cannot edit this case." }, { status: 403 });
   if (record.isDraft || record.archived) return NextResponse.json({ error: "Draft or archived cases cannot be updated through local automation." }, { status: 409 });
   const { expectedUpdatedAt, ...input } = parsed.data;
-  if (record.updatedAt.toISOString() !== expectedUpdatedAt) return NextResponse.json({ error: "Case changed since you loaded it; refresh and retry." }, { status: 409 });
+  if (Math.abs(record.updatedAt.getTime() - new Date(expectedUpdatedAt).getTime()) > 1000) return NextResponse.json({ error: "Case changed since you loaded it; refresh and retry." }, { status: 409 });
   const data: Record<string, unknown> = {};
   for (const key of ["stage", "assignedJudge", "summary", "disclosures", "outcome"] as const) if (input[key] !== undefined) data[key] = input[key];
   for (const key of ["arraignmentAt", "discGiven", "discDue", "pretrial", "closedOn"] as const) if (input[key] !== undefined) data[key] = input[key] ? new Date(input[key]) : null;
