@@ -11,7 +11,7 @@ import { rosterEntrySchema } from "@/lib/validation/roster";
 import { emptyToNull, toDate } from "@/lib/validation/case";
 import { logActivity } from "@/lib/activity-log";
 import { getSiteConfiguration } from "@/lib/site-settings";
-import { RANKS, type RankOption } from "@/config/ranks";
+import { canonicalRankOptions, RANKS, type RankOption } from "@/config/ranks";
 import { canonicalDivisionOptions, normalizeDivisionPlacement, UNITS, type UnitOption } from "@/config/units";
 import { canAssignStaffRank, canControlStaff, replaceGroupRankTier } from "@/lib/staff-rank-control";
 import { parseStoredTiers } from "@/lib/contact-mail";
@@ -226,7 +226,7 @@ async function setRosterRankOverrideImpl(formData: FormData) {
   if (!entry || !canControlStaff(session.user.tiers, session.user.providerUserId, user.division, entry)) throw new Error("Only CADA or higher can change this staff member's rank.");
   if (!requestedRank && !entry.robloxSynced) throw new Error("Manual roster entries require a rank.");
   if (requestedRank) {
-    const configuredRanks = await getSiteConfiguration<RankOption[]>("ranks", RANKS);
+    const configuredRanks = canonicalRankOptions(await getSiteConfiguration<RankOption[]>("ranks", RANKS));
     if (!configuredRanks.some((rank) => rank.value === requestedRank) || !canAssignStaffRank(session.user.tiers, requestedRank)) throw new Error("You cannot assign that rank.");
   }
   const nextRank = requestedRank || entry.robloxRoleName || entry.rank;

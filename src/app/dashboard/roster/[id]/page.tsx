@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasCapability, CAPABILITIES } from "@/lib/permissions";
-import { RANKS } from "@/config/ranks";
+import { canonicalRankOptions, RANKS } from "@/config/ranks";
 import { canonicalDivisionOptions, normalizeDivisionPlacement, UNITS, type UnitOption } from "@/config/units";
 import { updateRosterEntry, removeRosterEntry, setRosterRankOverride, assignParalegalUnit } from "../actions";
 import { RemoveButton } from "@/components/remove-button";
@@ -43,7 +43,7 @@ export default async function EditRosterEntryPage({ params }: { params: Promise<
   const divisions = canonicalDivisionOptions(savedDivisions);
   const visibleDivisions = hasCapability(session.user.tiers, CAPABILITIES.ROSTER_MANAGE) || canAssignParalegal ? divisions : divisions.filter((division) => division.value === user.division);
   const canControl = canControlStaff(session.user.tiers, session.user.providerUserId, user.division, entry);
-  const assignableRanks = ranks.filter((rank) => canAssignStaffRank(session.user.tiers, rank.value));
+  const assignableRanks = canonicalRankOptions(ranks).filter((rank) => canAssignStaffRank(session.user.tiers, rank.value));
 
   return (
     <div>

@@ -29,6 +29,16 @@ export const RANKS: RankOption[] = [
   { value: "Paralegal in Training", label: "Paralegal in Training", isLeadership: false },
 ];
 
+/** Keep the portal's Chief Paralegal override available when an older saved
+ * rank configuration predates the paralegal structure. */
+export function canonicalRankOptions(options: RankOption[] | null | undefined): RankOption[] {
+  const saved = Array.isArray(options) ? options : RANKS;
+  const byValue = new Map(saved.map((rank) => [rank.value, rank]));
+  const chiefParalegal = RANKS.find((rank) => rank.value === "Secretary Supervisor");
+  if (chiefParalegal && !byValue.has(chiefParalegal.value)) byValue.set(chiefParalegal.value, chiefParalegal);
+  return [...byValue.values()];
+}
+
 export function isLeadershipRank(rank: string | null | undefined): boolean {
   return RANKS.find((r) => r.value === rank)?.isLeadership ?? false;
 }
