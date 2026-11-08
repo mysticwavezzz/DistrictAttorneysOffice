@@ -6,7 +6,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing", "review-inbox", "review-aopc", "approve-aopc", "reject-aopc", "tips", "tip-detail", "update-tip", "convert-tip")]
+  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing", "review-inbox", "review-aopc", "approve-aopc", "reject-aopc", "tips", "tip-detail", "update-tip", "convert-tip", "send-reminder", "sweep-reminders")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
@@ -39,6 +39,7 @@ param(
   [string]$Note,
   [string]$Category,
   [string]$Status,
+  [ValidateSet("INITIAL_FILING_APPROVED", "FILING_OVERDUE", "CASE_ASSIGNED", "DISCOVERY_DUE", "DISCOVERY_OVERDUE", "HEARING_UPCOMING", "FILING_RETURNED", "INACTIVITY_ALERT")][string]$ReminderType = "INITIAL_FILING_APPROVED",
   [ValidateSet("ACCEPTED", "REJECTED")][string]$Decision = "ACCEPTED",
   [string]$Reason,
   [Alias("CiTitle")][string]$OpeningFilingTitle = "Initial Filing",
@@ -570,6 +571,39 @@ function Convert-DaoTipToCase {
   return $result
 }
 
+function Send-DaoReminder {
+  if (-not $CaseNumber -or -not $CaseNumber.Trim()) { throw "Provide -CaseNumber." }
+  $payload = @{
+    caseNumber = $CaseNumber.Trim()
+    type       = $ReminderType
+    note       = if ($Reason) { $Reason.Trim() } elseif ($Note) { $Note.Trim() } else { $null }
+  } | ConvertTo-Json -Compress
+
+  Write-Host "Sending $ReminderType reminder for $CaseNumber to Discord #reminders..."
+  $result = Invoke-DaoApi -Method POST -Path "/api/automation/reminders" -Body $payload
+  Write-Host "Discord reminder delivered successfully!" -ForegroundColor Green
+  Write-Host "Content: $($result.content)"
+  return $result
+}
+
+function Sweep-DaoReminders {
+  $query = if ($Apply) { "?dispatch=true" } else { "" }
+  $result = Invoke-DaoApi -Method GET -Path "/api/automation/reminders$query"
+  Write-Host "=== DAO REMINDERS SWEEP ===" -ForegroundColor Cyan
+  Write-Host "Found $($result.count) docket(s) triggering reminders.`n"
+
+  if ($result.alerts.Count -gt 0) {
+    $result.alerts | Select-Object caseNumber, type, attorney, reason | Format-Table -AutoSize
+  }
+
+  if (-not $Apply) {
+    Write-Host "`nPreview only. Add -Apply to dispatch these warnings to Discord #reminders."
+  } else {
+    Write-Host "`nDispatched $($result.dispatchResults.Count) reminder(s) to Discord #reminders." -ForegroundColor Green
+  }
+  return $result
+}
+
 switch ($Command) {
   "review-inbox" {
     Get-DaoReviewInbox
@@ -607,6 +641,12 @@ switch ($Command) {
   }
   "convert-tip" {
     Convert-DaoTipToCase
+  }
+  "send-reminder" {
+    Send-DaoReminder
+  }
+  "sweep-reminders" {
+    Sweep-DaoReminders
   }
   "setup" {
     Initialize-LocalKey

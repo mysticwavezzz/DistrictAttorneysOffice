@@ -7,6 +7,7 @@ import { CAPABILITIES, hasCapability } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { isAssignableAttorneyRank } from "@/lib/case-assignees";
 import { notify } from "@/lib/notifications";
+import { sendDiscordCaseReminder } from "@/lib/discord/case-reminders";
 
 const assignmentSchema = z.object({
   expectedAssignedAttorneyId: z.string().trim().max(128).nullable(),
@@ -103,6 +104,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ cas
       await notify({ userId: assignee.id, type: "case_assigned", title: `You were assigned to ${caseRecord.caseNumber}`, body: caseRecord.title, link: `/dashboard/cases/${caseRecord.id}` });
     } catch (error) {
       console.error(`[local case assignment ${caseRecord.id}] Assignment saved, but notification delivery failed.`, error);
+    }
+  }
+
+  if (assignee) {
+    try {
+      await sendDiscordCaseReminder("CASE_ASSIGNED", caseRecord.caseNumber);
+    } catch (error) {
+      console.error(`[case assignment reminder] Discord reminder failed`, error);
     }
   }
 

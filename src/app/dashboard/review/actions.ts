@@ -12,6 +12,7 @@ import { after } from "next/server";
 import { indexAcceptedCaseFiling } from "@/lib/filing-text-index";
 import { userIdsWithCapability } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
+import { sendDiscordCaseReminder } from "@/lib/discord/case-reminders";
 
 async function reviewAopcImpl(formData: FormData) {
   const session = await auth();
@@ -92,6 +93,16 @@ async function reviewFilingImpl(formData: FormData) {
     }
   } catch (error) {
     console.error(`[filing review ${filing.id}] Decision saved, but notification delivery failed`, error);
+  }
+
+  try {
+    if (decision === "ACCEPTED" && filing.isInitial) {
+      await sendDiscordCaseReminder("INITIAL_FILING_APPROVED", filing.case.caseNumber);
+    } else if (decision === "REJECTED") {
+      await sendDiscordCaseReminder("FILING_RETURNED", filing.case.caseNumber, { note });
+    }
+  } catch (error) {
+    console.error(`[filing review ${filing.id}] Discord reminder delivery failed`, error);
   }
 
   revalidatePath("/dashboard/review");
