@@ -1,12 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import daoMembersData from "@/config/dao-discord-members.json";
 
-const DISCORD_REMINDERS_WEBHOOK =
-  process.env.DISCORD_REMINDERS_WEBHOOK_URL ||
-  "https://discord.com/api/webhooks/1566848656856977711/q2DpzAZiyVbeUOUhPZ0W76s9nsREk9J-xUiXMg_ud6T98UwBs4-G6Yo4O6ME4zU_ftPf";
-
 const DAO_GUILD_ID = process.env.DISCORD_GUILD_ID || "1140770936442851429";
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
+const DISCORD_REMINDERS_CHANNEL_ID = "1566848629145206894";
 
 export interface CompactDiscordMember {
   id: string;
@@ -228,56 +225,93 @@ export async function sendDiscordCaseReminder(
     const caseLink = `${siteUrl}/dashboard/cases/${caseRecord.id}#filings`;
     const hours = options?.customHours ?? 24;
 
-    let content = "";
+    let title = "Case reminder";
+    let color = 0x344f8c;
+    let description = "";
     switch (type) {
       case "INITIAL_FILING_APPROVED":
-        content = `${mention} heads up, your initial filings for ${caseLink} are approved. You have ${hours} hours to get them filed in court and log the timestamp on the docket.`;
+        title = "Initial filing approved";
+        color = 0x2f855a;
+        description = `Heads up, your initial filings are approved. You have ${hours} hours to get them filed in court and log the timestamp on the docket.`;
         break;
       case "FILING_OVERDUE":
-        content = `${mention} your initial filing on ${caseLink} is past the 24-hour window. Get the paperwork submitted to the clerk immediately and mark it filed on the portal.`;
+        title = "Initial filing overdue";
+        color = 0xc53030;
+        description = "Your initial filing is past the 24-hour window. Get the paperwork submitted to the clerk immediately and mark it filed in the portal.";
         break;
       case "CASE_ASSIGNED":
-        content = `${mention} you’ve been assigned to ${caseLink}. Review the probable cause materials and start drafting your charging documents.`;
+        title = "Case assigned";
+        description = "You’ve been assigned this case. Review the probable cause materials and start drafting your charging documents.";
         break;
       case "DISCOVERY_DUE":
-        content = `${mention} reminder: discovery disclosures for ${caseLink} are due within 24 hours. Upload the packet and log defense service in the portal.`;
+        title = "Discovery due";
+        color = 0xd69e2e;
+        description = "Reminder: discovery disclosures are due within 24 hours. Upload the packet and log service on the defense in the portal.";
         break;
       case "DISCOVERY_OVERDUE":
-        content = `${mention} discovery on ${caseLink} is now overdue. Serve defense counsel right away to avoid court sanctions or evidence preclusion.`;
+        title = "Discovery overdue";
+        color = 0xc53030;
+        description = "Discovery is now overdue. Serve defense counsel right away to avoid court sanctions or evidence preclusion.";
         break;
       case "HEARING_UPCOMING":
-        content = `${mention} you have a court appearance on ${caseLink} tomorrow. Review the docket, check your case notes, and make sure your filings are in order.`;
+        title = "Court appearance tomorrow";
+        color = 0xd69e2e;
+        description = "You have a court appearance tomorrow. Review the docket, check your case notes, and make sure your filings are in order.";
         break;
       case "FILING_RETURNED":
-        content = `${mention} your filing on ${caseLink} was returned with notes${options?.note ? `: "${options.note}"` : ""}. Check the reviewer comments in the portal, make the corrections, and resubmit.`;
+        title = "Filing returned";
+        color = 0xc53030;
+        description = `Your filing was returned with notes${options?.note ? `: “${options.note}”` : ""}. Check the reviewer comments in the portal, make the corrections, and resubmit.`;
         break;
       case "INACTIVITY_ALERT":
-        content = `${mention} docket ${caseLink} has been sitting without updates for a week. Check the case status and either advance the stage or move for disposition.`;
+        title = "Case needs attention";
+        color = 0xd69e2e;
+        description = "This docket has been sitting without updates for a week. Check the case status and either advance the stage or move for disposition.";
         break;
     }
 
+    if (!DISCORD_BOT_TOKEN) {
+      return { ok: false, error: "DISCORD_BOT_TOKEN is not configured." };
+    }
+
     const payload = {
-      content,
+      content: discordUserId ? mention : "",
+      embeds: [{
+        title: `${title}: ${caseRecord.caseNumber}`,
+        url: caseLink,
+        description,
+        color,
+        fields: [
+          { name: "Case", value: `[${caseRecord.caseNumber}](${caseLink})`, inline: true },
+          { name: "Assigned attorney", value: attorney.displayName, inline: true },
+        ],
+        footer: { text: "Harrison County District Attorney's Office" },
+        timestamp: new Date().toISOString(),
+      }],
       allowed_mentions: discordUserId
         ? { users: [discordUserId] }
         : { parse: [] },
     };
 
-    const res = await fetch(DISCORD_REMINDERS_WEBHOOK, {
+    const res = await fetch(
+      `https://discord.com/api/v10/channels/${DISCORD_REMINDERS_CHANNEL_ID}/messages`,
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
       },
       body: JSON.stringify(payload),
-    });
+      }
+    );
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[discord case reminder] Webhook returned ${res.status}: ${errText}`);
-      return { ok: false, error: `Webhook returned HTTP ${res.status}` };
+      console.error(`[discord case reminder] Bot API returned ${res.status}: ${errText}`);
+      return { ok: false, error: `Discord API returned HTTP ${res.status}` };
     }
 
-    return { ok: true, sent: true, content };
+    return { ok: true, sent: true, content: `${mention} ${description} ${caseLink}`.trim() };
   } catch (err) {
     console.error("[discord case reminder] Unexpected failure", err);
     return { ok: false, error: String(err) };
