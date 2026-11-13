@@ -6,7 +6,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing", "review-inbox", "review-aopc", "approve-aopc", "reject-aopc", "tips", "tip-detail", "update-tip", "convert-tip", "send-reminder", "sweep-reminders", "sync-discord")]
+  [ValidateSet("setup", "save-token", "cases", "case-detail", "attorneys", "assign", "reconcile", "case-comments", "delete-case-comments", "submit-filing", "download-filing", "create-case", "update-case", "filed-in-court", "review-filing", "approve-filing", "reject-filing", "review-inbox", "review-aopc", "approve-aopc", "reject-aopc", "tips", "tip-detail", "update-tip", "convert-tip", "send-reminder", "sweep-reminders", "sync-discord")]
   [string]$Command = "cases",
 
   [ValidateSet("mine", "unassigned", "all")]
@@ -19,6 +19,7 @@ param(
   [string]$ExportPath,
   [string]$Title,
   [string]$PdfPath,
+  [string]$DownloadPath,
   [string]$CaseTitle,
   [string]$DefendantName,
   [string[]]$CoDefendants,
@@ -148,7 +149,7 @@ function Get-Sha256Hex([string]$value) {
   return [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
 }
 
-function Invoke-DaoApiOnce([string]$Method, [string]$Path, [string]$Body = "") {
+function Invoke-DaoApiOnce([string]$Method, [string]$Path, [string]$Body = "", [string]$OutFile = "") {
   $config = Get-LocalConfig
   $token = Get-LocalTokenText
   $certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$($config.thumbprint)" -ErrorAction SilentlyContinue
@@ -180,9 +181,13 @@ function Invoke-DaoApiOnce([string]$Method, [string]$Path, [string]$Body = "") {
     $request.ContentType = "application/json; charset=utf-8"
     $request.Body = $Body
   }
+  if ($OutFile) { $request.OutFile = $OutFile }
 
   try {
     $response = Invoke-WebRequest @request
+    if ($OutFile) {
+      return [pscustomobject]@{ StatusCode = [int]$response.StatusCode; ContentType = [string]$response.Headers["Content-Type"] }
+    }
     if (-not $response.Content) { return $null }
     return $response.Content | ConvertFrom-Json
   } catch {
@@ -199,11 +204,11 @@ function Invoke-DaoApiOnce([string]$Method, [string]$Path, [string]$Body = "") {
   }
 }
 
-function Invoke-DaoApi([string]$Method, [string]$Path, [string]$Body = "") {
+function Invoke-DaoApi([string]$Method, [string]$Path, [string]$Body = "", [string]$OutFile = "") {
   $maxAttempts = 4
   for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     try {
-      return Invoke-DaoApiOnce -Method $Method -Path $Path -Body $Body
+      return Invoke-DaoApiOnce -Method $Method -Path $Path -Body $Body -OutFile $OutFile
     } catch {
       $msg = $_.Exception.Message
       $isRetryable = ($msg -match "Retry shortly" -or $msg -match "429" -or $msg -match "503")
@@ -437,6 +442,44 @@ function Review-CaseFiling {
   }
 }
 
+function Download-CaseFilingPdf {
+  if (-not $CaseNumber -or -not $CaseNumber.Trim()) { throw "Provide -CaseNumber, for example HCR-26-0025." }
+  if (-not $FilingId -or -not $FilingId.Trim()) { throw "Provide -FilingId." }
+
+  $detail = Get-DaoCaseDetail -Number $CaseNumber.Trim()
+  $filing = @($detail.case.filings | Where-Object { $_.id -eq $FilingId.Trim() } | Select-Object -First 1)
+  if (-not $filing.Count) { throw "Filing $FilingId was not found on case $CaseNumber." }
+
+  $targetPath = $DownloadPath
+  if (-not $targetPath) {
+    $safeCase = $CaseNumber.Trim() -replace '[<>:"/\\|?*\x00-\x1F]', '_'
+    $safeTitle = ([string]$filing[0].title -replace '[<>:"/\\|?*\x00-\x1F]', '_').Trim().TrimEnd('.')
+    if (-not $safeTitle) { $safeTitle = "case-filing" }
+    $targetPath = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Downloads\$safeCase - $safeTitle.pdf"
+  }
+  $targetPath = [System.IO.Path]::GetFullPath($targetPath)
+  $directory = Split-Path -Parent $targetPath
+  if (Test-Path -LiteralPath $targetPath) { throw "The destination already exists: $targetPath. Choose another -DownloadPath to avoid overwriting it." }
+
+  [pscustomobject]@{ CaseNumber = $CaseNumber.Trim(); FilingId = $FilingId.Trim(); Title = $filing[0].title; Status = $filing[0].status; Destination = $targetPath } | Format-List
+  if (-not $PSCmdlet.ShouldProcess($targetPath, "Download case filing PDF without changing its portal status")) { return }
+  if (-not (Test-Path -LiteralPath $directory)) { New-Item -ItemType Directory -Path $directory -Force | Out-Null }
+
+  $temporaryPath = "$targetPath.$([guid]::NewGuid().ToString('N')).download"
+  try {
+    $safeCaseNumber = [uri]::EscapeDataString($CaseNumber.Trim())
+    $safeFilingId = [uri]::EscapeDataString($FilingId.Trim())
+    $result = Invoke-DaoApi -Method GET -Path "/api/automation/cases/$safeCaseNumber/filings/$safeFilingId/pdf" -OutFile $temporaryPath
+    if ($result.ContentType -notmatch '^application/pdf(?:\s*;|$)') { throw "The server did not return a PDF (content type: $($result.ContentType))." }
+    $bytes = [System.IO.File]::ReadAllBytes($temporaryPath)
+    if ($bytes.Length -lt 16 -or [System.Text.Encoding]::ASCII.GetString($bytes, 0, 5) -ne "%PDF-") { throw "The downloaded file is not a valid PDF." }
+    Move-Item -LiteralPath $temporaryPath -Destination $targetPath
+    Write-Host "PDF saved to $targetPath"
+  } finally {
+    if (Test-Path -LiteralPath $temporaryPath) { Remove-Item -LiteralPath $temporaryPath -Force }
+  }
+}
+
 function Get-DaoReviewInbox {
   $inbox = Invoke-DaoApi -Method GET -Path "/api/automation/review-inbox"
   Write-Host "=== DAO REVIEW INBOX ===" -ForegroundColor Cyan
@@ -620,6 +663,9 @@ switch ($Command) {
   }
   "review-filing" {
     Review-CaseFiling
+  }
+  "download-filing" {
+    Download-CaseFilingPdf
   }
   "approve-filing" {
     $script:Decision = "ACCEPTED"

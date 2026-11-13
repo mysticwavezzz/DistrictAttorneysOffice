@@ -115,6 +115,15 @@ pwsh -File .\scripts\dao-caseops.ps1 submit-filing -CaseNumber HCR-26-0025 -Titl
 
 The command requires the one-time local case-operations setup above, accepts PDFs up to 5 MB, checks the PDF header and end marker, and refuses archived or draft cases. It reports the case and Review Inbox links after submission and avoids creating a duplicate when the same title and PDF were already submitted by the same account.
 
+Download a filing PDF without changing its approval or court-filing status. The command verifies the case and filing IDs, checks the signed-in account's case access, validates the downloaded PDF, and refuses to overwrite an existing file. By default it saves to the current Windows user's Downloads folder; use `-DownloadPath` to choose another location.
+
+```powershell
+pwsh -File .\scripts\dao-caseops.ps1 download-filing -CaseNumber HCR-26-0025 -FilingId FILING_ID
+pwsh -File .\scripts\dao-caseops.ps1 download-filing -CaseNumber HCR-26-0025 -FilingId FILING_ID -DownloadPath "C:\path\to\filing.pdf"
+```
+
+This command requires the signed local case-operations setup above and the new signed PDF-download endpoint deployed to the portal. `review-filing` remains solely for approve/reject decisions and requires both `-CaseNumber` and `-FilingId`.
+
 Read the complete visible docket for a case, including filing status, case history, events, evidence links, and tasks:
 
 ```powershell
