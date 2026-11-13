@@ -8,6 +8,7 @@ import { canAccessCase, canAssignCase, localUser, requiresCriminalAssigneeGroup 
 import { getDivisionCaseAssignees } from "@/lib/case-assignees";
 import { notify } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
+import { sendDiscordCaseReminder } from "@/lib/discord/case-reminders";
 
 export async function assignFromWorkload(formData: FormData) {
   const session = await auth();
@@ -37,6 +38,10 @@ export async function assignFromWorkload(formData: FormData) {
     await tx.caseComment.create({ data: { caseId, isSystem: true, body: `Assignment changed from ${record.assignedAttorney?.displayName ?? "Unassigned"} to ${assignee?.displayName ?? "Unassigned"} by ${session.user.displayName}.` } });
   });
   if (assignee && assignee.id !== user.id) await notify({ userId: assignee.id, type: "case_assigned", title: `You were assigned to ${record.caseNumber}`, body: record.title, link: `/dashboard/cases/${record.id}` });
+  if (assignee && assignee.id !== record.assignedAttorneyId) {
+    const reminder = await sendDiscordCaseReminder("CASE_ASSIGNED", record.caseNumber);
+    if (!reminder.ok) console.error(`[workload case assignment ${record.id}] Assignment saved, but Discord reminder was not sent: ${reminder.error}`);
+  }
   await logActivity(session.user.displayName, assignee ? `Assigned case to ${assignee.displayName}` : "Unassigned case for reassignment", "Case", record.caseNumber);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/cases");

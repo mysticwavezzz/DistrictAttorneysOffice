@@ -16,6 +16,7 @@ import { runWithActionDebug } from "@/lib/action-debug";
 import { shouldRequireFilingApproval } from "@/lib/filing-approval";
 import { logActivity } from "@/lib/activity-log";
 import { automaticallyAssignCase } from "@/lib/automatic-case-assignment";
+import { sendDiscordCaseReminder } from "@/lib/discord/case-reminders";
 
 async function requireStaff() {
   const session = await auth();
@@ -230,6 +231,10 @@ async function createCaseImpl(formData: FormData) {
     } catch (error) {
       console.error(`[case creation ${created.id}] Case saved, but assignment notification failed.`, error);
     }
+  }
+  if (created.assignedAttorneyId) {
+    const reminder = await sendDiscordCaseReminder("CASE_ASSIGNED", created.caseNumber);
+    if (!reminder.ok) console.error(`[case creation ${created.id}] Assignment saved, but Discord reminder was not sent: ${reminder.error}`);
   }
 
   revalidatePath("/dashboard/cases");
@@ -472,6 +477,8 @@ async function updateCaseImpl(formData: FormData) {
           link: `/dashboard/cases/${id}`,
         });
       }
+      const reminder = await sendDiscordCaseReminder("CASE_ASSIGNED", caseNumber);
+      if (!reminder.ok) console.error(`[case assignment ${id}] Assignment saved, but Discord reminder was not sent: ${reminder.error}`);
     }
   }
   if (systemNotes.length > 0) {
@@ -537,6 +544,13 @@ async function bulkUpdateCasesImpl(formData: FormData) {
       } });
       await tx.caseComment.createMany({ data: cases.map((item) => ({ caseId: item.id, body: `Assignment changed from ${item.assignedAttorney?.displayName ?? "Unassigned"} to ${assignee?.displayName ?? "Unassigned"} by ${session.user.displayName}.`, isSystem: true })) });
     });
+    if (assigneeId) {
+      for (const item of cases) {
+        if (item.assignedAttorneyId === assigneeId) continue;
+        const reminder = await sendDiscordCaseReminder("CASE_ASSIGNED", item.caseNumber);
+        if (!reminder.ok) console.error(`[bulk case assignment ${item.id}] Assignment saved, but Discord reminder was not sent: ${reminder.error}`);
+      }
+    }
   } else if (operation === "archive") {
     await prisma.case.updateMany({ where: { id: { in: ids } }, data: { archived: true } });
   } else {

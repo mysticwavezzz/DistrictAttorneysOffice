@@ -107,15 +107,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ cas
     }
   }
 
-  if (assignee) {
-    try {
-      await sendDiscordCaseReminder("CASE_ASSIGNED", caseRecord.caseNumber);
-    } catch (error) {
-      console.error(`[case assignment reminder] Discord reminder failed`, error);
-    }
+  let reminderSent = false;
+  let reminderError: string | undefined;
+  if (assignee && assignee.id !== caseRecord.assignedAttorneyId) {
+    const reminder = await sendDiscordCaseReminder("CASE_ASSIGNED", caseRecord.caseNumber);
+    reminderSent = reminder.ok;
+    reminderError = reminder.error;
+    if (!reminder.ok) console.error(`[case assignment reminder] Discord reminder was not sent for ${caseRecord.caseNumber}: ${reminder.error}`);
   }
 
   revalidatePath("/dashboard/cases");
   revalidatePath(`/dashboard/cases/${caseRecord.id}`);
-  return NextResponse.json({ changed: true, case: { caseNumber, title: caseRecord.title, assignedAttorney: assignee } }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ changed: true, reminderSent, ...(reminderError ? { reminderError } : {}), case: { caseNumber, title: caseRecord.title, assignedAttorney: assignee } }, { headers: { "Cache-Control": "no-store" } });
 }
