@@ -186,7 +186,11 @@ function Invoke-DaoApiOnce([string]$Method, [string]$Path, [string]$Body = "", [
   try {
     $response = Invoke-WebRequest @request
     if ($OutFile) {
-      return [pscustomobject]@{ StatusCode = [int]$response.StatusCode; ContentType = [string]$response.Headers["Content-Type"] }
+      $contentType = ""
+      if ($response.Headers -and $response.Headers.Contains("Content-Type")) {
+        $contentType = [string]$response.Headers.Get("Content-Type")
+      }
+      return [pscustomobject]@{ StatusCode = [int]$response.StatusCode; ContentType = $contentType }
     }
     if (-not $response.Content) { return $null }
     return $response.Content | ConvertFrom-Json
@@ -447,13 +451,14 @@ function Download-CaseFilingPdf {
   if (-not $FilingId -or -not $FilingId.Trim()) { throw "Provide -FilingId." }
 
   $detail = Get-DaoCaseDetail -Number $CaseNumber.Trim()
-  $filing = @($detail.case.filings | Where-Object { $_.id -eq $FilingId.Trim() } | Select-Object -First 1)
-  if (-not $filing.Count) { throw "Filing $FilingId was not found on case $CaseNumber." }
+  if (-not $detail -or -not $detail.case) { throw "Case $CaseNumber was not returned by the portal." }
+  $filing = $detail.case.filings | Where-Object { $_.id -eq $FilingId.Trim() } | Select-Object -First 1
+  if ($null -eq $filing) { throw "Filing ID $FilingId was not found on case $CaseNumber. Use the filing ID from case-detail, not the case record ID." }
 
   $targetPath = $DownloadPath
   if (-not $targetPath) {
     $safeCase = $CaseNumber.Trim() -replace '[<>:"/\\|?*\x00-\x1F]', '_'
-    $safeTitle = ([string]$filing[0].title -replace '[<>:"/\\|?*\x00-\x1F]', '_').Trim().TrimEnd('.')
+    $safeTitle = ([string]$filing.title -replace '[<>:"/\\|?*\x00-\x1F]', '_').Trim().TrimEnd('.')
     if (-not $safeTitle) { $safeTitle = "case-filing" }
     $targetPath = Join-Path ([Environment]::GetFolderPath("UserProfile")) "Downloads\$safeCase - $safeTitle.pdf"
   }
@@ -461,7 +466,7 @@ function Download-CaseFilingPdf {
   $directory = Split-Path -Parent $targetPath
   if (Test-Path -LiteralPath $targetPath) { throw "The destination already exists: $targetPath. Choose another -DownloadPath to avoid overwriting it." }
 
-  [pscustomobject]@{ CaseNumber = $CaseNumber.Trim(); FilingId = $FilingId.Trim(); Title = $filing[0].title; Status = $filing[0].status; Destination = $targetPath } | Format-List
+  [pscustomobject]@{ CaseNumber = $CaseNumber.Trim(); FilingId = $FilingId.Trim(); Title = $filing.title; Status = $filing.status; Destination = $targetPath } | Format-List
   if (-not $PSCmdlet.ShouldProcess($targetPath, "Download case filing PDF without changing its portal status")) { return }
   if (-not (Test-Path -LiteralPath $directory)) { New-Item -ItemType Directory -Path $directory -Force | Out-Null }
 
