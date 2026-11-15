@@ -3,7 +3,8 @@ import daoMembersData from "@/config/dao-discord-members.json";
 
 const DAO_GUILD_ID = process.env.DISCORD_GUILD_ID || "1140770936442851429";
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
-const DISCORD_REMINDERS_CHANNEL_ID = "1566848629145206894";
+const DISCORD_REMINDERS_WEBHOOK_URL =
+  "https://discord.com/api/webhooks/1571662067222581400/2iWkIbq9dtiXxvmSmlxjmWACZvSZHnQgrL3CYtCW89rmnFr0TY_Qu7g1wayYSQ58dN13";
 
 export interface CompactDiscordMember {
   id: string;
@@ -270,10 +271,6 @@ export async function sendDiscordCaseReminder(
         break;
     }
 
-    if (!DISCORD_BOT_TOKEN) {
-      return { ok: false, error: "DISCORD_BOT_TOKEN is not configured." };
-    }
-
     const payload = {
       content: discordUserId ? mention : "",
       embeds: [{
@@ -294,21 +291,20 @@ export async function sendDiscordCaseReminder(
     };
 
     const res = await fetch(
-      `https://discord.com/api/v10/channels/${DISCORD_REMINDERS_CHANNEL_ID}/messages`,
+      `${DISCORD_REMINDERS_WEBHOOK_URL}?wait=true`,
       {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-      },
-      body: JSON.stringify(payload),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       }
     );
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[discord case reminder] Bot API returned ${res.status}: ${errText}`);
-      return { ok: false, error: `Discord API returned HTTP ${res.status}` };
+      console.error(`[discord case reminder] Webhook returned ${res.status}: ${errText}`);
+      return { ok: false, error: `Discord webhook returned HTTP ${res.status}` };
     }
 
     return { ok: true, sent: true, content: `${mention} ${description} ${caseLink}`.trim() };
