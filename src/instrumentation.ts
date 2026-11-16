@@ -31,11 +31,11 @@ export async function register() {
         });
         for (const c of openCases) {
           if (c.initialFilingDue && c.initialFilingDue < now && c.stage === "Intake") {
-            await sendDiscordCaseReminder({ caseId: c.id, type: "FILING_OVERDUE" });
+            await sendDiscordCaseReminder("FILING_OVERDUE", c.id);
           } else if (c.discDue && c.discDue < now) {
-            await sendDiscordCaseReminder({ caseId: c.id, type: "DISCOVERY_OVERDUE" });
+            await sendDiscordCaseReminder("DISCOVERY_OVERDUE", c.id);
           } else if (c.updatedAt < fiveDaysAgo) {
-            await sendDiscordCaseReminder({ caseId: c.id, type: "INACTIVITY_ALERT" });
+            await sendDiscordCaseReminder("INACTIVITY_ALERT", c.id);
           }
         }
       } catch (error) {
