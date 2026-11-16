@@ -13,8 +13,15 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  serverExternalPackages: ["discord.js", "@discordjs/ws", "zlib-sync", "bufferutil", "utf-8-validate"],
-  serverExternalPackages: ["web-push", "pdfjs-dist"],
+  serverExternalPackages: [
+    "web-push",
+    "pdfjs-dist",
+    "discord.js",
+    "@discordjs/ws",
+    "zlib-sync",
+    "bufferutil",
+    "utf-8-validate",
+  ],
   experimental: {
     serverActions: { bodySizeLimit: "7mb" },
   },
