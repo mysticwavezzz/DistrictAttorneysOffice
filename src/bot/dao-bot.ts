@@ -16,11 +16,6 @@ const TOKEN = process.env.DISCORD_BOT_TOKEN ?? "";
 const GUILD_ID = process.env.DISCORD_GUILD_ID ?? "";
 const REMINDERS_CHANNEL_ID = process.env.DISCORD_REMINDERS_CHANNEL_ID ?? "";
 
-if (!TOKEN || !REMINDERS_CHANNEL_ID) {
-  console.error("Missing DISCORD_BOT_TOKEN or DISCORD_REMINDERS_CHANNEL_ID.");
-  process.exit(1);
-}
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -210,4 +205,18 @@ client.once("ready", async () => {
   }, 6 * 60 * 60 * 1000);
 });
 
-void client.login(TOKEN);
+const globalForBot = globalThis as typeof globalThis & { __daoBotStarted?: boolean };
+
+export async function startDaoBot() {
+  if (globalForBot.__daoBotStarted) return;
+  if (!TOKEN || !REMINDERS_CHANNEL_ID) {
+    console.warn("DAO Bot skipped: missing DISCORD_BOT_TOKEN or DISCORD_REMINDERS_CHANNEL_ID.");
+    return;
+  }
+  globalForBot.__daoBotStarted = true;
+  await client.login(TOKEN);
+}
+
+if (require.main === module) {
+  void startDaoBot();
+}

@@ -44,5 +44,10 @@ export async function register() {
     };
     setTimeout(() => { void runAutoReminders(); }, 90_000);
     setInterval(() => { void runAutoReminders(); }, SYNC_INTERVAL_MS);
+
+    // Start the Discord bot in-process without ever blocking or crashing the web server.
+    void import("@/bot/dao-bot")
+      .then(({ startDaoBot }) => startDaoBot())
+      .catch((error) => console.error("DAO Bot startup failed", error));
   }
 }
