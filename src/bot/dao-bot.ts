@@ -15,6 +15,7 @@ import { prisma } from "../lib/prisma";
 const TOKEN = process.env.DISCORD_BOT_TOKEN ?? "";
 const GUILD_ID = process.env.DISCORD_GUILD_ID ?? "";
 const REMINDERS_CHANNEL_ID = process.env.DISCORD_REMINDERS_CHANNEL_ID ?? "";
+const SITE_URL = (process.env.NEXTAUTH_URL || process.env.SITE_URL || "https://da-office-website-production.up.railway.app").replace(/\/$/, "");
 
 const client = new Client({
   intents: [
@@ -61,18 +62,30 @@ async function getOrCreateAttorneyThread(
 
 async function postReminderToThread(
   attorneyName: string,
+  caseId: string,
   caseNumber: string,
-  title: string,
-  reason: string
+  caseTitle: string,
+  reminderTitle: string,
+  reason: string,
+  color: number,
+  courtDocketUrl?: string | null
 ) {
   const ch = await client.channels.fetch(REMINDERS_CHANNEL_ID);
   if (!ch || !(ch instanceof TextChannel)) return;
 
+  const caseUrl = `${SITE_URL}/portal/cases/${caseId}`;
   const thread = await getOrCreateAttorneyThread(ch, attorneyName);
   const embed = new EmbedBuilder()
-    .setTitle(`${caseNumber} - ${title}`)
+    .setTitle(`${reminderTitle}: ${caseNumber}`)
+    .setURL(caseUrl)
     .setDescription(reason)
-    .setColor(0xf59e0b)
+    .addFields(
+      { name: "Case", value: `[${caseNumber} - ${caseTitle}](${caseUrl})`, inline: true },
+      { name: "Assigned attorney", value: attorneyName, inline: true },
+      ...(courtDocketUrl ? [{ name: "Court Docket", value: courtDocketUrl, inline: false }] : [])
+    )
+    .setColor(color)
+    .setFooter({ text: "Harrison County District Attorney's Office" })
     .setTimestamp();
 
   const msg = await thread.send({ embeds: [embed] });
@@ -92,13 +105,40 @@ async function sweepDueReminders(): Promise<number> {
   for (const c of openCases) {
     const atty = c.assignedAttorney?.displayName || "Unassigned";
     if (c.initialFilingDue && c.initialFilingDue < now && c.stage === "Intake") {
-      await postReminderToThread(atty, c.caseNumber, c.title, "Initial filing is **overdue**.");
+      await postReminderToThread(
+        atty,
+        c.id,
+        c.caseNumber,
+        c.title,
+        "Initial filing overdue",
+        "Your initial filing is past the 24-hour window. Get the paperwork submitted to the clerk and mark it filed in the portal.",
+        0xc53030,
+        c.courtDocketUrl
+      );
       sent++;
     } else if (c.discDue && c.discDue < now) {
-      await postReminderToThread(atty, c.caseNumber, c.title, "Discovery deadline is **overdue**.");
+      await postReminderToThread(
+        atty,
+        c.id,
+        c.caseNumber,
+        c.title,
+        "Discovery overdue",
+        "Discovery is now overdue. Serve defense counsel and log service in the portal.",
+        0xc53030,
+        c.courtDocketUrl
+      );
       sent++;
     } else if (c.updatedAt < fiveDaysAgo) {
-      await postReminderToThread(atty, c.caseNumber, c.title, "No docket activity for **5+ days**.");
+      await postReminderToThread(
+        atty,
+        c.id,
+        c.caseNumber,
+        c.title,
+        "Case needs attention",
+        "No docket activity for 5+ days. Check the case status and update the portal.",
+        0xd69e2e,
+        c.courtDocketUrl
+      );
       sent++;
     }
   }
@@ -179,6 +219,27 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.deferReply({ ephemeral: true });
     const count = await sweepDueReminders();
     await interaction.editReply(`Sent ${count} reminder(s).`);
+  } else if (interaction.commandName === "clear-reminders") {
+    await interaction.deferReply({ ephemeral: true });
+    const ch = await client.channels.fetch(REMINDERS_CHANNEL_ID);
+    if (!ch || !(ch instanceof TextChannel)) {
+      await interaction.editReply("Reminders channel not found.");
+      return;
+    }
+    let deleted = 0;
+    while (true) {
+      const batch = await ch.messages.fetch({ limit: 100 });
+      if (batch.size === 0) break;
+      const bulk = await ch.bulkDelete(batch, true).catch(() => null);
+      deleted += bulk?.size ?? 0;
+      const remaining = batch.filter((m) => !bulk?.has(m.id));
+      for (const msg of remaining.values()) {
+        await msg.delete().catch(() => null);
+        deleted++;
+      }
+      if (batch.size < 100) break;
+    }
+    await interaction.editReply(`Cleared ${deleted} message(s) from #reminders.`);
   }
 });
 
@@ -191,6 +252,7 @@ client.once("ready", async () => {
       .addStringOption((o) => o.setName("number").setDescription("Case number (e.g. DA-2026-0040)").setRequired(true)),
     new SlashCommandBuilder().setName("reconcile").setDescription("List court-stage cases missing courtFiledAt"),
     new SlashCommandBuilder().setName("reminders").setDescription("Sweep due reminders into per-attorney threads"),
+    new SlashCommandBuilder().setName("clear-reminders").setDescription("Clear all messages in #reminders for a fresh start"),
   ].map((c) => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
