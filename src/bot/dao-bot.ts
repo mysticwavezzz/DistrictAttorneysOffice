@@ -37,13 +37,13 @@ async function getOrCreateAttorneyThread(
   let anchor = recent.find(
     (m) =>
       m.author.id === client.user?.id &&
-      m.embeds.some((e) => e.title === `📋 ${attorneyName} — Case Reminders`)
+      m.embeds.some((e) => e.title === `${attorneyName} - Case Reminders`)
   );
 
   if (!anchor) {
     const embed = new EmbedBuilder()
-      .setTitle(`📋 ${attorneyName} — Case Reminders`)
-      .setDescription("Active case reminders are posted in the thread below.\nReact **🟡** while working on it, or **✅** to clear (auto-deletes after 5 min).")
+      .setTitle(`${attorneyName} - Case Reminders`)
+      .setDescription("Case reminders are in the thread below.\nReact 🟡 if you're working on it, or ✅ when it's done (auto-deletes after 5m).")
       .setColor(0x3b82f6);
     anchor = await channel.send({ embeds: [embed] });
   }
@@ -54,7 +54,7 @@ async function getOrCreateAttorneyThread(
   }
 
   return anchor.startThread({
-    name: `Reminders — ${attorneyName}`.slice(0, 100),
+    name: `${attorneyName} Reminders`.slice(0, 100),
     autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
   });
 }
@@ -70,7 +70,7 @@ async function postReminderToThread(
 
   const thread = await getOrCreateAttorneyThread(ch, attorneyName);
   const embed = new EmbedBuilder()
-    .setTitle(`⏰ ${caseNumber} — ${title}`)
+    .setTitle(`${caseNumber} - ${title}`)
     .setDescription(reason)
     .setColor(0xf59e0b)
     .setTimestamp();
@@ -172,13 +172,13 @@ client.on("interactionCreate", async (interaction) => {
       take: 15,
     });
     const text = flagged.length
-      ? flagged.map((c) => `• **${c.caseNumber}** (${c.stage}) — ${c.title}`).join("\n")
+      ? flagged.map((c) => `- **${c.caseNumber}** (${c.stage}) - ${c.title}`).join("\n")
       : "All court-stage cases have `courtFiledAt` recorded.";
     await interaction.reply({ content: text, ephemeral: true });
   } else if (interaction.commandName === "reminders") {
     await interaction.deferReply({ ephemeral: true });
     const count = await sweepDueReminders();
-    await interaction.editReply(`Dispatched **${count}** reminder(s) to per-attorney threads.`);
+    await interaction.editReply(`Sent ${count} reminder(s).`);
   }
 });
 
