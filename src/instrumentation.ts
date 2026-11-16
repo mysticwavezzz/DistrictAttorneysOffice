@@ -17,5 +17,32 @@ export async function register() {
     const runSync = () => runAutomaticRobloxRosterSync().catch((error) => console.error("Automatic Roblox roster sync failed", error));
     setTimeout(() => { void runSync(); }, 60_000);
     setInterval(() => { void runSync(); }, SYNC_INTERVAL_MS);
+
+    // Automatically sweep due/overdue/inactive case reminders to Discord #reminders every 6 hours.
+    const runAutoReminders = async () => {
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        const { sendDiscordCaseReminder } = await import("@/lib/discord/case-reminders");
+        const now = new Date();
+        const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+        const openCases = await prisma.case.findMany({
+          where: { archived: false, isDraft: false, NOT: { stage: { startsWith: "Closed" } } },
+          select: { id: true, stage: true, initialFilingDue: true, discDue: true, updatedAt: true },
+        });
+        for (const c of openCases) {
+          if (c.initialFilingDue && c.initialFilingDue < now && c.stage === "Intake") {
+            await sendDiscordCaseReminder({ caseId: c.id, type: "FILING_OVERDUE" });
+          } else if (c.discDue && c.discDue < now) {
+            await sendDiscordCaseReminder({ caseId: c.id, type: "DISCOVERY_OVERDUE" });
+          } else if (c.updatedAt < fiveDaysAgo) {
+            await sendDiscordCaseReminder({ caseId: c.id, type: "INACTIVITY_ALERT" });
+          }
+        }
+      } catch (error) {
+        console.error("Automatic case reminder sweep failed", error);
+      }
+    };
+    setTimeout(() => { void runAutoReminders(); }, 90_000);
+    setInterval(() => { void runAutoReminders(); }, SYNC_INTERVAL_MS);
   }
 }
