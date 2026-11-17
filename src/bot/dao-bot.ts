@@ -28,7 +28,9 @@ const client = new Client({
 
 // Track 5-minute auto-delete timers for ✅-reacted reminder messages
 const deleteTimers = new Map<string, NodeJS.Timeout>();
+const pingTimers = new Map<string, NodeJS.Timeout>();
 const CLEAR_DELAY_MS = 5 * 60 * 1000;
+const NO_REACTION_PING_MS = Number(process.env.REMINDER_PING_DELAY_MS || 12 * 60 * 60 * 1000);
 
 async function getOrCreateAttorneyThread(
   channel: TextChannel,
@@ -62,6 +64,7 @@ async function getOrCreateAttorneyThread(
 
 async function postReminderToThread(
   attorneyName: string,
+  attorneyDiscordId: string | null | undefined,
   caseId: string,
   caseNumber: string,
   caseTitle: string,
@@ -91,6 +94,26 @@ async function postReminderToThread(
   const msg = await thread.send({ embeds: [embed] });
   await msg.react("🟡");
   await msg.react("✅");
+
+  if (attorneyDiscordId) {
+    const timer = setTimeout(async () => {
+      pingTimers.delete(msg.id);
+      try {
+        const fresh = await msg.fetch();
+        const yellow = fresh.reactions.cache.get("🟡")?.count ?? 0;
+        const green = fresh.reactions.cache.get("✅")?.count ?? 0;
+        if (yellow <= 1 && green <= 1) {
+          await thread.send({
+            content: `<@${attorneyDiscordId}> reminder on **${caseNumber}** still needs a reaction (🟡 working / ✅ done).`,
+            allowedMentions: { users: [attorneyDiscordId] },
+          });
+        }
+      } catch {
+        // Message or thread deleted
+      }
+    }, NO_REACTION_PING_MS);
+    pingTimers.set(msg.id, timer);
+  }
 }
 
 async function sweepDueReminders(): Promise<number> {
@@ -98,15 +121,17 @@ async function sweepDueReminders(): Promise<number> {
   const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
   const openCases = await prisma.case.findMany({
     where: { archived: false, isDraft: false, NOT: { stage: { startsWith: "Closed" } } },
-    include: { assignedAttorney: { select: { displayName: true } } },
+    include: { assignedAttorney: { select: { displayName: true, discordUserId: true } } },
   });
 
   let sent = 0;
   for (const c of openCases) {
     const atty = c.assignedAttorney?.displayName || "Unassigned";
+    const attyDiscordId = c.assignedAttorney?.discordUserId;
     if (c.initialFilingDue && c.initialFilingDue < now && c.stage === "Intake") {
       await postReminderToThread(
         atty,
+        attyDiscordId,
         c.id,
         c.caseNumber,
         c.title,
@@ -119,6 +144,7 @@ async function sweepDueReminders(): Promise<number> {
     } else if (c.discDue && c.discDue < now) {
       await postReminderToThread(
         atty,
+        attyDiscordId,
         c.id,
         c.caseNumber,
         c.title,
@@ -131,6 +157,7 @@ async function sweepDueReminders(): Promise<number> {
     } else if (c.updatedAt < fiveDaysAgo) {
       await postReminderToThread(
         atty,
+        attyDiscordId,
         c.id,
         c.caseNumber,
         c.title,
@@ -148,8 +175,17 @@ async function sweepDueReminders(): Promise<number> {
 client.on("messageReactionAdd", async (reaction, user) => {
   if (user.bot) return;
   if (reaction.partial) await reaction.fetch().catch(() => null);
-  if (reaction.emoji.name !== "✅") return;
   if (reaction.message.author?.id !== client.user?.id) return;
+
+  if (reaction.emoji.name === "🟡" || reaction.emoji.name === "✅") {
+    const pingTimer = pingTimers.get(reaction.message.id);
+    if (pingTimer) {
+      clearTimeout(pingTimer);
+      pingTimers.delete(reaction.message.id);
+    }
+  }
+
+  if (reaction.emoji.name !== "✅") return;
 
   const msgId = reaction.message.id;
   if (deleteTimers.has(msgId)) return;
