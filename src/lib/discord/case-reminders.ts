@@ -187,6 +187,15 @@ export type ReminderType =
   | "INACTIVITY_ALERT";
 
 export async function sendDiscordCaseReminder(
+  _type: ReminderType,
+  _caseIdOrNumber: string,
+  _options?: { note?: string; customHours?: number }
+): Promise<{ ok: boolean; sent?: boolean; error?: string; content?: string }> {
+  // Legacy webhook reminders disabled; dao-bot.ts handles per-attorney thread reminders.
+  return { ok: true, sent: false };
+}
+
+async function _legacySendDiscordCaseReminder(
   type: ReminderType,
   caseIdOrNumber: string,
   options?: { note?: string; customHours?: number }
