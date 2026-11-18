@@ -29,6 +29,7 @@ const client = new Client({
 // Track 5-minute auto-delete timers for ✅-reacted reminder messages
 const deleteTimers = new Map<string, NodeJS.Timeout>();
 const pingTimers = new Map<string, NodeJS.Timeout>();
+const acknowledgedReminders = new Set<string>();
 const CLEAR_DELAY_MS = 5 * 60 * 1000;
 const NO_REACTION_PING_MS = Number(process.env.REMINDER_PING_DELAY_MS || 12 * 60 * 60 * 1000);
 
@@ -79,6 +80,9 @@ async function postReminderToThread(
   const caseUrl = `${SITE_URL}/portal/cases/${caseId}`;
   const thread = await getOrCreateAttorneyThread(ch, attorneyName);
   const embedTitle = `${reminderTitle}: ${caseNumber}`;
+  if (acknowledgedReminders.has(embedTitle)) {
+    return;
+  }
 
   const existing = await thread.messages.fetch({ limit: 50 });
   if (existing.some((m) => m.embeds.some((e) => e.title === embedTitle))) {
@@ -193,6 +197,9 @@ client.on("messageReactionAdd", async (reaction, user) => {
   }
 
   if (reaction.emoji.name !== "✅") return;
+
+  const ackTitle = reaction.message.embeds[0]?.title;
+  if (ackTitle) acknowledgedReminders.add(ackTitle);
 
   const msgId = reaction.message.id;
   if (deleteTimers.has(msgId)) return;
