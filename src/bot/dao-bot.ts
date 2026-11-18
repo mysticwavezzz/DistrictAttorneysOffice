@@ -78,8 +78,15 @@ async function postReminderToThread(
 
   const caseUrl = `${SITE_URL}/portal/cases/${caseId}`;
   const thread = await getOrCreateAttorneyThread(ch, attorneyName);
+  const embedTitle = `${reminderTitle}: ${caseNumber}`;
+
+  const existing = await thread.messages.fetch({ limit: 50 });
+  if (existing.some((m) => m.embeds.some((e) => e.title === embedTitle))) {
+    return;
+  }
+
   const embed = new EmbedBuilder()
-    .setTitle(`${reminderTitle}: ${caseNumber}`)
+    .setTitle(embedTitle)
     .setURL(caseUrl)
     .setDescription(reason)
     .addFields(
